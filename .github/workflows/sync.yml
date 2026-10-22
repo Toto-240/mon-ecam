@@ -1,0 +1,53 @@
+name: Synchro ECAM
+
+on:
+  schedule:
+    - cron: "17 */2 * * *"   # toutes les 2 heures
+  workflow_dispatch:          # bouton "Run workflow" pour forcer une synchro
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    env:
+      TZ: Europe/Paris
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Récupérer Moodle + intranet
+        env:
+          ECAM_USER: ${{ secrets.ECAM_USER }}
+          ECAM_PASSWORD: ${{ secrets.ECAM_PASSWORD }}
+        run: python ecam_scraper.py
+
+      - name: Chiffrer les données et préparer le site
+        env:
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+        run: python build_site.py
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4

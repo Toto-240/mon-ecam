@@ -1,0 +1,23 @@
+MON ECAM - version hébergée sur GitHub (gratuite, toujours en ligne)
+
+Comment ça marche
+  Toutes les 2 heures, GitHub lance ecam_scraper.py sur ses machines,
+  chiffre les données avec ton mot de passe d'appli, puis publie l'appli
+  sur GitHub Pages. Ton PC n'a pas besoin d'être allumé.
+
+Les 3 secrets à créer (Settings > Secrets and variables > Actions)
+  ECAM_USER       ton identifiant ECAM
+  ECAM_PASSWORD   ton mot de passe ECAM
+  APP_PASSWORD    un mot de passe NOUVEAU, inventé pour l'appli
+                  (c'est lui que tu taperas sur ton téléphone)
+
+Activer la publication
+  Settings > Pages > Source : "GitHub Actions"
+
+Forcer une synchro
+  Onglet Actions > Synchro ECAM > Run workflow
+  (ou le lien "Forcer une synchro" en haut de l'appli)
+
+Tester en local (facultatif)
+  pip install -r requirements.txt
+  python ecam_scraper.py            (avec un fichier .env, voir .env.example)
