@@ -1,0 +1,60 @@
+name: Appli iPhone (IPA)
+
+# Fabrique MonECAM.ipa (non signée) sur un Mac de GitHub.
+# Tu l'installes ensuite depuis ton PC avec Sideloadly, qui la signe avec ton compte Apple.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["ios-app/**", ".github/workflows/build-ios.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  ipa:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Créer le projet iOS
+        working-directory: ios-app
+        run: |
+          npm install
+          npx cap add ios
+          npx cap sync ios
+
+      - name: Mettre l'icône
+        working-directory: ios-app
+        run: |
+          SET=ios/App/App/Assets.xcassets/AppIcon.appiconset
+          for f in "$SET"/*.png; do cp icon-1024.png "$f"; done
+
+      - name: Compiler (sans signature)
+        working-directory: ios-app/ios/App
+        run: |
+          if [ -d App.xcworkspace ]; then TARGET="-workspace App.xcworkspace"; else TARGET="-project App.xcodeproj"; fi
+          xcodebuild $TARGET -scheme App -configuration Release -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build | tail -n 30
+
+      - name: Emballer en .ipa
+        working-directory: ios-app/ios/App
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qr "$GITHUB_WORKSPACE/MonECAM.ipa" Payload
+          ls -lh "$GITHUB_WORKSPACE/MonECAM.ipa"
+
+      - name: Publier dans « Releases »
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete ipa -y --cleanup-tag || true
+          gh release create ipa MonECAM.ipa --title "Appli iPhone" \
+            --notes "Télécharge MonECAM.ipa puis installe-la avec Sideloadly depuis ton PC."

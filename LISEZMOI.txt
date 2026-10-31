@@ -21,3 +21,19 @@ Forcer une synchro
 Tester en local (facultatif)
   pip install -r requirements.txt
   python ecam_scraper.py            (avec un fichier .env, voir .env.example)
+
+APPLI IPHONE (.ipa)
+  GitHub la fabrique tout seul (onglet Actions > "Appli iPhone (IPA)").
+  Le fichier MonECAM.ipa apparaît dans la section "Releases" du dépôt.
+
+  Installation depuis le PC Windows :
+  1. Installe iTunes et iCloud (versions du site d'Apple, pas du Microsoft Store)
+  2. Installe Sideloadly (sideloadly.io)
+  3. Branche l'iPhone en USB, glisse MonECAM.ipa dans Sideloadly,
+     entre ton identifiant Apple, clique Start
+  4. Sur l'iPhone : Réglages > Général > VPN et gestion de l'appareil > Faire confiance
+     (et si demandé : Réglages > Confidentialité et sécurité > Mode développeur)
+
+  Avec un compte Apple gratuit, l'appli expire au bout de 7 jours :
+  relance simplement Sideloadly. L'appli affiche toujours la dernière
+  version du site, donc pas besoin de la réinstaller quand on la modifie.

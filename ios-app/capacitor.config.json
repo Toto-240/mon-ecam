@@ -1,0 +1,13 @@
+{
+  "appId": "fr.toto240.monecam",
+  "appName": "Mon ECAM",
+  "webDir": "www",
+  "server": {
+    "url": "https://toto-240.github.io/mon-ecam/",
+    "cleartext": false
+  },
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#F1F2F7"
+  }
+}

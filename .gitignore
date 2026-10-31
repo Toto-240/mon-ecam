@@ -3,3 +3,5 @@ data/
 site/
 dump/
 __pycache__/
+ios-app/node_modules/
+ios-app/ios/
