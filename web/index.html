@@ -65,7 +65,7 @@
       <div class="rec-head"><span class="rec-dot on"></span> Enregistrement en cours</div>
       <div id="rec-time" class="rec-time">0:00</div>
       <div id="rec-what" class="rec-what"></div>
-      <p class="muted small">Garde l'appli ouverte et l'écran allumé (tu peux baisser la luminosité). À la fin du cours, appuie sur Terminer.</p>
+      <p id="rec-hint" class="muted small"></p>
       <div class="row">
         <button id="rec-stop" type="button" class="btn primary">Terminer et créer la fiche</button>
         <button id="rec-cancel" type="button" class="btn">Annuler</button>
@@ -82,7 +82,7 @@
         <label class="btn" for="f-audio">Importer un enregistrement</label>
         <input id="f-audio" type="file" accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.webm" hidden>
       </div>
-      <p class="muted small">Pour un cours entier, le plus fiable est l'app <b>Dictaphone</b> de l'iPhone : elle continue même écran verrouillé. À la fin, ouvre l'enregistrement, touche <b>…</b> puis <b>Enregistrer dans Fichiers</b>, et importe-le ici.</p>
+      <p id="form-hint" class="muted small">Pour un cours entier, le plus fiable est l'app <b>Dictaphone</b> de l'iPhone : elle continue même écran verrouillé. À la fin, ouvre l'enregistrement, touche <b>…</b> puis <b>Enregistrer dans Fichiers</b>, et importe-le ici.</p>
     </form>
 
     <div id="upload" class="card" hidden>

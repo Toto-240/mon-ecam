@@ -211,11 +211,57 @@ document.addEventListener("visibilitychange", () => {
   if (rec && document.visibilityState === "visible") wakeLock();
 });
 
+/* Enregistreur natif de l'appli iPhone : continue écran verrouillé.
+   Absent dans Safari ou dans une ancienne version de l'appli : on utilise alors le micro de la page. */
+const REC_META = "ecam-rec-meta";
+const Dicta = (() => {
+  try { return window.Capacitor?.isNativePlatform?.() ? window.Capacitor.registerPlugin("Dicta") : null; }
+  catch { return null; }
+})();
+const notImplemented = (e) => /not implemented|unimplemented|not available/i.test(String(e?.message || e));
+
+function fmtDuration(s) {
+  const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60;
+  return `${h ? h + ":" : ""}${String(m).padStart(h ? 2 : 1, "0")}:${String(s % 60).padStart(2, "0")}`;
+}
+
+function showLive(r) {
+  rec = r;
+  $("#rec-live").hidden = false; $("#new-form").hidden = true; $("#rec-dot").hidden = false;
+  $("#rec-what").textContent = r.matiere;
+  $("#rec-hint").textContent = r.native
+    ? "Tu peux verrouiller l'iPhone : l'enregistrement continue. À la fin du cours, rouvre l'appli et appuie sur Terminer."
+    : "Garde l'appli ouverte et l'écran allumé (tu peux baisser la luminosité). À la fin du cours, appuie sur Terminer.";
+  const tick = () => { $("#rec-time").textContent = fmtDuration(Math.max(0, Math.floor((Date.now() - r.t0) / 1000))); };
+  tick();
+  r.timer = setInterval(tick, 500);
+}
+
+function hideLive() {
+  if (rec?.timer) clearInterval(rec.timer);
+  rec = null;
+  $("#rec-live").hidden = true; $("#new-form").hidden = false; $("#rec-dot").hidden = true;
+  $("#rec-time").textContent = "0:00";
+}
+
 window.startRecording = async function (matiere) {
   if (rec) return;
   fillForm(matiere);
   matiere = matiere || $("#f-matiere").value;
   if (!matiere) { alertForm("Choisis d'abord la matière."); return; }
+  const base = { t0: Date.now(), matiere, date: $("#f-date").value || todayIso(), id: newId() };
+
+  if (Dicta) {
+    try {
+      await Dicta.start();
+      store.set(REC_META, JSON.stringify(base));
+      showLive({ ...base, native: true });
+      return;
+    } catch (e) {
+      if (!notImplemented(e)) { alertForm(`${e.message || e}. Autorise le micro pour Mon ECAM dans les Réglages de l'iPhone.`); return; }
+    }
+  }
+
   if (!window.MediaRecorder || !navigator.mediaDevices?.getUserMedia) {
     alertForm("L'enregistrement n'est pas possible ici. Utilise le Dictaphone puis « Importer un enregistrement ».");
     return;
@@ -228,49 +274,72 @@ window.startRecording = async function (matiere) {
     return;
   }
   const mr = new MediaRecorder(stream, { ...(MIME && { mimeType: MIME }), audioBitsPerSecond: 32000 });
-  rec = { mr, stream, chunks: [], t0: Date.now(), matiere, date: $("#f-date").value || todayIso(), id: newId() };
+  const r = { ...base, mr, stream, chunks: [] };
   mr.ondataavailable = (e) => {
     if (!e.data.size) return;
-    rec.chunks.push(e.data);
-    idb.put("current", { meta: { id: rec.id, matiere: rec.matiere, date: rec.date, mime: mr.mimeType }, chunks: rec.chunks });
+    r.chunks.push(e.data);
+    idb.put("current", { meta: { id: r.id, matiere: r.matiere, date: r.date, mime: mr.mimeType }, chunks: r.chunks });
   };
   mr.start(30000); // sauvegarde toutes les 30 s, en cas de fermeture
+  showLive(r);
   await wakeLock();
-  $("#rec-live").hidden = false; $("#new-form").hidden = true; $("#rec-dot").hidden = false;
-  $("#rec-what").textContent = matiere;
-  rec.timer = setInterval(() => {
-    const s = Math.floor((Date.now() - rec.t0) / 1000);
-    $("#rec-time").textContent = `${Math.floor(s / 3600) ? Math.floor(s / 3600) + ":" : ""}${String(Math.floor(s / 60) % 60).padStart(Math.floor(s / 3600) ? 2 : 1, "0")}:${String(s % 60).padStart(2, "0")}`;
-  }, 500);
 };
 
-function stopRecording() {
+async function stopRecording() {
+  if (!rec) return null;
+  const r = rec;
+  if (r.native) {
+    try { r.size = (await Dicta.stop()).size; } catch { r.size = 0; }
+    hideLive();
+    return r;
+  }
   return new Promise((ok) => {
-    if (!rec) return ok(null);
-    const r = rec;
     r.mr.onstop = () => {
-      clearInterval(r.timer);
       r.stream.getTracks().forEach((t) => t.stop());
       r.lock?.release?.().catch(() => {});
-      rec = null;
-      $("#rec-live").hidden = true; $("#new-form").hidden = false; $("#rec-dot").hidden = true;
-      $("#rec-time").textContent = "0:00";
+      hideLive();
       ok(r);
     };
     r.mr.stop();
   });
 }
 
+/* Récupère le fichier natif par morceaux de 1 Mo. */
+async function readNative() {
+  const parts = [];
+  for (let offset = 0; ; ) {
+    const { data, eof } = await Dicta.read({ offset, length: 1_000_000 });
+    const bytes = unb64(data);
+    parts.push(bytes);
+    offset += bytes.length;
+    if (eof || !bytes.length) break;
+  }
+  return await new Blob(parts).arrayBuffer();
+}
+
+async function sendNative(meta) {
+  alertForm("Récupération de l'enregistrement…");
+  const audio = await readNative();
+  if (!audio.byteLength) throw new Error("enregistrement vide");
+  await send({ id: meta.id, kind: "cours", matiere: meta.matiere, date: meta.date, type: "audio/mp4",
+    duree_s: Math.round((Date.now() - meta.t0) / 1000) }, audio);
+  await Dicta.discard();
+  store.del(REC_META);
+}
+
 $("#rec-start").onclick = () => window.startRecording($("#f-matiere").value);
 $("#rec-cancel").onclick = async () => {
   if (!confirmSafe("Supprimer cet enregistrement ?")) return;
-  await stopRecording(); await idb.del("current");
+  const r = await stopRecording();
+  if (r?.native) { await Dicta.discard().catch(() => {}); store.del(REC_META); }
+  else await idb.del("current");
 };
 $("#rec-stop").onclick = async () => {
   const r = await stopRecording();
   if (!r) return;
-  const blob = new Blob(r.chunks, { type: r.mr.mimeType || MIME });
   try {
+    if (r.native) return await sendNative(r);
+    const blob = new Blob(r.chunks, { type: r.mr.mimeType || MIME });
     await send({ id: r.id, kind: "cours", matiere: r.matiere, date: r.date, type: blob.type,
       duree_s: Math.round((Date.now() - r.t0) / 1000) }, await blob.arrayBuffer());
     await idb.del("current");
@@ -289,6 +358,22 @@ function confirmSafe(text) {
 }
 
 async function offerRecovery() {
+  if (Dicta && !rec) {
+    let meta = null;
+    try { meta = JSON.parse(store.get(REC_META)); } catch {}
+    const st = await Dicta.status().catch(() => null);
+    if (st?.recording && meta) { showLive({ ...meta, native: true }); return; }  // l'appli a été rechargée pendant le cours
+    if (st && !st.recording && st.size > 0 && meta) {
+      $("#upload").hidden = false;
+      $("#upload-bar").value = 0;
+      $("#upload-msg").innerHTML = `Un enregistrement de <b>${esc(meta.matiere)}</b> n'a pas été envoyé.
+        <div class="row"><button type="button" class="btn primary small" id="rec-resend">Envoyer</button>
+        <button type="button" class="btn small" id="rec-drop">Supprimer</button></div>`;
+      $("#rec-resend").onclick = () => sendNative(meta).catch(() => {});
+      $("#rec-drop").onclick = async () => { await Dicta.discard(); store.del(REC_META); $("#upload").hidden = true; };
+      return;
+    }
+  }
   const saved = await idb.get("current");
   if (!saved?.chunks?.length || rec) return;
   const box = $("#upload");
@@ -475,3 +560,7 @@ window.renderRevisions = function () {
 checkToken();
 offerRecovery();
 watchPending();
+
+if (Dicta) {
+  $("#form-hint").innerHTML = "Dans l'appli, l'enregistrement continue <b>même écran verrouillé</b>. Tu peux aussi importer un fichier du Dictaphone.";
+}
