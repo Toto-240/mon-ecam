@@ -51,10 +51,15 @@ def main():
         "fiches": read_enc_dir("fiches", password),
         "revisions": read_enc_dir("revisions", password),
         "erreurs": read_enc_dir("erreurs", password),
+        # devoirs faits : seulement la liste ici, le fichier se charge à l'ouverture
+        "travaux": [{k: d.get(k) for k in ("id", "titre", "matiere", "fichier", "mise_en_page", "cree")}
+                    for d in read_enc_dir("devoirs", password)],
     }
     shutil.rmtree(SITE, ignore_errors=True)
     shutil.copytree(WEB, SITE)
     (SITE / "data.enc").write_text(encrypt_json(data, password), encoding="utf-8")
+    if (BASE / "devoirs").is_dir():
+        shutil.copytree(BASE / "devoirs", SITE / "devoirs")  # déjà chiffrés
     repo = os.environ.get("GITHUB_REPOSITORY", "")
     (SITE / "config.json").write_text(json.dumps({"repo": repo}), encoding="utf-8")
     print(f"Site prêt : {len(data['planning'])} créneaux, {len(data['devoirs'])} devoirs, "

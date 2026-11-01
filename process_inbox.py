@@ -2,6 +2,7 @@
 Traite la « boîte de dépôt » (branche inbox) remplie par l'appli :
 - enregistrement de cours  -> fiche de cours (Markdown)
 - demande de révision      -> fiche de révision + QCM pour une matière
+- énoncé de devoir         -> devoir fait (.docx, même mise en page), voir devoir.py
 Les résultats sont chiffrés avec APP_PASSWORD dans fiches/ et revisions/ (branche main).
 
 Usage : python process_inbox.py <dossier_inbox> <dossier_main>
@@ -198,6 +199,9 @@ def main():
             client = client or gemini()
             if meta.get("kind") == "revision":
                 fiche_revision(client, meta, out, password)
+            elif meta.get("kind") in ("devoir", "devoir_moodle"):
+                import devoir
+                write(out / "devoirs" / f"{meta['id']}.enc", devoir.make(client, generate, meta, audio))
             else:
                 fiche_cours(client, meta, audio, out)
             print("  ok")

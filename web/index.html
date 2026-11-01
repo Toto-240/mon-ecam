@@ -26,94 +26,127 @@
 </header>
 
 <nav class="panes" aria-label="Sections">
-  <button type="button" data-pane="today" aria-current="page">Aujourd'hui<span id="badge" class="badge" hidden></span></button>
-  <button type="button" data-pane="rev">Révisions<span id="rec-dot" class="rec-dot" hidden></span></button>
+  <button type="button" data-pane="planning" aria-current="page">Planning</button>
+  <button type="button" data-pane="rendre">À rendre<span id="badge" class="badge" hidden></span></button>
+  <button type="button" data-pane="notes">Notes</button>
+  <button type="button" data-pane="cours">Cours</button>
+  <button type="button" data-pane="enregistrer">Enregistrer<span id="rec-dot" class="rec-dot" hidden></span></button>
+  <button type="button" data-pane="revisions">Révisions</button>
+  <button type="button" data-pane="devoirs">Devoirs</button>
 </nav>
 
-<main id="pane-today" class="pane grid">
-  <section aria-labelledby="t-planning">
-    <h2 id="t-planning" class="sr">Planning</h2>
-    <div id="door"></div>
-    <nav id="days" class="days" aria-label="Jours"></nav>
-    <ol id="slots" class="slots"></ol>
-  </section>
-
-  <aside class="side">
-    <section aria-labelledby="t-devoirs">
-      <h2 id="t-devoirs">À rendre</h2>
-      <ul id="devoirs" class="list"></ul>
-    </section>
-
-    <section aria-labelledby="t-notes">
-      <h2 id="t-notes">Dernières notes</h2>
-      <ul id="notes" class="list"></ul>
-    </section>
-
-    <section aria-labelledby="t-cours">
-      <h2 id="t-cours">Cours Moodle</h2>
-      <input id="filtre" class="field" type="search" placeholder="Chercher un cours" aria-label="Chercher un cours">
-      <ul id="cours" class="list compact"></ul>
-    </section>
-  </aside>
+<main id="pane-planning" class="pane">
+  <h2 class="sr">Planning</h2>
+  <div id="door"></div>
+  <nav id="days" class="days" aria-label="Jours"></nav>
+  <ol id="slots" class="slots"></ol>
 </main>
 
-<main id="pane-rev" class="pane grid" hidden>
-  <section aria-labelledby="t-new">
-    <h2 id="t-new">Nouveau cours</h2>
+<main id="pane-rendre" class="pane" hidden>
+  <h2>À rendre</h2>
+  <ul id="devoirs" class="list"></ul>
+</main>
 
-    <div id="rec-live" class="rec-live" hidden>
-      <div class="rec-head"><span class="rec-dot on"></span> Enregistrement en cours</div>
-      <div id="rec-time" class="rec-time">0:00</div>
-      <div id="rec-what" class="rec-what"></div>
-      <p id="rec-hint" class="muted small"></p>
-      <div class="row">
-        <button id="rec-stop" type="button" class="btn primary">Terminer et créer la fiche</button>
-        <button id="rec-cancel" type="button" class="btn">Annuler</button>
-      </div>
+<main id="pane-notes" class="pane" hidden>
+  <h2>Dernières notes</h2>
+  <ul id="notes" class="list"></ul>
+</main>
+
+<main id="pane-cours" class="pane" hidden>
+  <h2>Cours Moodle</h2>
+  <input id="filtre" class="field" type="search" placeholder="Chercher un cours" aria-label="Chercher un cours">
+  <ul id="cours" class="list compact"></ul>
+</main>
+
+<main id="pane-enregistrer" class="pane" hidden>
+  <h2>Enregistrer un cours</h2>
+
+  <div id="rec-live" class="rec-live" hidden>
+    <div class="rec-head"><span class="rec-dot on"></span> Enregistrement en cours</div>
+    <div id="rec-time" class="rec-time">0:00</div>
+    <div id="rec-what" class="rec-what"></div>
+    <p id="rec-hint" class="muted small"></p>
+    <div class="row">
+      <button id="rec-stop" type="button" class="btn primary">Terminer et créer la fiche</button>
+      <button id="rec-cancel" type="button" class="btn">Annuler</button>
     </div>
+  </div>
 
-    <form id="new-form" class="card">
-      <label for="f-matiere">Matière</label>
-      <select id="f-matiere" class="field" required></select>
-      <label for="f-date">Date du cours</label>
-      <input id="f-date" class="field" type="date" required>
-      <div class="row">
-        <button id="rec-start" type="button" class="btn primary">Enregistrer le cours</button>
-        <label class="btn" for="f-audio">Importer un enregistrement</label>
-        <input id="f-audio" type="file" accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.webm" hidden>
-      </div>
-      <p id="form-hint" class="muted small">Pour un cours entier, le plus fiable est l'app <b>Dictaphone</b> de l'iPhone : elle continue même écran verrouillé. À la fin, ouvre l'enregistrement, touche <b>…</b> puis <b>Enregistrer dans Fichiers</b>, et importe-le ici.</p>
-    </form>
-
-    <div id="upload" class="card" hidden>
-      <div id="upload-msg" class="t"></div>
-      <progress id="upload-bar" max="1" value="0"></progress>
+  <form id="new-form" class="card">
+    <label for="f-matiere">Matière</label>
+    <select id="f-matiere" class="field" required></select>
+    <label for="f-date">Date du cours</label>
+    <input id="f-date" class="field" type="date" required>
+    <div class="row">
+      <button id="rec-start" type="button" class="btn primary">Enregistrer le cours</button>
+      <label class="btn" for="f-audio">Importer un enregistrement</label>
+      <input id="f-audio" type="file" accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.webm" hidden>
     </div>
+    <p id="form-hint" class="muted small">Pour un cours entier, le plus fiable est l'app <b>Dictaphone</b> de l'iPhone : elle continue même écran verrouillé. À la fin, ouvre l'enregistrement, touche <b>…</b> puis <b>Enregistrer dans Fichiers</b>, et importe-le ici.</p>
+  </form>
 
-    <ul id="pending" class="list" hidden></ul>
+  <div id="upload" class="card" hidden>
+    <div id="upload-msg" class="t"></div>
+    <progress id="upload-bar" max="1" value="0"></progress>
+  </div>
 
-    <details id="setup" class="card setup">
-      <summary>Réglages de l'enregistrement</summary>
-      <p class="small">Pour envoyer tes enregistrements, l'appli a besoin d'une clé GitHub. Elle reste sur cet appareil.</p>
-      <ol class="small steps">
-        <li>Sur GitHub : ta photo, puis <b>Paramètres</b>, <b>Paramètres du développeur</b>, <b>Jetons d'accès personnels</b>, <b>Jetons précis</b>, <b>Générer un nouveau jeton</b>.</li>
-        <li>Nom : « Mon ECAM ». Expiration : 1 an. Accès : <b>Seulement certains dépôts</b>, choisis <b>mon-ecam</b>.</li>
-        <li>Permissions du dépôt : <b>Contenu</b>, en <b>Lecture et écriture</b>. Puis <b>Générer</b> et copie le jeton.</li>
-      </ol>
-      <label for="f-token">Jeton GitHub</label>
-      <input id="f-token" class="field" type="password" autocomplete="off" placeholder="github_pat_…">
-      <div class="row">
-        <button id="token-save" type="button" class="btn primary">Enregistrer</button>
-        <button id="token-del" type="button" class="btn" hidden>Retirer</button>
-      </div>
-      <p id="token-msg" class="small"></p>
-    </details>
-  </section>
+  <ul id="pending" class="list" hidden></ul>
 
-  <section aria-labelledby="t-fiches">
-    <h2 id="t-fiches">Mes fiches</h2>
-    <div id="matieres"></div>
-  </section>
+  <details id="setup" class="card setup">
+    <summary>Réglages : jeton GitHub</summary>
+    <p class="small">Pour envoyer tes enregistrements et tes devoirs, l'appli a besoin d'une clé GitHub. Elle reste sur cet appareil.</p>
+    <ol class="small steps">
+      <li>Sur GitHub : ta photo, puis <b>Paramètres</b>, <b>Paramètres du développeur</b>, <b>Jetons d'accès personnels</b>, <b>Jetons précis</b>, <b>Générer un nouveau jeton</b>.</li>
+      <li>Nom : « Mon ECAM ». Expiration : 1 an. Accès : <b>Seulement certains dépôts</b>, choisis <b>mon-ecam</b>.</li>
+      <li>Permissions du dépôt : <b>Contenu</b>, en <b>Lecture et écriture</b>. Puis <b>Générer</b> et copie le jeton.</li>
+    </ol>
+    <label for="f-token">Jeton GitHub</label>
+    <input id="f-token" class="field" type="password" autocomplete="off" placeholder="github_pat_…">
+    <div class="row">
+      <button id="token-save" type="button" class="btn primary">Enregistrer</button>
+      <button id="token-del" type="button" class="btn" hidden>Retirer</button>
+    </div>
+    <p id="token-msg" class="small"></p>
+  </details>
+</main>
+
+<main id="pane-revisions" class="pane" hidden>
+  <h2>Mes fiches</h2>
+  <p class="muted small">Tes cours enregistrés et les supports Moodle, rangés par matière. Ouvre une matière pour créer sa fiche de révision et son QCM.</p>
+  <div id="matieres"></div>
+</main>
+
+<main id="pane-devoirs" class="pane" hidden>
+  <h2>Faire un devoir</h2>
+  <form id="dv-form" class="card">
+    <label for="dv-file">Énoncé</label>
+    <div class="row tight">
+      <label class="btn" for="dv-file">Choisir un fichier</label>
+      <label class="btn" for="dv-photo">Prendre en photo</label>
+      <span id="dv-file-name" class="muted small"></span>
+    </div>
+    <input id="dv-file" type="file" accept=".pdf,.docx,.pptx,.txt,.md,image/*" hidden>
+    <input id="dv-photo" type="file" accept="image/*" capture="environment" hidden>
+    <label for="dv-matiere">Matière</label>
+    <select id="dv-matiere" class="field"></select>
+    <label for="dv-consigne">Précisions (facultatif)</label>
+    <textarea id="dv-consigne" class="field" rows="3" placeholder="Ex. : réponses courtes, niveau débutant, en anglais…"></textarea>
+    <div class="row">
+      <button id="dv-send" type="submit" class="btn primary">Faire le devoir</button>
+    </div>
+    <p class="muted small">Un énoncé Word (.docx) est rendu dans le même document, réponses sous chaque question. Un PDF ou une photo est rendu en document Word avec la même structure. Tu peux aussi partir d'un devoir Moodle depuis l'onglet À rendre.</p>
+  </form>
+
+  <div id="dv-upload" class="card" hidden>
+    <div id="dv-upload-msg" class="t"></div>
+    <progress id="dv-upload-bar" max="1" value="0"></progress>
+  </div>
+
+  <ul id="dv-pending" class="list" hidden></ul>
+
+  <h2>Devoirs faits</h2>
+  <ul id="travaux" class="list"></ul>
+  <p class="muted small">Relis toujours le devoir avant de le rendre, et vérifie ce que le règlement de l'ECAM et tes profs autorisent en matière d'IA.</p>
 </main>
 
 <div id="reader" class="reader" hidden role="dialog" aria-modal="true" aria-labelledby="reader-title">
@@ -137,5 +170,6 @@
 
 <script src="app.js"></script>
 <script src="revisions.js"></script>
+<script src="devoirs.js"></script>
 </body>
 </html>

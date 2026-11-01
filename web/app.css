@@ -159,29 +159,24 @@ h2 { font-size: 1.15rem; font-weight: 700; margin: 24px 0 10px; letter-spacing: 
 
 .badge { display: inline-block; margin-left: 4px; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--ds); color: #fff; font-size: .72rem; font-weight: 700; line-height: 18px; }
 
-/* Sections : mêmes sur téléphone et PC */
+/* Onglets : les mêmes sur téléphone et PC */
 .panes {
   position: sticky; top: 0; z-index: 5;
-  display: flex; gap: 4px; max-width: 1180px; margin: 4px auto 0; padding: 8px 16px;
+  display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity;
+  max-width: 1180px; margin: 4px auto 0; padding: 8px 16px;
   background: color-mix(in srgb, var(--paper) 88%, transparent); backdrop-filter: blur(12px);
 }
+.panes::-webkit-scrollbar { display: none; }
 .panes button {
+  flex: none; scroll-snap-align: start; white-space: nowrap;
   border: 1px solid var(--line); background: var(--surface); color: var(--muted);
-  padding: 8px 16px; border-radius: 999px; font-weight: 600; cursor: pointer;
+  padding: 8px 14px; border-radius: 999px; font-weight: 600; cursor: pointer;
 }
 .panes button[aria-current="page"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-.pane[hidden] { display: none !important; }
-.grid > section > h2:first-child, .side > section:first-child > h2 { margin-top: 12px; }
-
-/* PC : deux colonnes. Téléphone : la même chose, empilée. */
-@media (min-width: 900px) {
-  .grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 40px; align-items: start; }
-  .side { position: sticky; top: 64px; }
-  #cours { max-height: 40vh; overflow: auto; }
-}
-@media (max-width: 899px) {
-  #cours { max-height: 50vh; overflow: auto; }
-}
+.pane { max-width: 860px; }
+.pane > h2:first-child { margin-top: 12px; }
+#cours { max-height: none; }
+@media (min-width: 900px) { .panes { justify-content: center; } }
 
 /* Révisions */
 .field {
@@ -192,7 +187,10 @@ h2 { font-size: 1.15rem; font-weight: 700; margin: 24px 0 10px; letter-spacing: 
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
 .card label:not(.btn) { display: block; font-weight: 600; font-size: .9rem; margin: 10px 0 4px; }
 .card label:not(.btn):first-child { margin-top: 0; }
-.row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+.row.tight { margin-top: 0; }
+textarea.field { resize: vertical; min-height: 70px; }
+.due-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   border: 1px solid var(--line); background: var(--surface); color: var(--ink);

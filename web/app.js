@@ -65,7 +65,7 @@ function renderDoor(evs) {
     ${cur ? `<button type="button" class="btn door-rec" data-matiere="${esc(e.matiere)}">Enregistrer ce cours</button>` : ""}
   </div>`;
   el.querySelector(".door-rec")?.addEventListener("click", (ev) => {
-    showPane("rev");
+    showPane("enregistrer");
     window.startRecording?.(ev.currentTarget.dataset.matiere);
   });
 }
@@ -153,12 +153,21 @@ function renderDevoirs() {
     const ms = d.due - NOW, days = Math.ceil(ms / 864e5);
     const left = ms < 0 ? "En retard" : days <= 1 ? (inMinutes(d.due) || "Demain") : `${days} jours`;
     const cls = ms < 0 || d.en_retard ? "late" : days <= 3 ? "soon" : "";
-    return `<li><a href="${esc(d.url)}" target="_blank" rel="noopener">
-      <div class="due"><span class="t">${esc(d.titre)}</span><span class="left ${cls}">${esc(left)}</span></div>
-      <div class="m">${esc(cleanCourse(d.cours))}</div>
-      <div class="m">Pour le ${esc(d.due.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }))} à ${fmtTime(d.due)}${d.action ? ", " + esc(d.action.toLowerCase()) : ""}</div>
-    </a></li>`;
+    const cmid = (String(d.url).match(/mod\/assign\/view\.php\?id=(\d+)/) || [])[1];
+    return `<li>
+      <a href="${esc(d.url)}" target="_blank" rel="noopener">
+        <div class="due"><span class="t">${esc(d.titre)}</span><span class="left ${cls}">${esc(left)}</span></div>
+        <div class="m">${esc(cleanCourse(d.cours))}</div>
+        <div class="m">Pour le ${esc(d.due.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }))} à ${fmtTime(d.due)}${d.action ? ", " + esc(d.action.toLowerCase()) : ""}</div>
+      </a>
+      ${cmid ? `<div class="due-actions"><button type="button" class="btn small" data-ia="${esc(cmid)}"
+        data-titre="${esc(d.titre)}" data-matiere="${esc(cleanCourse(d.cours))}">Faire avec l'IA</button>
+        <a class="btn small" href="${esc(d.url)}" target="_blank" rel="noopener">Déposer sur Moodle</a></div>` : ""}
+    </li>`;
   }).join("") : `<li class="m">Rien à rendre pour l'instant.</li>`;
+  document.querySelectorAll("#devoirs [data-ia]").forEach((b) => {
+    b.onclick = () => window.faireDevoirMoodle?.(b.dataset.ia, b.dataset.titre, b.dataset.matiere, b);
+  });
 }
 
 /* ---------- Notes ---------- */
@@ -203,6 +212,7 @@ function renderAll() {
   renderNotes();
   renderCours();
   window.renderRevisions?.();
+  window.renderDevoirsIA?.();
 }
 
 /* ---------- Données chiffrées (data.enc publié par GitHub) ---------- */
@@ -293,7 +303,10 @@ function showPane(name) {
   scrollTo(0, 0);
 }
 document.querySelectorAll(".panes button").forEach((b) => { b.onclick = () => showPane(b.dataset.pane); });
-if (store.get("ecam-pane") === "rev") showPane("rev");
+{
+  const last = store.get("ecam-pane");
+  if (last && document.getElementById("pane-" + last)) showPane(last);
+}
 
 if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
   navigator.serviceWorker?.register("sw.js").catch(() => {});

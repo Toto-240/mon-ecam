@@ -42,7 +42,7 @@ function md(src) {
     else if ((m = line.match(/^\s*\d+[.)]\s+(.*)/))) { flush(); if (list !== "ol") { close(); html += "<ol>"; list = "ol"; } html += `<li>${inline(m[1])}</li>`; }
     else if (/^\s*(---|\*\*\*)\s*$/.test(line)) { flush(); close(); html += "<hr>"; }
     else if (!line.trim()) { flush(); close(); }
-    else { close(); para.push(line.trim()); }
+    else { close(); para.push(line.trim()); flush(); } // une ligne = un paragraphe (questions / réponses)
   }
   flush(); close();
   if (code) html += "</code></pre>";
@@ -130,13 +130,15 @@ function putFile(id, b64, onProgress) {
   });
 }
 
-async function send(meta, audio) {
+async function send(meta, audio, ui = "upload") {
   if (!store.get(TOKEN_KEY)) {
+    showPane("enregistrer");
     $("#setup").open = true;
     $("#setup").scrollIntoView({ behavior: "smooth" });
+    alertForm("Ajoute d'abord ton jeton GitHub ci-dessous (une seule fois par appareil).");
     throw new Error("ajoute d'abord ton jeton GitHub dans les réglages");
   }
-  const box = $("#upload"), bar = $("#upload-bar"), msg = $("#upload-msg");
+  const box = $(`#${ui}`), bar = $(`#${ui}-bar`), msg = $(`#${ui}-msg`);
   box.hidden = false; bar.value = 0;
   try {
     msg.textContent = "Chiffrement…";
@@ -146,13 +148,14 @@ async function send(meta, audio) {
     await ensureInbox();
     msg.textContent = `Envoi (${(blob.size / 1e6).toFixed(1)} Mo)…`;
     await putFile(meta.id, b64, (p) => { bar.value = p; });
-    pending.add({ id: meta.id, kind: meta.kind, matiere: meta.matiere, date: meta.date, at: new Date().toISOString() });
-    msg.textContent = meta.kind === "revision"
-      ? "Demande envoyée. La fiche de révision arrive dans quelques minutes."
+    pending.add({ id: meta.id, kind: meta.kind, matiere: meta.matiere, titre: meta.titre, date: meta.date, at: new Date().toISOString() });
+    msg.textContent = meta.kind === "revision" ? "Demande envoyée. La fiche de révision arrive dans quelques minutes."
+      : meta.kind?.startsWith("devoir") ? "Envoyé. Le devoir fait arrive dans quelques minutes, dans la liste ci-dessous."
       : "Envoyé. Ta fiche sera prête dans quelques minutes.";
     bar.value = 1;
     setTimeout(() => { box.hidden = true; }, 6000);
-    renderRevisions();
+    window.renderRevisions?.();
+    window.renderDevoirsIA?.();
     watchPending();
   } catch (e) {
     msg.textContent = `Échec : ${e.message}`;
@@ -427,7 +430,7 @@ function watchPending() {
 }
 
 function resolvePending() {
-  const fiches = new Set((DATA.fiches || []).map((f) => f.id));
+  const fiches = new Set([...(DATA.fiches || []), ...(DATA.travaux || [])].map((f) => f.id));
   const errs = Object.fromEntries((DATA.erreurs || []).map((e) => [e.id, e]));
   const revs = DATA.revisions || [];
   const list = pending.all().filter((p) => {
@@ -439,14 +442,18 @@ function resolvePending() {
 }
 
 function renderPending() {
-  const list = resolvePending();
-  const ul = $("#pending");
+  const all = resolvePending();
+  renderPendingList($("#pending"), all.filter((p) => !p.kind?.startsWith("devoir")));
+  renderPendingList($("#dv-pending"), all.filter((p) => p.kind?.startsWith("devoir")));
+}
+
+function renderPendingList(ul, list) {
   ul.hidden = !list.length;
   ul.innerHTML = list.map((p) => `<li class="pending${p.err ? " fail" : ""}">
-    <div class="due"><span class="t">${esc(p.kind === "revision" ? "Révision : " + p.matiere : p.matiere)}</span>
+    <div class="due"><span class="t">${esc(p.kind === "revision" ? "Révision : " + p.matiere : p.titre || p.matiere || "Devoir")}</span>
     <button type="button" class="btn small" data-forget="${esc(p.id)}">Retirer</button></div>
     <div class="m">${p.err ? `Échec : ${esc(p.err.message)}. Nouvel essai automatique toutes les heures.`
-      : `Envoyé à ${esc(fmtTime(new Date(p.at)))}, fiche en préparation (quelques minutes).`}</div>
+      : `Envoyé à ${esc(fmtTime(new Date(p.at)))}, ${p.kind?.startsWith("devoir") ? "devoir" : "fiche"} en préparation (quelques minutes).`}</div>
   </li>`).join("");
   ul.querySelectorAll("[data-forget]").forEach((b) => { b.onclick = () => { pending.remove(b.dataset.forget); renderPending(); }; });
 }
