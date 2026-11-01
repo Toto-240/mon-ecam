@@ -37,3 +37,12 @@ APPLI IPHONE (.ipa)
   Avec un compte Apple gratuit, l'appli expire au bout de 7 jours :
   relance simplement Sideloadly. L'appli affiche toujours la dernière
   version du site, donc pas besoin de la réinstaller quand on la modifie.
+
+FICHES DE COURS (enregistrements)
+  1. Clé Gemini (gratuite) : aistudio.google.com > Get API key > Create API key.
+     Ajoute-la dans les secrets du dépôt sous le nom GEMINI_API_KEY.
+  2. Jeton GitHub (pour envoyer depuis l'appli) : voir « Réglages de
+     l'enregistrement » dans l'onglet Révisions de l'appli.
+  3. Enregistre (bouton dans l'appli, ou Dictaphone puis « Importer »).
+     L'enregistrement est chiffré, envoyé sur la branche « inbox », transformé
+     en fiche par Gemini, puis effacé. La fiche apparaît dans Révisions.

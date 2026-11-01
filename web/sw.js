@@ -1,6 +1,6 @@
 // Garde l'interface disponible hors connexion ; les données restent en cache dans l'appli.
-const CACHE = "mon-ecam-v2";
-const FILES = ["./", "index.html", "app.css", "app.js", "icon.svg", "manifest.webmanifest"];
+const CACHE = "mon-ecam-v3";
+const FILES = ["./", "index.html", "app.css", "app.js", "revisions.js", "icon.svg", "manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)));

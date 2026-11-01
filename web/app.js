@@ -62,7 +62,12 @@ function renderDoor(evs) {
     <div class="kind">${esc(e.type)}</div>
     <div class="what">${esc(e.matiere)}</div>
     <div class="who">${esc([e.prof, `${fmtTime(e.d0)}–${fmtTime(e.d1)}`].filter(Boolean).join(", "))}</div>
+    ${cur ? `<button type="button" class="btn door-rec" data-matiere="${esc(e.matiere)}">Enregistrer ce cours</button>` : ""}
   </div>`;
+  el.querySelector(".door-rec")?.addEventListener("click", (ev) => {
+    showPane("rev");
+    window.startRecording?.(ev.currentTarget.dataset.matiere);
+  });
 }
 
 /* ---------- Jours ---------- */
@@ -197,6 +202,7 @@ function renderAll() {
   renderDevoirs();
   renderNotes();
   renderCours();
+  window.renderRevisions?.();
 }
 
 /* ---------- Données chiffrées (data.enc publié par GitHub) ---------- */
@@ -271,6 +277,7 @@ $("#sync").onclick = load;
 
 fetch("config.json", { cache: "no-store" }).then((r) => r.json()).then((c) => {
   if (!c.repo) return;
+  window.REPO = c.repo;
   const a = $("#force");
   a.href = `https://github.com/${c.repo}/actions/workflows/sync.yml`;
   a.hidden = false;
@@ -278,13 +285,15 @@ fetch("config.json", { cache: "no-store" }).then((r) => r.json()).then((c) => {
 
 $("#filtre").oninput = renderCours;
 
-document.querySelectorAll(".tabs button").forEach((b) => {
-  b.onclick = () => {
-    document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x === b));
-    document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === "v-" + b.dataset.v));
-    scrollTo(0, 0);
-  };
-});
+function showPane(name) {
+  document.querySelectorAll(".panes button").forEach((b) =>
+    b.dataset.pane === name ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
+  document.querySelectorAll(".pane").forEach((p) => { p.hidden = p.id !== "pane-" + name; });
+  store.set("ecam-pane", name);
+  scrollTo(0, 0);
+}
+document.querySelectorAll(".panes button").forEach((b) => { b.onclick = () => showPane(b.dataset.pane); });
+if (store.get("ecam-pane") === "rev") showPane("rev");
 
 if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
   navigator.serviceWorker?.register("sw.js").catch(() => {});

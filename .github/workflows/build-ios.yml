@@ -28,6 +28,15 @@ jobs:
           npx cap add ios
           npx cap sync ios
 
+      - name: Autoriser le micro (enregistrement des cours)
+        working-directory: ios-app
+        run: |
+          PLIST=ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Mon ECAM enregistre tes cours pour en faire des fiches.'" "$PLIST" \
+            || /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'Mon ECAM enregistre tes cours pour en faire des fiches.'" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string audio" "$PLIST" || true
+
       - name: Mettre l'icône
         working-directory: ios-app
         run: |

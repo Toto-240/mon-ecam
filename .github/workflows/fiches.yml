@@ -1,0 +1,95 @@
+name: Fiches de cours
+
+# L'appli dépose les enregistrements (chiffrés) sur la branche « inbox ».
+# Ce workflow les transforme en fiches avec Gemini, les range (chiffrées) dans main,
+# vide la boîte puis relance la synchro pour que l'appli les affiche.
+on:
+  push:
+    branches: [inbox]
+  schedule:
+    - cron: "37 * * * *"   # nouvel essai chaque heure s'il reste quelque chose
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: fiches
+  cancel-in-progress: false
+
+jobs:
+  fiches:
+    runs-on: ubuntu-latest
+    env:
+      TZ: Europe/Paris
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: main
+
+      - name: Ouvrir la boîte de dépôt
+        id: inbox
+        run: |
+          if git -C main ls-remote --exit-code --heads origin inbox >/dev/null 2>&1; then
+            git -C main fetch --depth 1 origin inbox
+            git -C main worktree add ../inbox FETCH_HEAD
+            echo "sha=$(git -C inbox rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+            echo "has=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "Boîte vide"
+          fi
+
+      - if: steps.inbox.outputs.has
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - if: steps.inbox.outputs.has
+        name: Installer les outils
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null
+          pip install -q -r main/requirements.txt google-genai
+
+      - if: steps.inbox.outputs.has
+        name: Créer les fiches
+        working-directory: main
+        env:
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+        run: python process_inbox.py ../inbox .
+
+      - if: steps.inbox.outputs.has
+        name: Ranger les fiches
+        working-directory: main
+        run: |
+          git config user.name "Mon ECAM"
+          git config user.email "mon-ecam@users.noreply.github.com"
+          git add -A fiches revisions erreurs 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -q -m "Fiches mises à jour"
+            for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && break; sleep 3; done
+          fi
+
+      - if: steps.inbox.outputs.has
+        name: Vider la boîte
+        working-directory: inbox
+        run: |
+          total=$(ls inbox/*.bin 2>/dev/null | wc -l)
+          traites=$(grep -c . .traites || true)
+          if [ "$traites" -ge "$total" ]; then
+            # supprime la branche seulement si rien n'a été ajouté entre-temps
+            git -C ../main push -q --force-with-lease=inbox:${{ steps.inbox.outputs.sha }} origin :inbox \
+              && echo "Boîte vidée" || echo "Nouveaux éléments arrivés, ils seront traités au prochain passage"
+          elif [ "$traites" -gt 0 ]; then
+            git config user.name "Mon ECAM"; git config user.email "mon-ecam@users.noreply.github.com"
+            while read -r f; do [ -n "$f" ] && git rm -q "inbox/$f"; done < .traites
+            git commit -q -m "Éléments traités retirés" && git push -q origin HEAD:inbox || true
+          fi
+
+      - if: steps.inbox.outputs.has
+        name: Publier dans l'appli
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run sync.yml -R "${{ github.repository }}"

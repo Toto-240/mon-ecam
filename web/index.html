@@ -22,11 +22,16 @@
     <p id="err" class="err" hidden></p>
     <p class="muted small"><a id="force" target="_blank" rel="noopener" hidden>Forcer une synchro sur GitHub</a></p>
   </div>
-  <button id="sync" class="sync" type="button">Actualiser</button>
+  <button id="sync" class="sync" type="button">Recharger</button>
 </header>
 
-<main id="app">
-  <section id="v-planning" class="view active" aria-labelledby="t-planning">
+<nav class="panes" aria-label="Sections">
+  <button type="button" data-pane="today" aria-current="page">Aujourd'hui<span id="badge" class="badge" hidden></span></button>
+  <button type="button" data-pane="rev">Révisions<span id="rec-dot" class="rec-dot" hidden></span></button>
+</nav>
+
+<main id="pane-today" class="pane grid">
+  <section aria-labelledby="t-planning">
     <h2 id="t-planning" class="sr">Planning</h2>
     <div id="door"></div>
     <nav id="days" class="days" aria-label="Jours"></nav>
@@ -34,30 +39,90 @@
   </section>
 
   <aside class="side">
-    <section id="v-devoirs" class="view" aria-labelledby="t-devoirs">
+    <section aria-labelledby="t-devoirs">
       <h2 id="t-devoirs">À rendre</h2>
       <ul id="devoirs" class="list"></ul>
     </section>
 
-    <section id="v-notes" class="view" aria-labelledby="t-notes">
+    <section aria-labelledby="t-notes">
       <h2 id="t-notes">Dernières notes</h2>
       <ul id="notes" class="list"></ul>
     </section>
 
-    <section id="v-cours" class="view" aria-labelledby="t-cours">
+    <section aria-labelledby="t-cours">
       <h2 id="t-cours">Cours Moodle</h2>
-      <input id="filtre" class="filtre" type="search" placeholder="Chercher un cours" aria-label="Chercher un cours">
+      <input id="filtre" class="field" type="search" placeholder="Chercher un cours" aria-label="Chercher un cours">
       <ul id="cours" class="list compact"></ul>
     </section>
   </aside>
 </main>
 
-<nav class="tabs" aria-label="Sections">
-  <button data-v="planning" class="on">Planning</button>
-  <button data-v="devoirs">Devoirs<span id="badge" class="badge" hidden></span></button>
-  <button data-v="notes">Notes</button>
-  <button data-v="cours">Cours</button>
-</nav>
+<main id="pane-rev" class="pane grid" hidden>
+  <section aria-labelledby="t-new">
+    <h2 id="t-new">Nouveau cours</h2>
+
+    <div id="rec-live" class="rec-live" hidden>
+      <div class="rec-head"><span class="rec-dot on"></span> Enregistrement en cours</div>
+      <div id="rec-time" class="rec-time">0:00</div>
+      <div id="rec-what" class="rec-what"></div>
+      <p class="muted small">Garde l'appli ouverte et l'écran allumé (tu peux baisser la luminosité). À la fin du cours, appuie sur Terminer.</p>
+      <div class="row">
+        <button id="rec-stop" type="button" class="btn primary">Terminer et créer la fiche</button>
+        <button id="rec-cancel" type="button" class="btn">Annuler</button>
+      </div>
+    </div>
+
+    <form id="new-form" class="card">
+      <label for="f-matiere">Matière</label>
+      <select id="f-matiere" class="field" required></select>
+      <label for="f-date">Date du cours</label>
+      <input id="f-date" class="field" type="date" required>
+      <div class="row">
+        <button id="rec-start" type="button" class="btn primary">Enregistrer le cours</button>
+        <label class="btn" for="f-audio">Importer un enregistrement</label>
+        <input id="f-audio" type="file" accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.webm" hidden>
+      </div>
+      <p class="muted small">Pour un cours entier, le plus fiable est l'app <b>Dictaphone</b> de l'iPhone : elle continue même écran verrouillé. À la fin, ouvre l'enregistrement, touche <b>…</b> puis <b>Enregistrer dans Fichiers</b>, et importe-le ici.</p>
+    </form>
+
+    <div id="upload" class="card" hidden>
+      <div id="upload-msg" class="t"></div>
+      <progress id="upload-bar" max="1" value="0"></progress>
+    </div>
+
+    <ul id="pending" class="list" hidden></ul>
+
+    <details id="setup" class="card setup">
+      <summary>Réglages de l'enregistrement</summary>
+      <p class="small">Pour envoyer tes enregistrements, l'appli a besoin d'une clé GitHub. Elle reste sur cet appareil.</p>
+      <ol class="small steps">
+        <li>Sur GitHub : ta photo, puis <b>Paramètres</b>, <b>Paramètres du développeur</b>, <b>Jetons d'accès personnels</b>, <b>Jetons précis</b>, <b>Générer un nouveau jeton</b>.</li>
+        <li>Nom : « Mon ECAM ». Expiration : 1 an. Accès : <b>Seulement certains dépôts</b>, choisis <b>mon-ecam</b>.</li>
+        <li>Permissions du dépôt : <b>Contenu</b>, en <b>Lecture et écriture</b>. Puis <b>Générer</b> et copie le jeton.</li>
+      </ol>
+      <label for="f-token">Jeton GitHub</label>
+      <input id="f-token" class="field" type="password" autocomplete="off" placeholder="github_pat_…">
+      <div class="row">
+        <button id="token-save" type="button" class="btn primary">Enregistrer</button>
+        <button id="token-del" type="button" class="btn" hidden>Retirer</button>
+      </div>
+      <p id="token-msg" class="small"></p>
+    </details>
+  </section>
+
+  <section aria-labelledby="t-fiches">
+    <h2 id="t-fiches">Mes fiches</h2>
+    <div id="matieres"></div>
+  </section>
+</main>
+
+<div id="reader" class="reader" hidden role="dialog" aria-modal="true" aria-labelledby="reader-title">
+  <div class="reader-bar">
+    <button id="reader-close" type="button" class="btn">Fermer</button>
+    <span id="reader-title" class="reader-title"></span>
+  </div>
+  <article id="reader-body" class="reader-body"></article>
+</div>
 
 <div id="lock" class="lock" hidden>
   <form>
@@ -71,5 +136,6 @@
 </div>
 
 <script src="app.js"></script>
+<script src="revisions.js"></script>
 </body>
 </html>
