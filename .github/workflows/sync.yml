@@ -2,7 +2,9 @@ name: Synchro ECAM
 
 on:
   schedule:
-    - cron: "17 */2 * * *"   # toutes les 2 heures
+    # Heures en UTC (Paris = UTC+1 l'hiver, UTC+2 l'été)
+    - cron: "*/10 5-19 * * *"       # toutes les 10 min, environ 6h-21h à Paris
+    - cron: "7 20-23,0-4 * * *"     # une fois par heure la nuit
   workflow_dispatch:          # bouton "Run workflow" pour forcer une synchro
   push:
     branches: [main]
@@ -11,10 +13,11 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  actions: write   # pour l'anti-pause des 60 jours
 
 concurrency:
   group: pages
-  cancel-in-progress: false
+  cancel-in-progress: true   # si une synchro traîne, la suivante la remplace
 
 jobs:
   sync:
@@ -51,3 +54,14 @@ jobs:
           path: site
       - id: deploy
         uses: actions/deploy-pages@v4
+
+      - name: Anti-pause (une fois par jour)
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # GitHub met en pause les synchros auto après 60 jours sans activité :
+          # réactiver le workflow chaque jour remet ce compteur à zéro.
+          if [ "$(date -u +%H)" = "05" ] && [ "$(date -u +%M)" -lt 10 ]; then
+            gh api -X PUT "repos/${{ github.repository }}/actions/workflows/sync.yml/enable" && echo "Anti-pause ok"
+          fi
