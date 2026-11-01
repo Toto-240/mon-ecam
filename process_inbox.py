@@ -22,8 +22,22 @@ from pathlib import Path
 
 from crypto_util import decrypt_json, decrypt_upload, encrypt_json
 
-MODELS = [m for m in (os.environ.get("GEMINI_MODEL"), "gemini-2.5-flash", "gemini-flash-latest",
-                      "gemini-2.5-flash-lite") if m]
+# Ordre de préférence ; seuls ceux que Google propose encore sont utilisés.
+PREFERRED = [m for m in (os.environ.get("GEMINI_MODEL"), "gemini-flash-latest", "gemini-3-flash-preview",
+                         "gemini-2.5-flash", "gemini-3.1-flash-lite", "gemini-flash-lite-latest") if m]
+_models = None
+
+
+def models(client):
+    global _models
+    if _models is None:
+        try:
+            names = {m.name.split("/")[-1] for m in client.models.list()}
+            _models = [m for m in PREFERRED if m in names] or PREFERRED
+        except Exception:
+            _models = PREFERRED
+        print(f"  modèles disponibles : {len(_models)}")
+    return _models
 
 PROMPT_COURS = """Tu es un assistant pour un étudiant en Bachelor cybersécurité à l'ECAM LaSalle (Lyon).
 Voici l'enregistrement audio d'un cours de « {matiere} » du {date}.
@@ -88,32 +102,19 @@ class QuotaError(RuntimeError):
 
 def generate(client, contents, json_mode=False):
     from google.genai import types
-    last, quota = None, True
-    for model in MODELS:
+    errors = []
+    for model in models(client):
         try:
             cfg = types.GenerateContentConfig(response_mime_type="application/json") if json_mode else None
             r = client.models.generate_content(model=model, contents=contents, config=cfg)
             if r.text:
                 return r.text, model
+            errors.append(f"{model}: réponse vide")
         except Exception as e:  # modèle retiré, quota, surcharge…
-            last = e
-            is_quota = getattr(e, "code", None) == 429 or "RESOURCE_EXHAUSTED" in str(e)
-            quota = quota and is_quota
-            print(f"  modèle {model} indisponible ({type(e).__name__}{', quota' if is_quota else ''})")
+            code = re.search(r"\b(4\d\d|5\d\d)\b\s*([A-Z_]+)?", str(e))
+            errors.append(f"{model}: {code.group(0) if code else type(e).__name__}")
             time.sleep(2)
-    if last is not None and quota:
-        raise QuotaError("Quota gratuit de Gemini atteint pour aujourd'hui, nouvel essai plus tard")
-    detail = f"{type(last).__name__} {str(last)[:200]}" if last else "réponse vide"
-    raise RuntimeError(f"Aucun modèle Gemini n'a répondu : {detail}")
-
-
-def wait_active(client, f):
-    for _ in range(120):
-        if f.state and f.state.name != "PROCESSING":
-            break
-        time.sleep(3)
-        f = client.files.get(name=f.name)
-    return f
+    raise RuntimeError("Aucun modèle Gemini n'a répondu (" + " ; ".join(errors) + ")")
 
 
 def to_mp3(audio: bytes, workdir: Path):

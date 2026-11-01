@@ -2,10 +2,12 @@ name: Fiches Moodle
 
 # Crée des fiches à partir des supports de cours déposés sur Moodle.
 # Progressif : quelques documents par passage (quota gratuit de Gemini),
-# jamais deux fois le même. Les nouveaux supports sont repris chaque nuit.
+# jamais deux fois le même. Les nouveaux supports sont repris chaque matin.
 on:
   schedule:
-    - cron: "23 0,2,4 * * *"   # la nuit (heure UTC)
+    # Juste avant la remise à zéro du quota gratuit Gemini (vers 9h à Paris),
+    # pour garder le quota de la journée pour tes enregistrements.
+    - cron: "35 6,7 * * *"
   workflow_dispatch:
   push:
     branches: [main]

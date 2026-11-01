@@ -255,6 +255,9 @@ def main():
         sys.exit(1)
     user, pwd = ecam.load_env()
     seen = load_seen(pw)
+    if seen.get("_v") != 2:  # les échecs des premiers passages venaient du quota : on les réessaie
+        seen = {k: v for k, v in seen.items() if not str(v).startswith("échec")}
+        seen["_v"] = 2
     client = gemini()
 
     s = requests.Session()
@@ -309,9 +312,11 @@ def main():
                 except Exception as e:
                     failed += 1
                     note(causes, "fiche", e)
-                    if re.search(r"quota|429|RESOURCE_EXHAUSTED|rate", str(e), re.I):
+                    # quota épuisé sur tous les modèles : on s'arrête, la suite au prochain passage
+                    if re.search(r"quota|429|RESOURCE_EXHAUSTED", str(e), re.I) and not re.search(r": (200|réponse)", str(e)):
                         remaining += 1
-                        print("::warning::Quota Gemini atteint, la suite au prochain passage")
+                        note(causes, "fiche", e)
+                        print("::warning::Quota gratuit Gemini atteint pour aujourd'hui, la suite au prochain passage")
                         save_seen(seen, pw)
                         return report(made, skipped, failed, remaining, causes)
                     n = int(re.match(r"échec:(\d+)", str(seen.get(doc["key"], "échec:0"))).group(1)) + 1 \
