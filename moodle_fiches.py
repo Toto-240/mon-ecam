@@ -272,14 +272,16 @@ def main():
     courses.sort(key=lambda c: (clean_course(c["nom"]) not in current, clean_course(c["nom"])))
 
     made = skipped = failed = 0
+    causes = {}
     remaining = 0
     (BASE / "fiches").mkdir(exist_ok=True)
     for c in courses:
         matiere = clean_course(c["nom"])
         try:
             items = course_items(s, c["id"])
-        except Exception:
+        except Exception as e:
             failed += 1
+            note(causes, "cours", e)
             continue
         for cmid, kind, name in items:
             if kind != "folder" and any(k.startswith(f"{cmid}:") and finished(seen, k) for k in seen):
@@ -289,8 +291,9 @@ def main():
                 continue
             try:
                 docs = documents(s, cmid, kind, name, seen)
-            except Exception:
+            except Exception as e:
                 failed += 1
+                note(causes, "téléchargement", e)
                 continue
             if not docs:
                 seen[f"{cmid}:-"] = "vide"
@@ -305,12 +308,12 @@ def main():
                     fiche = make_fiche(client, doc, matiere)
                 except Exception as e:
                     failed += 1
-                    print(f"  échec ({type(e).__name__})")
+                    note(causes, "fiche", e)
                     if re.search(r"quota|429|RESOURCE_EXHAUSTED|rate", str(e), re.I):
                         remaining += 1
                         print("::warning::Quota Gemini atteint, la suite au prochain passage")
                         save_seen(seen, pw)
-                        return report(made, skipped, failed, remaining, quota=True)
+                        return report(made, skipped, failed, remaining, causes)
                     n = int(re.match(r"échec:(\d+)", str(seen.get(doc["key"], "échec:0"))).group(1)) + 1 \
                         if str(seen.get(doc["key"], "")).startswith("échec") else 1
                     seen[doc["key"]] = f"échec:{n}"
@@ -327,12 +330,22 @@ def main():
                 time.sleep(PAUSE)
             time.sleep(1)  # discret avec Moodle
     save_seen(seen, pw)
-    report(made, skipped, failed, remaining)
+    report(made, skipped, failed, remaining, causes)
 
 
-def report(made, skipped, failed, remaining, quota=False):
+def note(causes, step, e):
+    """Regroupe les erreurs par cause (sans donnée personnelle) pour le résumé."""
+    msg = re.sub(r"https?://\S+", "<url>", str(e))
+    msg = re.sub(r"\s+", " ", msg)[:160]
+    k = f"{step} : {type(e).__name__} {msg}"
+    causes[k] = causes.get(k, 0) + 1
+
+
+def report(made, skipped, failed, remaining, causes=None):
     msg = f"{made} fiche(s) créée(s), {skipped} document(s) ignoré(s), {failed} échec(s), {remaining} restant(s)"
     print(f"::notice::{msg}")
+    for k, n in sorted((causes or {}).items(), key=lambda x: -x[1])[:5]:
+        print(f"::warning::{n} × {k}")
 
 
 if __name__ == "__main__":
