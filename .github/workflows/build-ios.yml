@@ -37,6 +37,16 @@ jobs:
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$PLIST" || true
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string audio" "$PLIST" || true
 
+      - name: Ajouter l'enregistreur natif (écran éteint)
+        working-directory: ios-app
+        run: |
+          cp native/DictaPlugin.swift native/MainViewController.swift ios/App/App/
+          gem list -i xcodeproj >/dev/null || sudo gem install xcodeproj --no-document
+          ruby native/add_files.rb
+          SB=ios/App/App/Base.lproj/Main.storyboard
+          sed -i '' 's/customClass="CAPBridgeViewController" customModule="Capacitor"/customClass="MainViewController" customModule="App" customModuleProvider="target"/' "$SB"
+          grep -q 'customClass="MainViewController"' "$SB" || { echo "::error::Main.storyboard non modifié"; exit 1; }
+
       - name: Mettre l'icône
         working-directory: ios-app
         run: |
@@ -47,10 +57,17 @@ jobs:
         working-directory: ios-app/ios/App
         run: |
           if [ -d App.xcworkspace ]; then TARGET="-workspace App.xcworkspace"; else TARGET="-project App.xcodeproj"; fi
-          xcodebuild $TARGET -scheme App -configuration Release -sdk iphoneos \
-            -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-            build | tail -n 30
+          set -o pipefail
+          if ! xcodebuild $TARGET -scheme App -configuration Release -sdk iphoneos \
+              -derivedDataPath build \
+              CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+              build > build.log 2>&1; then
+            # erreurs affichées en résumé (lisibles sans ouvrir les journaux)
+            grep -E "error:" build.log | sort -u | head -15 | while read -r l; do echo "::error::${l##*/}"; done
+            tail -n 40 build.log
+            exit 1
+          fi
+          tail -n 5 build.log
 
       - name: Emballer en .ipa
         working-directory: ios-app/ios/App
