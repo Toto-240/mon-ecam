@@ -241,7 +241,7 @@ async function load() {
   setSyncButton(true);
   let blob = null, offline = false;
   try {
-    const r = await fetch("data.enc", { cache: "no-store" });
+    const r = await fetch(`data.enc?t=${Date.now()}`, { cache: "no-store" });
     if (!r.ok) throw new Error(r.status);
     blob = await r.json();
     store.set("ecam-blob", JSON.stringify(blob));

@@ -1,0 +1,49 @@
+name: Métronome
+
+# Les lancements programmés de GitHub prennent souvent 20 à 40 min de retard.
+# Ce workflow reste allumé et lance lui-même la synchro toutes les 10 minutes
+# (de 6h à 23h à Paris, toutes les heures la nuit), puis se relance avant
+# la limite de 6 h de GitHub. Les lancements programmés ne servent que de filet.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "11 */3 * * *"
+  push:
+    branches: [main]
+    paths: [".github/workflows/metronome.yml"]
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: metronome
+  cancel-in-progress: false   # un seul à la fois : les suivants attendent leur tour (un seul en attente)
+
+jobs:
+  tic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      TZ: Europe/Paris
+    steps:
+      - name: Lancer la synchro toutes les 10 minutes
+        run: |
+          end=$(( $(date +%s) + 335*60 ))
+          last=0
+          while [ "$(date +%s)" -lt "$end" ]; do
+            h=$((10#$(date +%H)))
+            if [ "$h" -ge 6 ] && [ "$h" -lt 23 ]; then every=600; else every=3600; fi
+            now=$(date +%s)
+            if [ $((now - last)) -ge "$every" ]; then
+              gh workflow run sync.yml -R "$REPO" && echo "$(date +%H:%M) synchro lancée" || echo "$(date +%H:%M) échec du lancement"
+              last=$now
+            fi
+            sleep 30
+          done
+
+      - name: Passer le relais
+        if: always()
+        run: gh workflow run metronome.yml -R "$REPO"
