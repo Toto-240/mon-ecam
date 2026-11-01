@@ -82,9 +82,13 @@ def gemini():
     return genai.Client(api_key=key)
 
 
+class QuotaError(RuntimeError):
+    """Quota gratuit Gemini épuisé pour aujourd'hui."""
+
+
 def generate(client, contents, json_mode=False):
     from google.genai import types
-    last = None
+    last, quota = None, True
     for model in MODELS:
         try:
             cfg = types.GenerateContentConfig(response_mime_type="application/json") if json_mode else None
@@ -93,9 +97,23 @@ def generate(client, contents, json_mode=False):
                 return r.text, model
         except Exception as e:  # modèle retiré, quota, surcharge…
             last = e
-            print(f"  modèle {model} indisponible ({type(e).__name__})")
+            is_quota = getattr(e, "code", None) == 429 or "RESOURCE_EXHAUSTED" in str(e)
+            quota = quota and is_quota
+            print(f"  modèle {model} indisponible ({type(e).__name__}{', quota' if is_quota else ''})")
             time.sleep(2)
-    raise RuntimeError(f"Aucun modèle Gemini n'a répondu : {type(last).__name__ if last else 'réponse vide'}")
+    if last is not None and quota:
+        raise QuotaError("Quota gratuit de Gemini atteint pour aujourd'hui, nouvel essai plus tard")
+    detail = f"{type(last).__name__} {str(last)[:200]}" if last else "réponse vide"
+    raise RuntimeError(f"Aucun modèle Gemini n'a répondu : {detail}")
+
+
+def wait_active(client, f):
+    for _ in range(120):
+        if f.state and f.state.name != "PROCESSING":
+            break
+        time.sleep(3)
+        f = client.files.get(name=f.name)
+    return f
 
 
 def to_mp3(audio: bytes, workdir: Path):
@@ -112,12 +130,7 @@ def fiche_cours(client, meta, audio, out: Path):
     with tempfile.TemporaryDirectory() as tmp:
         mp3, minutes = to_mp3(audio, Path(tmp))
         print(f"  audio : {minutes} min")
-        f = client.files.upload(file=str(mp3), config={"mime_type": "audio/mpeg"})
-        for _ in range(120):
-            if f.state and f.state.name != "PROCESSING":
-                break
-            time.sleep(3)
-            f = client.files.get(name=f.name)
+        f = wait_active(client, client.files.upload(file=str(mp3), config={"mime_type": "audio/mpeg"}))
         try:
             prompt = PROMPT_COURS.format(matiere=meta.get("matiere") or "cours", date=meta.get("date") or "")
             md, model = generate(client, [f, prompt])

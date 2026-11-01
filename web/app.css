@@ -222,9 +222,17 @@ progress { width: 100%; height: 8px; margin-top: 8px; accent-color: var(--ecam);
 .steps li { margin-bottom: 4px; }
 .ok { color: var(--tp); } .ko { color: #C0392B; }
 
-.matiere { margin-bottom: 14px; }
-.matiere-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 6px; }
-.matiere-head h3 { margin: 0; font-size: 1rem; font-weight: 700; }
+.matiere { margin-bottom: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+.matiere > summary {
+  list-style: none; cursor: pointer; padding: 12px 14px; display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+}
+.matiere > summary::-webkit-details-marker { display: none; }
+.matiere > summary .t { font-weight: 700; }
+.matiere > summary .m { color: var(--muted); font-size: .85rem; white-space: nowrap; }
+.matiere > summary::after { content: "›"; color: var(--muted); font-weight: 700; transition: transform .15s; }
+.matiere[open] > summary::after { transform: rotate(90deg); }
+.matiere-actions { margin: 0; padding: 0 14px 10px; }
+.matiere .list { border: 0; border-top: 1px solid var(--line); border-radius: 0 0 14px 14px; }
 .list button.item { all: unset; display: block; width: 100%; cursor: pointer; }
 .list button.item:focus-visible { outline: 2px solid var(--ecam); }
 .list li.rev { background: color-mix(in srgb, var(--ecam) 7%, transparent); }

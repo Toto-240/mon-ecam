@@ -1,0 +1,69 @@
+name: Fiches Moodle
+
+# Crée des fiches à partir des supports de cours déposés sur Moodle.
+# Progressif : quelques documents par passage (quota gratuit de Gemini),
+# jamais deux fois le même. Les nouveaux supports sont repris chaque nuit.
+on:
+  schedule:
+    - cron: "23 0,2,4 * * *"   # la nuit (heure UTC)
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["moodle_fiches.py", ".github/workflows/moodle.yml"]
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: fiches
+  cancel-in-progress: false
+
+jobs:
+  moodle:
+    runs-on: ubuntu-latest
+    env:
+      TZ: Europe/Paris
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -q -r requirements.txt google-genai python-pptx python-docx
+
+      - name: Planning (pour commencer par les cours actuels)
+        env:
+          ECAM_USER: ${{ secrets.ECAM_USER }}
+          ECAM_PASSWORD: ${{ secrets.ECAM_PASSWORD }}
+        run: python ecam_scraper.py || true
+
+      - name: Créer les fiches
+        env:
+          ECAM_USER: ${{ secrets.ECAM_USER }}
+          ECAM_PASSWORD: ${{ secrets.ECAM_PASSWORD }}
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          MAX_DOCS: ${{ vars.MOODLE_MAX_DOCS || '20' }}
+        run: python moodle_fiches.py
+
+      - name: Ranger les fiches
+        if: always()
+        run: |
+          git config user.name "Mon ECAM"
+          git config user.email "mon-ecam@users.noreply.github.com"
+          git add -A fiches moodle_vus.enc 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -q -m "Fiches Moodle"
+            for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && break; sleep 3; done
+            echo "changed=1" >> "$GITHUB_ENV"
+          fi
+
+      - name: Publier dans l'appli
+        if: always() && env.changed == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run sync.yml -R "${{ github.repository }}"

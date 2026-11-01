@@ -452,6 +452,7 @@ function renderPending() {
 }
 
 /* ---------- Fiches ---------- */
+const openSubjects = new Set();
 function renderFiches() {
   const by = new Map();
   (DATA.fiches || []).filter((f) => f.kind === "cours").forEach((f) => {
@@ -469,9 +470,10 @@ function renderFiches() {
     const fs = by.get(m).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
     const r = revs[m];
     const stale = r && r.sources < fs.length;
-    return `<div class="matiere">
-      <div class="matiere-head"><h3>${esc(m)}</h3>
-        <button type="button" class="btn small" data-rev="${esc(m)}">${r ? (stale ? "Mettre à jour la révision" : "Refaire la révision") : "Créer la fiche de révision"}</button></div>
+    return `<details class="matiere" data-m="${esc(m)}"${openSubjects.has(m) ? " open" : ""}>
+      <summary><span class="t">${esc(m)}</span><span class="m">${fs.length} fiche${fs.length > 1 ? "s" : ""}${r ? ", révision prête" : ""}</span></summary>
+      <div class="row matiere-actions">
+        <button type="button" class="btn small" data-rev="${esc(m)}">${r ? (stale ? "Mettre à jour la révision" : "Refaire la révision") : "Créer la fiche de révision et le QCM"}</button></div>
       <ul class="list">
         ${r ? `<li class="rev"><button type="button" class="item" data-open-rev="${esc(m)}">
           <div class="t">Fiche de révision et QCM</div>
@@ -479,10 +481,14 @@ function renderFiches() {
         </button></li>` : ""}
         ${fs.map((f) => `<li><button type="button" class="item" data-open="${esc(f.id)}">
           <div class="t">${esc(f.titre || m)}</div>
-          <div class="m">${esc(fmtDate(f.date))}${f.duree_min ? `, ${f.duree_min} min d'enregistrement` : ""}</div>
+          <div class="m">${f.source === "moodle" ? `D'après le support Moodle${f.date ? ", " + esc(fmtDate(f.date)) : ""}`
+            : `${esc(fmtDate(f.date))}${f.duree_min ? `, ${f.duree_min} min d'enregistrement` : ""}`}</div>
         </button></li>`).join("")}
-      </ul></div>`;
+      </ul></details>`;
   }).join("");
+  box.querySelectorAll("details.matiere").forEach((d) => {
+    d.addEventListener("toggle", () => { d.open ? openSubjects.add(d.dataset.m) : openSubjects.delete(d.dataset.m); });
+  });
   box.querySelectorAll("[data-open]").forEach((b) => { b.onclick = () => openFiche(b.dataset.open); });
   box.querySelectorAll("[data-open-rev]").forEach((b) => { b.onclick = () => openRevision(b.dataset.openRev); });
   box.querySelectorAll("[data-rev]").forEach((b) => {
@@ -516,7 +522,8 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#rea
 function openFiche(id) {
   const f = (DATA.fiches || []).find((x) => x.id === id);
   if (!f) return;
-  openReader(f.matiere, `<p class="meta">${esc(f.matiere)}, ${esc(fmtDate(f.date))}</p>${md(f.md)}`);
+  const meta = f.source === "moodle" ? `${esc(f.matiere)}, d'après « ${esc(f.doc || "")} » sur Moodle` : `${esc(f.matiere)}, ${esc(fmtDate(f.date))}`;
+  openReader(f.matiere, `<p class="meta">${meta}</p>${md(f.md)}`);
 }
 
 function openRevision(matiere) {
