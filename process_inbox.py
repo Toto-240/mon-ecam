@@ -94,7 +94,9 @@ def gemini():
     key = os.environ.get("GEMINI_API_KEY")
     if not key:
         raise RuntimeError("Clé GEMINI_API_KEY manquante dans les secrets GitHub")
-    return genai.Client(api_key=key)
+    from google.genai import types
+    # 3 min max par appel : un document qui bloque ne fige plus tout le passage
+    return genai.Client(api_key=key, http_options=types.HttpOptions(timeout=180_000))
 
 
 class QuotaError(RuntimeError):

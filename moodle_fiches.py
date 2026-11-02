@@ -34,6 +34,7 @@ SEEN_FILE = BASE / "moodle_vus.enc"
 MAX_DOCS = int(os.environ.get("MAX_DOCS") or 20)
 MAX_MB = 40
 PAUSE = 7  # secondes entre deux appels à Gemini (quota gratuit)
+BUDGET = 25 * 60  # au-delà, on n'entame plus de nouveau document (la suite au prochain passage)
 
 PROMPT_DOC = """Voici un support de cours de la matière « {matiere} », intitulé « {titre} ».
 L'étudiant est en Bachelor cybersécurité à l'ECAM LaSalle (Lyon).
@@ -276,6 +277,7 @@ def main():
 
     made = skipped = failed = 0
     causes = {}
+    t0 = time.time()
     remaining = 0
     (BASE / "fiches").mkdir(exist_ok=True)
     for c in courses:
@@ -289,7 +291,7 @@ def main():
         for cmid, kind, name in items:
             if kind != "folder" and any(k.startswith(f"{cmid}:") and finished(seen, k) for k in seen):
                 continue
-            if made >= MAX_DOCS:
+            if made >= MAX_DOCS or time.time() - t0 > BUDGET:
                 remaining += 1
                 continue
             try:
@@ -304,7 +306,7 @@ def main():
             for doc in docs:
                 if finished(seen, doc["key"]):
                     continue
-                if made >= MAX_DOCS:
+                if made >= MAX_DOCS or time.time() - t0 > BUDGET:
                     remaining += 1
                     continue
                 try:
