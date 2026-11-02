@@ -63,6 +63,8 @@ def main():
     if prev and prev.get("planning") and data["planning"]:
         new = changements.detect(prev["planning"], data["planning"])
     data["changements"] = changements.merge(history, new)
+    print("::notice::Emploi du temps : " + (f"comparé à la version en ligne ({len(new)} changement(s))" if prev
+          else "version précédente introuvable, comparaison au prochain passage"))
     if new:
         print(f"::notice::{len(new)} changement(s) d'emploi du temps")
         changements.notify(new)
