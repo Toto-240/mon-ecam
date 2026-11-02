@@ -6,8 +6,10 @@ Le site est public, mais sans le mot de passe data.enc est illisible.
 Ajoute aussi les fiches de cours et de révision (fiches/, revisions/), déjà chiffrées.
 """
 
+import hashlib
 import json
 import os
+import re
 import shutil
 import sys
 from datetime import datetime
@@ -87,6 +89,17 @@ def main():
     (SITE / "data.enc").write_text(encrypt_json(data, password), encoding="utf-8")
     if (BASE / "devoirs").is_dir():
         shutil.copytree(BASE / "devoirs", SITE / "devoirs")  # déjà chiffrés
+    # version de l'interface : l'appli se recharge seule quand elle change
+    h = hashlib.sha1()
+    for f in sorted(WEB.rglob("*")):
+        if f.is_file():
+            h.update(f.relative_to(WEB).as_posix().encode() + f.read_bytes())
+    version = h.hexdigest()[:10]
+    index = (SITE / "index.html").read_text(encoding="utf-8")
+    index = re.sub(r'(<(?:script|link)[^>]+(?:src|href)=")([\w.-]+\.(?:js|css))(")', rf'\g<1>\g<2>?v={version}\g<3>', index)
+    index = index.replace("<head>", f'<head>\n<meta name="app-version" content="{version}">', 1)
+    (SITE / "index.html").write_text(index, encoding="utf-8")
+    (SITE / "version.json").write_text(json.dumps({"v": version}), encoding="utf-8")
     repo = os.environ.get("GITHUB_REPOSITORY", "")
     (SITE / "config.json").write_text(json.dumps({"repo": repo}), encoding="utf-8")
     print(f"Site prêt : {len(data['planning'])} créneaux, {len(data['devoirs'])} devoirs, "

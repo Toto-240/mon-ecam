@@ -394,7 +394,26 @@ function setSyncButton(busy) {
   b.disabled = !!busy;
 }
 
-$("#sync").onclick = load;
+$("#sync").onclick = () => { checkVersion(); load(); };
+
+/* Nouvelle version de l'interface publiée ? On recharge la page (l'appli iPhone reste
+   ouverte en arrière-plan et garderait sinon l'ancienne interface). */
+const APP_VERSION = document.querySelector('meta[name="app-version"]')?.content || "";
+async function checkVersion() {
+  if (!APP_VERSION) return;
+  try {
+    const r = await fetch(`version.json?t=${Date.now()}`, { cache: "no-store" });
+    const { v } = await r.json();
+    if (!v || v === APP_VERSION) return;
+    if (sessionStorage.getItem("ecam-reload") === v) return; // déjà essayé : pas de boucle
+    sessionStorage.setItem("ecam-reload", v);
+    const u = new URL(location.href);
+    u.searchParams.set("v", v); // adresse nouvelle : le cache ne peut pas resservir l'ancienne page
+    location.replace(u.toString());
+  } catch {}
+}
+checkVersion();
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkVersion(); });
 
 fetch("config.json", { cache: "no-store" }).then((r) => r.json()).then((c) => {
   if (!c.repo) return;
