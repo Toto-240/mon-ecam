@@ -174,7 +174,9 @@ def statement_parts(client, data, filename, mime):
 
 
 def moodle_statement(cmid):
-    """Énoncé d'un devoir Moodle : consigne + fichiers joints (connexion ECAM)."""
+    """Énoncé d'un devoir Moodle : consigne + fichiers joints (connexion ECAM).
+    Si la page du devoir est vide, on prend les documents de la même section du cours
+    (souvent le sujet est déposé à côté du devoir)."""
     import requests
     from bs4 import BeautifulSoup
     from urllib.parse import unquote, urljoin
@@ -184,20 +186,73 @@ def moodle_statement(cmid):
     s.headers["User-Agent"] = ecam.UA
     ecam.cas_login(s, ecam.MOODLE_LOGIN, user, pwd)
     soup = BeautifulSoup(s.get(f"{ecam.MOODLE}/mod/assign/view.php?id={int(cmid)}", timeout=40).text, "html.parser")
-    title = soup.select_one("h1, h2")
-    intro = soup.select_one(".activity-description, #intro, .box.generalbox")
+    for hidden in soup.select(".accesshide, .sr-only, .visually-hidden"):
+        hidden.decompose()
+    title = soup.select_one("#page-header h1, .page-header-headings h1, h1, h2")
+    region = soup.select_one("#region-main") or soup
+    intro = (region.select_one(".activity-description") or region.select_one("#intro")
+             or region.select_one('[id^="intro"]') or region.select_one(".box.generalbox"))
     text = intro.get_text("\n", strip=True) if intro else ""
     files = []
-    for a in soup.select('a[href*="pluginfile.php"]'):
+    for a in region.select('a[href*="pluginfile.php"]'):
         href = a["href"]
-        if "introattachment" not in href and "intro" not in href:
+        if "/mod_assign/" not in href or not re.search(r"intro", href):
             continue
         r = s.get(urljoin(ecam.MOODLE, href), timeout=90)
         if r.ok and len(r.content) < 30e6:
             files.append((unquote(href.split("?")[0].rsplit("/", 1)[-1]), r.content, r.headers.get("content-type", "")))
         if len(files) >= 3:
             break
+
+    source = "page du devoir"
+    if len(text.strip()) < 40 and not files:
+        files, extra = section_documents(s, soup, cmid)
+        text = (text + "\n" + extra).strip()
+        source = "section du cours"
+    print(f"::notice::Énoncé Moodle : {len(text)} caractères, {len(files)} fichier(s) ({source})")
     return (title.get_text(strip=True) if title else ""), text, files
+
+
+def section_documents(s, assign_soup, cmid):
+    """Documents déposés dans la même section du cours que le devoir."""
+    from bs4 import BeautifulSoup
+    import ecam_scraper as ecam
+    import moodle_fiches
+    link = assign_soup.select_one('a[href*="/course/view.php?id="]')
+    m = re.search(r"course/view\.php\?id=(\d+)", link["href"]) if link else None
+    if not m:
+        return [], ""
+    page = BeautifulSoup(s.get(f"{ecam.MOODLE}/course/view.php?id={m.group(1)}", timeout=40).text, "html.parser")
+    for hidden in page.select(".accesshide, .sr-only, .visually-hidden"):
+        hidden.decompose()
+    node = page.select_one(f"#module-{int(cmid)}") or page.select_one(f'[data-id="{int(cmid)}"]')
+    ancestors = list(node.parents) if node is not None else []
+    # d'abord le bloc complet de la section (Moodle 4 : data-for="section" / id="section-N")
+    section = next((n for n in ancestors if getattr(n, "get", None) and
+                    (n.get("data-for") == "section" or str(n.get("id", "")).startswith("section-"))), None)
+    section = section or next((n for n in ancestors if getattr(n, "get", None) and
+                               re.search(r"\bsection\b", " ".join(n.get("class", [])))), None)
+    if section is None:
+        return [], ""
+    files, texts = [], []
+    for a in section.select('a[href*="/mod/"]'):
+        mm = re.search(r"/mod/(resource|folder|page)/view\.php\?id=(\d+)", a.get("href", ""))
+        if not mm:
+            continue
+        name = (a.select_one(".instancename") or a).get_text(" ", strip=True)
+        for doc in moodle_fiches.documents(s, mm.group(2), mm.group(1), name, {}):
+            if "text" in doc:
+                texts.append(f"{doc['titre']} :\n{doc['text']}")
+            else:
+                ext = doc["fichier"].lower().rsplit(".", 1)[-1]
+                ctype = {"pdf": "application/pdf", "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png"}.get(ext, "")
+                files.append((doc["fichier"], doc["data"], ctype))
+        if len(files) >= 4:
+            break
+    summary = section.select_one(".summarytext, .section_summary, .summary")
+    if summary and summary.get_text(strip=True):
+        texts.insert(0, "Présentation de la section :\n" + summary.get_text("\n", strip=True))
+    return files[:4], "\n\n".join(texts)
 
 
 def make(client, generate, meta, data):
@@ -219,7 +274,8 @@ def make(client, generate, meta, data):
                 else:
                     parts += statement_parts(client, content, fname, ctype)
             if not parts:
-                raise RuntimeError("Énoncé introuvable sur Moodle (consigne vide, pas de fichier joint)")
+                raise RuntimeError("Énoncé introuvable sur Moodle : la page du devoir et sa section sont vides. "
+                                   "Télécharge le sujet et envoie-le dans l'onglet Devoirs.")
             out, md, model = rebuild(client, generate, parts, meta)
             return _result(meta, out, md, model, "reconstruit")
 
