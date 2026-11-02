@@ -231,16 +231,24 @@ def section_documents(s, assign_soup, cmid):
     page = BeautifulSoup(s.get(f"{ecam.MOODLE}/course/view.php?id={m.group(1)}", timeout=40).text, "html.parser")
     for hidden in page.select(".accesshide, .sr-only, .visually-hidden"):
         hidden.decompose()
-    node = page.select_one(f"#module-{int(cmid)}") or page.select_one(f'[data-id="{int(cmid)}"]')
+    node = (page.select_one(f"#module-{int(cmid)}") or page.select_one(f'[data-id="{int(cmid)}"]')
+            or page.select_one(f'a[href*="mod/assign/view.php?id={int(cmid)}"]'))
     ancestors = list(node.parents) if node is not None else []
     # d'abord le bloc complet de la section (Moodle 4 : data-for="section" / id="section-N")
     section = next((n for n in ancestors if getattr(n, "get", None) and
                     (n.get("data-for") == "section" or str(n.get("id", "")).startswith("section-"))), None)
     section = section or next((n for n in ancestors if getattr(n, "get", None) and
-                               re.search(r"\bsection\b", " ".join(n.get("class", [])))), None)
-    n_mods = len(page.select('[id^="module-"]'))
-    print(f"::notice::section : activité trouvée={'oui' if node is not None else 'non'}, section trouvée={'oui' if section is not None else 'non'}, "
-          f"activités dans la page du cours={n_mods}")
+                               re.search(r"\b(section|course-section|tile|topic)\b", " ".join(n.get("class", [])))), None)
+    n_mods = len(page.select('a[href*="/mod/"]'))
+    print(f"::notice::section : devoir trouvé dans le cours={'oui' if node is not None else 'non'}, "
+          f"section trouvée={'oui' if section is not None else 'non'}, liens d'activités dans le cours={n_mods}")
+    if section is None and node is not None:
+        # pas de section reconnaissable : les documents déposés juste avant le devoir
+        links = page.select('a[href*="/mod/"]')
+        anchor = node if node.name == "a" else node.select_one("a")
+        idx = next((i for i, a in enumerate(links) if a is anchor), None)
+        if idx is not None:
+            section = BeautifulSoup("<div>" + "".join(str(a) for a in links[max(0, idx - 3):idx]) + "</div>", "html.parser")
     if section is None:
         return [], ""
     files, texts = [], []
