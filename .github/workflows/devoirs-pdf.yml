@@ -1,0 +1,47 @@
+name: PDF des devoirs
+
+# Ajoute la version PDF aux devoirs faits qui n'en ont pas (rattrapage).
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["devoirs_pdf.py", ".github/workflows/devoirs-pdf.yml"]
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: fiches
+  cancel-in-progress: false
+
+jobs:
+  pdf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Installer LibreOffice
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends libreoffice-writer fonts-crosextra-carlito fonts-crosextra-caladea fonts-liberation >/dev/null
+          pip install -q -r requirements.txt
+      - name: Créer les PDF manquants
+        env:
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+        run: python devoirs_pdf.py
+      - name: Ranger
+        run: |
+          git config user.name "Mon ECAM"
+          git config user.email "mon-ecam@users.noreply.github.com"
+          git add -A devoirs
+          if ! git diff --cached --quiet; then
+            git commit -q -m "PDF des devoirs"
+            for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && break; sleep 3; done
+            gh workflow run sync.yml -R "${{ github.repository }}"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}

@@ -49,7 +49,10 @@ jobs:
       - if: steps.inbox.outputs.has
         name: Installer les outils
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null
+          sudo apt-get update -qq
+          # ffmpeg pour l'audio ; LibreOffice pour le PDF des devoirs (fidèle au Word)
+          PKGS="ffmpeg libreoffice-writer fonts-crosextra-carlito fonts-crosextra-caladea fonts-liberation"
+          sudo apt-get install -y -qq --no-install-recommends $PKGS >/dev/null
           pip install -q -r main/requirements.txt google-genai python-docx python-pptx
 
       - if: steps.inbox.outputs.has

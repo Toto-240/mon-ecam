@@ -307,10 +307,32 @@ def make(client, generate, meta, data):
     return _result(meta, out, md, model, "reconstruit")
 
 
+def to_pdf(docx_bytes):
+    """PDF fidèle au .docx (LibreOffice). Renvoie None si LibreOffice est absent ou échoue."""
+    import shutil
+    import subprocess
+    import tempfile
+    from pathlib import Path
+    exe = shutil.which("soffice") or shutil.which("libreoffice")
+    if not exe:
+        return None
+    with tempfile.TemporaryDirectory() as d:
+        src = Path(d) / "devoir.docx"
+        src.write_bytes(docx_bytes)
+        try:
+            subprocess.run([exe, "--headless", "--convert-to", "pdf", "--outdir", d, str(src)],
+                           check=True, capture_output=True, timeout=180)
+            return (Path(d) / "devoir.pdf").read_bytes()
+        except Exception:
+            return None
+
+
 def _result(meta, docx_bytes, md, model, mode):
     titre = meta.get("titre") or next((l[2:].strip() for l in md.splitlines() if l.startswith("# ")), "Devoir")
     base = re.sub(r"\.[^.]+$", "", meta.get("nom") or titre)
+    pdf = to_pdf(docx_bytes)
     return {"id": meta["id"], "kind": "devoir", "titre": titre, "matiere": meta.get("matiere"),
             "fichier": f"{base} - fait.docx", "mise_en_page": mode, "md": md,
-            "docx": base64.b64encode(docx_bytes).decode(), "modele": model,
-            "cree": datetime.now().isoformat(timespec="seconds")}
+            "docx": base64.b64encode(docx_bytes).decode(),
+            "pdf": base64.b64encode(pdf).decode() if pdf else None,
+            "modele": model, "cree": datetime.now().isoformat(timespec="seconds")}

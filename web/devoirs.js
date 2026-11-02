@@ -86,19 +86,23 @@ async function openTravail(id, button) {
     }
   }
   openReader(d.titre || "Devoir", `
-    <div class="row tight"><button type="button" class="btn primary" id="dv-download">Télécharger le devoir (.docx)</button></div>
+    <div class="row tight">
+      <button type="button" class="btn primary" id="dv-docx">Word (.docx)</button>
+      ${d.pdf ? `<button type="button" class="btn primary" id="dv-pdf">PDF</button>`
+        : `<span class="muted small">PDF en préparation, recharge dans quelques minutes.</span>`}
+    </div>
     <p class="meta">${esc(d.mise_en_page === "original"
       ? "Réponses ajoutées dans ton document Word d'origine, avec sa mise en page."
       : "Document Word avec la même structure que l'énoncé.")}</p>
     ${md(d.md)}`);
-  $("#dv-download").onclick = () => saveDocx(d);
+  const base = (d.fichier || "devoir.docx").replace(/\.docx$/i, "");
+  $("#dv-docx").onclick = () => saveFile(d.docx, `${base}.docx`,
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+  $("#dv-pdf")?.addEventListener("click", () => saveFile(d.pdf, `${base}.pdf`, "application/pdf"));
 }
 
-async function saveDocx(d) {
-  const bytes = unb64(d.docx);
-  const name = d.fichier || "devoir.docx";
-  const type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-  const file = new File([bytes], name, { type });
+async function saveFile(b64, name, type) {
+  const file = new File([unb64(b64)], name, { type });
   // iPhone : feuille de partage (Enregistrer dans Fichiers, ouvrir dans Word…)
   if (navigator.canShare?.({ files: [file] })) {
     try { await navigator.share({ files: [file], title: name }); return; } catch (e) { if (e?.name === "AbortError") return; }
