@@ -40,12 +40,38 @@
 
 <main id="pane-ds" class="pane" hidden>
   <h2>Prochains DS</h2>
+  <details class="card add-ds" id="add-ds">
+    <summary class="btn primary">+ Ajouter un DS annoncé à l'oral</summary>
+    <form id="ds-form" autocomplete="off">
+      <label for="ds-matiere">Matière</label>
+      <input id="ds-matiere" class="field" list="ds-matieres" required placeholder="Ex. : Mécanique">
+      <datalist id="ds-matieres"></datalist>
+      <label for="ds-date">Date</label>
+      <input id="ds-date" class="field" type="date" required>
+      <div class="ds-times">
+        <div><label for="ds-debut">Début (facultatif)</label><input id="ds-debut" class="field" type="time"></div>
+        <div><label for="ds-fin">Fin (facultatif)</label><input id="ds-fin" class="field" type="time"></div>
+      </div>
+      <label for="ds-salle">Salle (facultatif)</label>
+      <input id="ds-salle" class="field">
+      <label for="ds-notes">Ce qu'il faut réviser (ce que le prof a dit)</label>
+      <textarea id="ds-notes" class="field" rows="3" placeholder="Ex. : chapitres 3 et 4, calculatrice autorisée, pas de documents"></textarea>
+      <div class="row"><button type="submit" class="btn primary">Ajouter le DS</button>
+        <span id="ds-form-msg" class="small muted" aria-live="polite"></span></div>
+    </form>
+  </details>
+  <p class="perso-note small muted" hidden></p>
   <div id="ds-list"></div>
 </main>
 
 <main id="pane-rendre" class="pane" hidden>
   <h2>À rendre</h2>
   <ul id="devoirs" class="list"></ul>
+  <p class="perso-note small muted" hidden></p>
+  <details id="devoirs-faits" class="faits" hidden>
+    <summary>Faits (<span id="faits-n">0</span>)</summary>
+    <ul id="faits-list" class="list"></ul>
+  </details>
 </main>
 
 <main id="pane-notes" class="pane" hidden>
@@ -235,6 +261,7 @@
 
 <script src="app.js"></script>
 <script src="revisions.js"></script>
+<script src="perso.js"></script>
 <script src="devoirs.js"></script>
 <script src="ds.js"></script>
 <script src="notifs.js"></script>

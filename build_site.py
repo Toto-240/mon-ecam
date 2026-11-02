@@ -38,6 +38,18 @@ def read_enc_dir(name, password):
     return items
 
 
+def read_perso(password):
+    """Devoirs marqués faits et DS ajoutés à la main dans l'appli (perso/etat.enc)."""
+    p = BASE / "perso" / "etat.enc"
+    try:
+        return decrypt_json(p.read_text(encoding="utf-8"), password)
+    except FileNotFoundError:
+        return None
+    except Exception:
+        print("perso/etat.enc illisible, ignoré")
+        return None
+
+
 def main():
     password = os.environ.get("APP_PASSWORD")
     if not password:
@@ -53,6 +65,7 @@ def main():
         "revisions": read_enc_dir("revisions", password),
         "erreurs": read_enc_dir("erreurs", password),
         # devoirs faits : seulement la liste ici, le fichier se charge à l'ouverture
+        "perso": read_perso(password),
         "travaux": [{k: d.get(k) for k in ("id", "titre", "matiere", "fichier", "mise_en_page", "cree")}
                     for d in read_enc_dir("devoirs", password)],
     }

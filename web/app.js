@@ -32,11 +32,23 @@ function inMinutes(d) {
 }
 
 function events() {
-  return (DATA.planning || [])
+  const evs = (DATA.planning || [])
     .map((e) => ({ ...e, d0: new Date(e.debut), d1: new Date(e.fin || e.debut) }))
-    .filter((e) => !isNaN(e.d0))
-    .sort((a, b) => a.d0 - b.d0);
+    .filter((e) => !isNaN(e.d0));
+  // DS annoncés à l'oral (ajoutés dans l'onglet DS)
+  for (const p of window.persoDS?.() || []) {
+    // s'il apparaît ensuite dans le planning officiel, on garde l'officiel avec tes notes
+    const off = evs.find((e) => e.type === "DS" && !e.perso && e.debut.slice(0, 10) === p.date && norm(e.matiere) === norm(p.matiere));
+    if (off) { off.persoNotes = p.notes; off.persoId = p.id; continue; }
+    const debut = `${p.date}T${p.debut || "08:00"}:00`;
+    const fin = `${p.date}T${p.fin || (p.debut ? addHour(p.debut) : "23:59")}:00`;
+    evs.push({ perso: true, persoId: p.id, persoNotes: p.notes, sansHeure: !p.debut, type: "DS",
+      matiere: p.matiere, titre: `DS ${p.matiere}`, debut, fin, salle: p.salle || "", prof: "",
+      d0: new Date(debut), d1: new Date(fin) });
+  }
+  return evs.filter((e) => !isNaN(e.d0)).sort((a, b) => a.d0 - b.d0);
 }
+const addHour = (hm) => { const [h, m] = hm.split(":").map(Number); return `${String(Math.min(h + 2, 23)).padStart(2, "0")}:${String(m).padStart(2, "0")}`; };
 
 function kindLabel(t) {
   return { CM: "Cours magistral", TD: "TD", TP: "TP", DS: "Devoir surveillé" }[t] || t;
@@ -44,6 +56,7 @@ function kindLabel(t) {
 
 /* ---------- Panneau de porte ---------- */
 function renderDoor(evs) {
+  evs = evs.filter((e) => !e.sansHeure);
   const cur = evs.find((e) => e.d0 <= NOW && NOW < e.d1);
   const next = evs.find((e) => e.d0 > NOW);
   const e = cur || next;
@@ -156,8 +169,8 @@ function slotHtml(e) {
   const canAdd = ["CM", "TD", "TP"].includes(e.type) && e.d0 <= NOW;
   const f = canAdd && ficheFor(e);
   return `<li class="slot ${esc(e.type)}${st}">
-    <time datetime="${e.d0.toISOString()}">${fmtTime(e.d0)}<small>${fmtTime(e.d1)}</small></time>
-    <div><div class="t">${esc(e.matiere)}</div><div class="m">${esc(e.prof || e.groupes || "")}</div></div>
+    <time datetime="${e.d0.toISOString()}">${e.sansHeure ? "?<small>heure</small>" : `${fmtTime(e.d0)}<small>${fmtTime(e.d1)}</small>`}</time>
+    <div><div class="t">${esc(e.matiere)}</div><div class="m">${esc(e.perso ? "Annoncé à l'oral" : e.prof || e.groupes || "")}</div></div>
     <div><div class="r">${esc(e.salle)}</div><div class="k">${esc(kindLabel(e.type))}</div></div>
     ${changeTag(e)}
     ${!canAdd ? "" : f
@@ -203,12 +216,15 @@ function cleanCourse(name) {
 }
 
 function renderDevoirs() {
-  const items = (DATA.devoirs || []).map((d) => ({ ...d, due: new Date(d.echeance) })).sort((a, b) => a.due - b.due);
+  const all = (DATA.devoirs || []).map((d) => ({ ...d, due: new Date(d.echeance) })).sort((a, b) => a.due - b.due);
+  const fait = (d) => window.isFait?.(d);
+  const items = all.filter((d) => !fait(d)), done = all.filter(fait);
   const soon = items.filter((d) => d.due - NOW < 7 * 864e5).length;
   const badge = $("#badge");
   badge.hidden = !soon;
   badge.textContent = soon;
   $("#devoirs").innerHTML = items.length ? items.map((d) => {
+    const i = all.indexOf(d);
     const ms = d.due - NOW, days = Math.ceil(ms / 864e5);
     const left = ms < 0 ? "En retard" : days <= 1 ? (inMinutes(d.due) || "Demain") : `${days} jours`;
     const cls = ms < 0 || d.en_retard ? "late" : days <= 3 ? "soon" : "";
@@ -219,14 +235,27 @@ function renderDevoirs() {
         <div class="m">${esc(cleanCourse(d.cours))}</div>
         <div class="m">Pour le ${esc(d.due.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }))} à ${fmtTime(d.due)}${d.action ? ", " + esc(d.action.toLowerCase()) : ""}</div>
       </a>
-      ${cmid ? `<div class="due-actions"><button type="button" class="btn small" data-ia="${esc(cmid)}"
+      <div class="due-actions">
+        <button type="button" class="btn small fait-btn" data-fait="${i}">✓ Fait</button>
+        ${cmid ? `<button type="button" class="btn small" data-ia="${esc(cmid)}"
         data-titre="${esc(d.titre)}" data-matiere="${esc(cleanCourse(d.cours))}">Faire avec l'IA</button>
-        <a class="btn small" href="${esc(d.url)}" target="_blank" rel="noopener">Déposer sur Moodle</a></div>` : ""}
+        <a class="btn small" href="${esc(d.url)}" target="_blank" rel="noopener">Déposer sur Moodle</a>` : ""}
+      </div>
     </li>`;
-  }).join("") : `<li class="m">Rien à rendre pour l'instant.</li>`;
+  }).join("") : `<li class="m">${done.length ? "Tout est fait 👍" : "Rien à rendre pour l'instant."}</li>`;
+  const box = $("#devoirs-faits");
+  box.hidden = !done.length;
+  $("#faits-n").textContent = done.length;
+  $("#faits-list").innerHTML = done.map((d) => `<li class="is-done">
+      <div class="due"><span class="t">${esc(d.titre)}</span><span class="left">Fait</span></div>
+      <div class="m">${esc(cleanCourse(d.cours))}, pour le ${esc(d.due.toLocaleDateString("fr-FR", { day: "numeric", month: "long" }))}</div>
+      <div class="due-actions"><button type="button" class="btn small" data-defait="${all.indexOf(d)}">Remettre à faire</button></div>
+    </li>`).join("");
   document.querySelectorAll("#devoirs [data-ia]").forEach((b) => {
     b.onclick = () => window.faireDevoirMoodle?.(b.dataset.ia, b.dataset.titre, b.dataset.matiere, b);
   });
+  document.querySelectorAll("[data-fait]").forEach((b) => { b.onclick = () => window.setFait?.(all[+b.dataset.fait], true); });
+  document.querySelectorAll("[data-defait]").forEach((b) => { b.onclick = () => window.setFait?.(all[+b.dataset.defait], false); });
 }
 
 /* ---------- Notes ---------- */
@@ -271,6 +300,7 @@ function renderCours() {
 
 /* ---------- Données ---------- */
 function renderAll() {
+  window.persoInit?.();
   $("#today").textContent = fmtDayLong(NOW);
   const maj = DATA.maj ? new Date(DATA.maj) : null;
   $("#maj").textContent = maj ? `Mis à jour ${relDay(maj)} à ${fmtTime(maj)}` : "Pas encore synchronisé";

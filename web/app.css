@@ -400,3 +400,24 @@ progress { width: 100%; height: 8px; margin-top: 8px; accent-color: var(--ecam);
 .slot.ghost .t { text-decoration: line-through; }
 .slot.ghost .t::before { background: #C0392B; }
 .slot.ghost .m { color: #C0392B; font-weight: 600; }
+
+/* Devoirs faits */
+.fait-btn { color: var(--ok, #1a7f4b); border-color: currentColor; }
+.faits { margin-top: 16px; }
+.faits summary { cursor: pointer; font-weight: 600; color: var(--muted); padding: 8px 2px; }
+.faits .is-done .t { text-decoration: line-through; color: var(--muted); }
+.faits .is-done .left { color: var(--ok, #1a7f4b); }
+
+/* DS ajoutés à la main */
+.add-ds { padding: 0; border: 0; background: none; }
+.add-ds > summary { list-style: none; width: 100%; }
+.add-ds > summary::-webkit-details-marker { display: none; }
+.add-ds[open] > summary { margin-bottom: 4px; }
+.add-ds form { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-top: 8px; }
+.add-ds label { display: block; font-weight: 600; font-size: .9rem; margin: 10px 0 4px; }
+.add-ds label:first-child { margin-top: 0; }
+.ds-times { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.chg-oral { margin-top: 6px; display: inline-block; background: color-mix(in srgb, var(--ds) 16%, transparent); color: var(--ds); }
+.ds-notes { margin: 0; white-space: pre-wrap; font-size: .92rem; }
+.ds-perso { margin-top: 14px; }
+.perso-note { margin: 10px 2px; }

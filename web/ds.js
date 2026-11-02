@@ -28,9 +28,10 @@ window.renderDS = function () {
   const soon = exams.filter((e) => e.d0 - NOW < 7 * 864e5).length;
   $("#ds-badge").hidden = !soon;
   $("#ds-badge").textContent = soon;
+  fillDsForm();
   const box = $("#ds-list");
   if (!exams.length) {
-    box.innerHTML = `<p class="empty-state">Aucun DS dans ton planning des prochaines semaines.</p>`;
+    box.innerHTML = `<p class="empty-state">Aucun DS dans ton planning des prochaines semaines. Un DS annoncé en cours ? Ajoute-le ci-dessus.</p>`;
     return;
   }
   const allFiches = (DATA.fiches || []).filter((f) => f.kind === "cours");
@@ -46,11 +47,13 @@ window.renderDS = function () {
       <div class="ds-top">
         <div>
           <h3>${esc(e.matiere)}</h3>
-          <div class="ds-when">${esc(fmtDayLong(e.d0))}, ${fmtTime(e.d0)}–${fmtTime(e.d1)}${e.salle ? `, salle ${esc(e.salle)}` : ""}</div>
+          <div class="ds-when">${esc(fmtDayLong(e.d0))}, ${e.sansHeure ? "heure à préciser" : `${fmtTime(e.d0)}–${fmtTime(e.d1)}`}${e.salle ? `, salle ${esc(e.salle)}` : ""}</div>
           ${e.prof ? `<div class="ds-when">${esc(e.prof)}</div>` : ""}
+          ${e.perso ? `<div class="chg chg-oral">Annoncé à l'oral, pas encore dans le planning</div>` : ""}
         </div>
         <div class="ds-count"><b>${days <= 0 ? "Auj." : days}</b><span>${days <= 0 ? "" : days === 1 ? "jour" : "jours"}</span></div>
       </div>
+      ${e.persoNotes ? `<h4>Tes notes</h4><p class="ds-notes">${esc(e.persoNotes)}</p>` : ""}
       ${said.length ? `<h4>Ce que le prof a dit</h4><ul class="said">${said.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>` : ""}
       <h4>À réviser${fs.length ? ` (${fs.length} fiche${fs.length > 1 ? "s" : ""})` : ""}</h4>
       ${fs.length ? `<ul class="list">
@@ -66,9 +69,19 @@ window.renderDS = function () {
         ${fs.length > 6 ? `<button type="button" class="btn small" data-ds-all="${esc(e.matiere)}">Voir les ${fs.length} fiches</button>` : ""}
       </div>`
       : `<p class="muted small">Pas encore de fiche pour cette matière. Ajoute-en depuis le planning (bouton « + Ajouter une fiche » sous chaque cours) ou enregistre le prochain cours.</p>`}
+      ${e.persoId ? `<div class="row ds-perso"><button type="button" class="btn small danger" data-ds-del="${esc(e.persoId)}">${e.perso ? "Supprimer ce DS" : "Retirer tes notes"}</button></div>` : ""}
     </article>`;
   }).join("");
 
+  box.querySelectorAll("[data-ds-del]").forEach((b) => {
+    b.onclick = () => {
+      if (b.dataset.armed) { window.delPersoDS?.(b.dataset.dsDel); return; }
+      const label = b.textContent;
+      b.dataset.armed = "1";
+      b.textContent = "Appuie encore pour confirmer";
+      setTimeout(() => { delete b.dataset.armed; b.textContent = label; }, 4000);
+    };
+  });
   box.querySelectorAll("[data-ds-fiche]").forEach((b) => { b.onclick = () => openFiche(b.dataset.dsFiche); });
   box.querySelectorAll("[data-ds-rev]").forEach((b) => { b.onclick = () => openRevision(b.dataset.dsRev); });
   box.querySelectorAll("[data-ds-all]").forEach((b) => {
@@ -90,6 +103,28 @@ window.renderDS = function () {
     };
   });
 };
+
+/* ---------- Ajouter un DS annoncé à l'oral ---------- */
+function fillDsForm() {
+  const names = new Set([...(DATA.planning || []).map((e) => e.matiere), ...matieres()].filter(Boolean));
+  $("#ds-matieres").innerHTML = [...names].sort((a, b) => a.localeCompare(b, "fr")).map((m) => `<option value="${esc(m)}">`).join("");
+  const p2 = (n) => String(n).padStart(2, "0");
+  $("#ds-date").min = `${NOW.getFullYear()}-${p2(NOW.getMonth() + 1)}-${p2(NOW.getDate())}`;
+}
+
+$("#ds-form").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const v = (id) => $(id).value.trim();
+  if (v("#ds-fin") && v("#ds-debut") && v("#ds-fin") <= v("#ds-debut")) {
+    $("#ds-form-msg").textContent = "L'heure de fin doit être après le début.";
+    return;
+  }
+  window.addPersoDS({ id: newId(), matiere: v("#ds-matiere"), date: v("#ds-date"), debut: v("#ds-debut"),
+    fin: v("#ds-debut") ? v("#ds-fin") : "", salle: v("#ds-salle"), notes: v("#ds-notes"), cree: new Date().toISOString() });
+  ev.target.reset();
+  $("#add-ds").open = false;
+  $("#ds-form-msg").textContent = "";
+});
 
 /* ---------- Ajouter une fiche à un cours ---------- */
 let addCtx = null, addFiles = [];
