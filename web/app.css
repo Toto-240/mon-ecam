@@ -362,3 +362,17 @@ progress { width: 100%; height: 8px; margin-top: 8px; accent-color: var(--ecam);
 .tile.indigo { --top: #7A86E8; --bot: #4F4FC4; }
 .tile.olive { --top: #A9C25A; --bot: #6E8A1E; }
 .tile.ciel { --top: #6BB8EC; --bot: #2479B8; }
+
+/* Lecteur : tableaux, encadrés, formules */
+.reader-body .table { overflow-x: auto; margin: 12px 0; border: 1px solid var(--line); border-radius: 10px; }
+.reader-body table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+.reader-body th, .reader-body td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.reader-body th { background: var(--surface); font-weight: 700; }
+.reader-body tr:last-child td { border-bottom: 0; }
+.reader-body blockquote { margin: 12px 0; padding: 10px 14px; border-left: 4px solid var(--ecam); background: var(--surface); border-radius: 0 10px 10px 0; }
+.reader-body blockquote p { margin: 4px 0; }
+.reader-body .math { font-family: "Cambria Math", "STIX Two Math", Georgia, serif; white-space: nowrap; }
+.reader-body .math.block { display: block; text-align: center; margin: 10px 0; font-size: 1.1em; white-space: normal; }
+.reader-body ul ul, .reader-body ol ul, .reader-body ul ol { margin: 4px 0; }
+.reader-body a { color: var(--ecam); }
+.reader-body h4 { font-size: 1rem; margin: 16px 0 6px; }

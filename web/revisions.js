@@ -20,32 +20,110 @@ const todayIso = () => { const d = new Date(NOW); d.setMinutes(d.getMinutes() - 
 const fmtDate = (iso) => iso ? new Date(iso + (iso.length === 10 ? "T12:00" : "")).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" }) : "";
 
 /* ---------- Markdown (tout est échappé d'abord) ---------- */
-function md(src) {
-  const inline = (s) => s
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/(^|[\s(])\*([^*\s][^*]*?)\*(?=[\s.,;:!?)]|$)/g, "$1<em>$2</em>");
-  let html = "", list = null, code = false, para = [];
-  const flush = () => { if (para.length) { html += `<p>${inline(para.join(" "))}</p>`; para = []; } };
-  const close = () => { if (list) { html += `</${list}>`; list = null; } };
-  for (const raw of esc(src || "").split("\n")) {
-    const line = raw.replace(/\s+$/, "");
-    if (line.startsWith("```")) {
-      flush(); close();
-      html += code ? "</code></pre>" : "<pre><code>";
-      code = !code; continue;
-    }
-    if (code) { html += line + "\n"; continue; }
-    let m;
-    if ((m = line.match(/^(#{1,4})\s+(.*)/))) { flush(); close(); const n = Math.min(m[1].length, 3); html += `<h${n}>${inline(m[2])}</h${n}>`; }
-    else if ((m = line.match(/^\s*[-*•]\s+(.*)/))) { flush(); if (list !== "ul") { close(); html += "<ul>"; list = "ul"; } html += `<li>${inline(m[1])}</li>`; }
-    else if ((m = line.match(/^\s*\d+[.)]\s+(.*)/))) { flush(); if (list !== "ol") { close(); html += "<ol>"; list = "ol"; } html += `<li>${inline(m[1])}</li>`; }
-    else if (/^\s*(---|\*\*\*)\s*$/.test(line)) { flush(); close(); html += "<hr>"; }
-    else if (!line.trim()) { flush(); close(); }
-    else { close(); para.push(line.trim()); flush(); } // une ligne = un paragraphe (questions / réponses)
+// Formules LaTeX simples -> texte lisible (exposants, indices, fractions, symboles)
+const TEX = { "\\times": "×", "\\cdot": "·", "\\leq": "≤", "\\le": "≤", "\\geq": "≥", "\\ge": "≥", "\\neq": "≠",
+  "\\approx": "≈", "\\infty": "∞", "\\pm": "±", "\\to": "→", "\\rightarrow": "→", "\\Rightarrow": "⇒",
+  "\\leftarrow": "←", "\\Leftrightarrow": "⇔", "\\in": "∈", "\\sum": "∑", "\\prod": "∏", "\\int": "∫",
+  "\\alpha": "α", "\\beta": "β", "\\gamma": "γ", "\\delta": "δ", "\\Delta": "Δ", "\\lambda": "λ", "\\mu": "μ",
+  "\\pi": "π", "\\sigma": "σ", "\\theta": "θ", "\\omega": "ω", "\\Omega": "Ω", "\\%": "%", "\\,": " ", "\;": " ",
+  "\\left": "", "\\right": "", "\\log": "log", "\\ln": "ln", "\\mod": "mod", "\\land": "∧", "\\lor": "∨",
+  "\\neg": "¬", "\\oplus": "⊕", "\\forall": "∀", "\\exists": "∃", "\\emptyset": "∅", "\\cup": "∪", "\\cap": "∩" };
+function tex(s) {
+  let x = s;
+  for (let i = 0; i < 3; i++) {
+    x = x.replace(/\\frac\{([^{}]*)\}\{([^{}]*)\}/g, "($1)/($2)").replace(/\\sqrt\{([^{}]*)\}/g, "√($1)")
+      .replace(/\\(?:text|mathrm|mathbf|operatorname)\{([^{}]*)\}/g, "$1");
   }
-  flush(); close();
-  if (code) html += "</code></pre>";
+  x = x.replace(/\\[A-Za-z]+|\\[%,;]/g, (m) => (m in TEX ? TEX[m] : m.slice(1)));
+  x = x.replace(/\^\{([^{}]*)\}/g, "<sup>$1</sup>").replace(/\^(\w)/g, "<sup>$1</sup>")
+    .replace(/_\{([^{}]*)\}/g, "<sub>$1</sub>").replace(/_(\w)/g, "<sub>$1</sub>");
+  return x.replace(/[{}]/g, "");
+}
+
+function inline(s) {
+  const codes = [];
+  s = s.replace(/`([^`]+)`/g, (_, c) => `\u0000${codes.push(c) - 1}\u0000`); // le code n'est pas retouché
+  s = s.replace(/\$\$([^$]+)\$\$/g, (_, m) => `<span class="math">${tex(m)}</span>`)
+    .replace(/\$([^$\n]+?)\$/g, (_, m) => `<span class="math">${tex(m)}</span>`)
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+    .replace(/(^|[\s(])\*([^*\s][^*]*?)\*(?=[\s.,;:!?)]|$)/g, "$1<em>$2</em>")
+    .replace(/~~([^~]+)~~/g, "<s>$1</s>")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  return s.replace(/\u0000(\d+)\u0000/g, (_, i) => `<code>${codes[+i]}</code>`);
+}
+
+function md(src) {
+  const lines = esc(src || "").replace(/\r/g, "").split("\n");
+  let html = "", para = [], code = null, quote = [];
+  const stack = []; // listes ouvertes : { type, indent }
+  const flushPara = () => { if (para.length) { html += `<p>${inline(para.join(" "))}</p>`; para = []; } };
+  const closeLists = (indent = -1) => {
+    while (stack.length && stack[stack.length - 1].indent > indent) html += `</li></${stack.pop().type}>`;
+  };
+  const unesc = (s) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+  const flushQuote = () => { if (quote.length) { html += `<blockquote>${md(unesc(quote.join("\n")))}</blockquote>`; quote = []; } };
+  const cells = (row) => row.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map((c) => c.trim());
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^\s*```/.test(line)) {
+      if (code === null) { flushPara(); closeLists(); flushQuote(); code = []; }
+      else { html += `<pre><code>${code.join("\n")}</code></pre>`; code = null; }
+      continue;
+    }
+    if (code !== null) { code.push(line); continue; }
+
+    if (/^\s*&gt;\s?/.test(line)) { flushPara(); closeLists(); quote.push(line.replace(/^\s*&gt;\s?/, "")); continue; }
+    flushQuote();
+
+    // tableau : ligne d'en-tête suivie de |---|---|
+    if (/\|/.test(line) && i + 1 < lines.length && /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(lines[i + 1])) {
+      flushPara(); closeLists();
+      const head = cells(line);
+      let rows = "";
+      i += 2;
+      while (i < lines.length && /\|/.test(lines[i]) && lines[i].trim()) {
+        rows += `<tr>${cells(lines[i]).map((c) => `<td>${inline(c)}</td>`).join("")}</tr>`;
+        i++;
+      }
+      i--;
+      html += `<div class="table"><table><thead><tr>${head.map((c) => `<th>${inline(c)}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>`;
+      continue;
+    }
+
+    let m;
+    if ((m = line.match(/^\s*(#{1,6})\s+(.*)/))) {
+      flushPara(); closeLists();
+      const n = Math.min(m[1].length, 4);
+      html += `<h${n}>${inline(m[2].replace(/\s*#+\s*$/, ""))}</h${n}>`;
+    } else if ((m = line.match(/^(\s*)([-*+•]|\d+[.)])\s+(.*)/))) {
+      flushPara();
+      const indent = m[1].replace(/\t/g, "    ").length, type = /\d/.test(m[2]) ? "ol" : "ul";
+      closeLists(indent);
+      const top = stack[stack.length - 1];
+      if (top && top.indent === indent && top.type !== type) { html += `</li></${stack.pop().type}>`; }
+      const cur = stack[stack.length - 1];
+      if (!cur || cur.indent < indent) { html += `<${type}><li>`; stack.push({ type, indent }); }
+      else html += `</li><li>`;
+      html += inline(m[3]);
+    } else if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+      flushPara(); closeLists(); html += "<hr>";
+    } else if (/^\s*\$\$.*\$\$\s*$/.test(line)) {
+      flushPara(); closeLists();
+      html += `<div class="math block">${tex(line.trim().slice(2, -2))}</div>`;
+    } else if (!line.trim()) {
+      flushPara();
+      // une ligne vide ne ferme pas une liste si elle continue juste après
+      if (!(lines[i + 1] && /^\s*([-*+•]|\d+[.)])\s+/.test(lines[i + 1]))) closeLists();
+    } else if (stack.length && /^\s{2,}\S/.test(line)) {
+      html += " " + inline(line.trim()); // suite d'un élément de liste
+    } else {
+      closeLists(); para.push(line.trim()); flushPara(); // une ligne = un paragraphe (questions / réponses)
+    }
+  }
+  flushPara(); closeLists(); flushQuote();
+  if (code !== null) html += `<pre><code>${code.join("\n")}</code></pre>`;
   return html;
 }
 
@@ -528,7 +606,6 @@ function closeReader() {
 $("#reader-close").onclick = closeReader;
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#reader").hidden) closeReader(); });
 
-window.openFiche = (id) => openFiche(id);
 function openFiche(id) {
   const f = (DATA.fiches || []).find((x) => x.id === id);
   if (!f) return;
@@ -540,6 +617,8 @@ function openFiche(id) {
 function openRevision(matiere) {
   const r = (DATA.revisions || []).find((x) => x.matiere === matiere);
   if (!r) return;
+  r.qcm = (Array.isArray(r.qcm) ? r.qcm : []).filter((q) => q && Array.isArray(q.choix) && q.choix.length > 1)
+    .map((q) => ({ ...q, bonne: Number(q.bonne) || 0 }));
   const qcm = (r.qcm || []).map((q, i) => `<div class="q" data-q="${i}">
     <p>${i + 1}. ${esc(q.question)}</p>
     ${q.choix.map((c, j) => `<button type="button" data-c="${j}">${esc(c)}</button>`).join("")}
