@@ -25,21 +25,16 @@
   <button id="sync" class="sync" type="button">Recharger</button>
 </header>
 
-<nav class="panes" aria-label="Sections">
-  <button type="button" data-pane="planning" aria-current="page">Planning</button>
-  <button type="button" data-pane="rendre">À rendre<span id="badge" class="badge" hidden></span></button>
-  <button type="button" data-pane="notes">Notes</button>
-  <button type="button" data-pane="cours">Cours</button>
-  <button type="button" data-pane="enregistrer">Enregistrer<span id="rec-dot" class="rec-dot" hidden></span></button>
-  <button type="button" data-pane="revisions">Révisions</button>
-  <button type="button" data-pane="devoirs">Devoirs</button>
-</nav>
-
 <main id="pane-planning" class="pane">
   <h2 class="sr">Planning</h2>
   <div id="door"></div>
   <nav id="days" class="days" aria-label="Jours"></nav>
   <ol id="slots" class="slots"></ol>
+</main>
+
+<main id="pane-ds" class="pane" hidden>
+  <h2>Prochains DS</h2>
+  <div id="ds-list"></div>
 </main>
 
 <main id="pane-rendre" class="pane" hidden>
@@ -149,6 +144,59 @@
   <p class="muted small">Relis toujours le devoir avant de le rendre, et vérifie ce que le règlement de l'ECAM et tes profs autorisent en matière d'IA.</p>
 </main>
 
+<nav class="panes" aria-label="Sections">
+  <button type="button" data-pane="planning" aria-current="page">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span>Planning</span>
+  </button>
+  <button type="button" data-pane="ds">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg><span>DS</span><span id="ds-badge" class="badge" hidden></span>
+  </button>
+  <button type="button" data-pane="rendre">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13l3-8h10l3 8v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M4 13h5l1 2h4l1-2h5"/></svg><span>À rendre</span><span id="badge" class="badge" hidden></span>
+  </button>
+  <button type="button" data-pane="revisions">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="13" height="15" rx="2"/><path d="M8 3h10a2 2 0 0 1 2 2v13"/><path d="M8 11h5M8 15h5"/></svg><span>Révisions</span>
+  </button>
+  <button type="button" data-pane="enregistrer" aria-label="Enregistrer un cours">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span>Micro</span><span id="rec-dot" class="rec-dot" hidden></span>
+  </button>
+  <button type="button" data-pane="devoirs">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4l6 6L9 21H3v-6z"/><path d="M12 6l6 6"/></svg><span>Devoirs</span>
+  </button>
+  <button type="button" data-pane="notes">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Notes</span>
+  </button>
+  <button type="button" data-pane="cours">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5M8 7h7"/></svg><span>Cours</span>
+  </button>
+</nav>
+
+<div id="add-sheet" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="add-title">
+  <div class="sheet-card">
+    <div class="sheet-head">
+      <div><h2 id="add-title">Ajouter une fiche</h2><p id="add-what" class="muted small"></p></div>
+      <button type="button" id="add-close" class="btn small">Fermer</button>
+    </div>
+    <div class="add-grid">
+      <button type="button" class="btn" id="add-rec" hidden>Enregistrer maintenant</button>
+      <label class="btn" for="add-audio">Importer un enregistrement</label>
+      <label class="btn" for="add-photo">Prendre en photo</label>
+      <label class="btn" for="add-doc">Importer des fichiers</label>
+    </div>
+    <input id="add-audio" type="file" accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.webm" hidden>
+    <input id="add-photo" type="file" accept="image/*" capture="environment" multiple hidden>
+    <input id="add-doc" type="file" accept=".pdf,.docx,.pptx,.txt,.md,image/*" multiple hidden>
+    <ul id="add-files" class="chips"></ul>
+    <label for="add-text">Ou écris tes notes</label>
+    <textarea id="add-text" class="field" rows="5" placeholder="Ce que tu as noté pendant le cours, même en vrac…"></textarea>
+    <div class="row">
+      <button type="button" id="add-send" class="btn primary">Créer la fiche</button>
+    </div>
+    <p id="add-msg" class="small"></p>
+    <progress id="add-bar" max="1" value="0" hidden></progress>
+  </div>
+</div>
+
 <div id="reader" class="reader" hidden role="dialog" aria-modal="true" aria-labelledby="reader-title">
   <div class="reader-bar">
     <button id="reader-close" type="button" class="btn">Fermer</button>
@@ -171,5 +219,6 @@
 <script src="app.js"></script>
 <script src="revisions.js"></script>
 <script src="devoirs.js"></script>
+<script src="ds.js"></script>
 </body>
 </html>

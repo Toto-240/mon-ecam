@@ -1,6 +1,7 @@
 """
 Traite la « boîte de dépôt » (branche inbox) remplie par l'appli :
 - enregistrement de cours  -> fiche de cours (Markdown)
+- notes / photos / documents d'un cours -> fiche de cours
 - demande de révision      -> fiche de révision + QCM pour une matière
 - énoncé de devoir         -> devoir fait (.docx, même mise en page), voir devoir.py
 Les résultats sont chiffrés avec APP_PASSWORD dans fiches/ et revisions/ (branche main).
@@ -145,6 +146,7 @@ def fiche_cours(client, meta, audio, out: Path):
                 pass
     titre = next((l[2:].strip() for l in md.splitlines() if l.startswith("# ")), meta.get("matiere"))
     fiche = {"id": meta["id"], "kind": "cours", "matiere": meta.get("matiere"), "date": meta.get("date"),
+             "heure": meta.get("heure"),
              "titre": titre, "duree_min": minutes, "md": md.strip(), "modele": model,
              "cree": datetime.now().isoformat(timespec="seconds")}
     write(out / "fiches" / f"{meta['id']}.enc", fiche)
@@ -174,6 +176,63 @@ def fiche_revision(client, meta, out: Path, password: str):
     write(out / "revisions" / f"{slug(matiere)}.enc", rev)
 
 
+PROMPT_NOTES = """Tu es un assistant pour un étudiant en Bachelor cybersécurité à l'ECAM LaSalle (Lyon).
+Voici ce que l'étudiant a gardé du cours de « {matiere} » du {date} : ses notes, des photos
+(tableau, cahier, diapos) et/ou des documents. Rédige une fiche de cours en français, en Markdown :
+
+# <titre précis du cours>
+**En bref :** 2 à 3 phrases.
+
+## Plan du cours
+Les notions dans l'ordre, expliquées clairement (complète les notes abrégées pour qu'elles soient compréhensibles).
+
+## Définitions
+« **terme** : définition ».
+
+## Formules, commandes et exemples
+Uniquement s'il y en a.
+
+## Points à retenir
+
+## Questions pour réviser
+5 questions, sans les réponses.
+
+Règles : appuie-toi sur le contenu fourni ; tu peux expliquer une notion abrégée, mais n'ajoute pas de
+chapitre qui n'y est pas. Si une photo est illisible, dis-le en une ligne."""
+
+
+def notes_parts(meta, data):
+    """Fichiers envoyés par l'appli (collés à la suite) -> contenu pour Gemini."""
+    import devoir
+    parts, offset = [], 0
+    for f in meta.get("files", []):
+        chunk = data[offset:offset + int(f.get("size", 0))]
+        offset += int(f.get("size", 0))
+        name, mime = f.get("name", ""), f.get("type", "")
+        if name.lower().endswith(".docx"):
+            import io
+            from docx import Document
+            d = Document(io.BytesIO(chunk))
+            parts.append(f"Document {name} :\n" + "\n".join(p.text for p in d.paragraphs if p.text.strip()))
+        else:
+            parts += devoir.statement_parts(None, chunk, name, mime)
+    if meta.get("texte"):
+        parts.append("Notes tapées par l'étudiant :\n" + meta["texte"][:60000])
+    if not parts:
+        raise RuntimeError("Rien à transformer en fiche (aucun fichier ni texte)")
+    return parts
+
+
+def fiche_notes(client, meta, data, out: Path):
+    prompt = PROMPT_NOTES.format(matiere=meta.get("matiere") or "cours", date=meta.get("date") or "")
+    md, model = generate(client, notes_parts(meta, data) + [prompt])
+    titre = next((l[2:].strip() for l in md.splitlines() if l.startswith("# ")), meta.get("matiere"))
+    write(out / "fiches" / f"{meta['id']}.enc", {
+        "id": meta["id"], "kind": "cours", "source": "notes", "matiere": meta.get("matiere"),
+        "date": meta.get("date"), "heure": meta.get("heure"), "titre": titre, "md": md.strip(),
+        "modele": model, "cree": datetime.now().isoformat(timespec="seconds")})
+
+
 def write(path: Path, obj):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(encrypt_json(obj, os.environ["APP_PASSWORD"]), encoding="utf-8")
@@ -201,6 +260,8 @@ def main():
             client = client or gemini()
             if meta.get("kind") == "revision":
                 fiche_revision(client, meta, out, password)
+            elif meta.get("kind") == "notes":
+                fiche_notes(client, meta, audio, out)
             elif meta.get("kind") in ("devoir", "devoir_moodle"):
                 import devoir
                 write(out / "devoirs" / f"{meta['id']}.enc", devoir.make(client, generate, meta, audio))

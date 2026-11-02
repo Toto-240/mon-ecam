@@ -105,12 +105,28 @@ function renderDays(evs) {
 
 const WIDE = matchMedia("(min-width: 900px)");
 
+const norm = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
+/* Fiche déjà faite pour ce créneau (enregistrement ou notes, même matière, même jour) */
+function ficheFor(e) {
+  const day = e.debut.slice(0, 10), heure = e.debut.slice(11, 16);
+  // une fiche avec une heure va à son créneau ; sans heure (anciens envois), au premier créneau du jour
+  const same = (DATA.fiches || []).filter((f) => f.source !== "moodle" && f.date === day && norm(f.matiere) === norm(e.matiere));
+  const first = events().find((x) => x.debut.slice(0, 10) === day && norm(x.matiere) === norm(e.matiere));
+  return same.find((f) => f.heure === heure) || (first?.debut === e.debut && same.find((f) => !f.heure));
+}
+
 function slotHtml(e) {
   const st = e.d1 <= NOW ? " past" : e.d0 <= NOW ? " now" : "";
+  const canAdd = ["CM", "TD", "TP"].includes(e.type) && e.d0 <= NOW;
+  const f = canAdd && ficheFor(e);
   return `<li class="slot ${esc(e.type)}${st}">
     <time datetime="${e.d0.toISOString()}">${fmtTime(e.d0)}<small>${fmtTime(e.d1)}</small></time>
     <div><div class="t">${esc(e.matiere)}</div><div class="m">${esc(e.prof || e.groupes || "")}</div></div>
     <div><div class="r">${esc(e.salle)}</div><div class="k">${esc(kindLabel(e.type))}</div></div>
+    ${!canAdd ? "" : f
+      ? `<button type="button" class="btn small fiche-btn done" data-fiche="${esc(f.id)}">Voir la fiche</button>`
+      : `<button type="button" class="btn small fiche-btn" data-add="${esc(e.debut)}">+ Ajouter une fiche</button>`}
   </li>`;
 }
 
@@ -128,6 +144,12 @@ function renderSlots(byDay) {
       : `<li class="empty">Pas de cours ${WIDE.matches ? "" : relDay(d) === "aujourd'hui" ? "aujourd'hui" : "le " + esc(fmtDayLong(d))}</li>`;
     return head + body;
   }).join("");
+  const evs = events();
+  ol.querySelectorAll("[data-fiche]").forEach((b) => { b.onclick = () => window.openFiche?.(b.dataset.fiche); });
+  ol.querySelectorAll("[data-add]").forEach((b) => {
+    const e = evs.find((x) => x.debut === b.dataset.add);
+    b.onclick = () => window.openAddSheet?.(e);
+  });
 }
 
 WIDE.addEventListener("change", () => DATA && renderPlanning());
@@ -213,6 +235,7 @@ function renderAll() {
   renderCours();
   window.renderRevisions?.();
   window.renderDevoirsIA?.();
+  window.renderDS?.();
 }
 
 /* ---------- Données chiffrées (data.enc publié par GitHub) ---------- */

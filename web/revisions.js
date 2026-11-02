@@ -138,7 +138,7 @@ async function send(meta, audio, ui = "upload") {
     alertForm("Ajoute d'abord ton jeton GitHub ci-dessous (une seule fois par appareil).");
     throw new Error("ajoute d'abord ton jeton GitHub dans les réglages");
   }
-  const box = $(`#${ui}`), bar = $(`#${ui}-bar`), msg = $(`#${ui}-msg`);
+  const box = $(`#${ui}`) || $(`#${ui}-sheet`), bar = $(`#${ui}-bar`), msg = $(`#${ui}-msg`);
   box.hidden = false; bar.value = 0;
   try {
     msg.textContent = "Chiffrement…";
@@ -151,9 +151,10 @@ async function send(meta, audio, ui = "upload") {
     pending.add({ id: meta.id, kind: meta.kind, matiere: meta.matiere, titre: meta.titre, date: meta.date, at: new Date().toISOString() });
     msg.textContent = meta.kind === "revision" ? "Demande envoyée. La fiche de révision arrive dans quelques minutes."
       : meta.kind?.startsWith("devoir") ? "Envoyé. Le devoir fait arrive dans quelques minutes, dans la liste ci-dessous."
+      : meta.kind === "notes" ? "Envoyé. La fiche arrive dans quelques minutes (onglet Révisions et sur le planning)."
       : "Envoyé. Ta fiche sera prête dans quelques minutes.";
     bar.value = 1;
-    setTimeout(() => { box.hidden = true; }, 6000);
+    setTimeout(() => { box.hidden = true; if (ui === "add") document.body.style.overflow = ""; }, ui === "add" ? 2500 : 6000);
     window.renderRevisions?.();
     window.renderDevoirsIA?.();
     watchPending();
@@ -484,11 +485,12 @@ function renderFiches() {
       <ul class="list">
         ${r ? `<li class="rev"><button type="button" class="item" data-open-rev="${esc(m)}">
           <div class="t">Fiche de révision et QCM</div>
-          <div class="m">${r.qcm?.length || 0} questions, à partir de ${r.sources} cours${stale ? " (des cours ont été ajoutés depuis)" : ""}</div>
+          <div class="m">${r.qcm?.length || 0} question${(r.qcm?.length || 0) > 1 ? "s" : ""}, à partir de ${r.sources} cours${stale ? " (des cours ont été ajoutés depuis)" : ""}</div>
         </button></li>` : ""}
         ${fs.map((f) => `<li><button type="button" class="item" data-open="${esc(f.id)}">
           <div class="t">${esc(f.titre || m)}</div>
           <div class="m">${f.source === "moodle" ? `D'après le support Moodle${f.date ? ", " + esc(fmtDate(f.date)) : ""}`
+            : f.source === "notes" ? `${esc(fmtDate(f.date))}, d'après tes notes et photos`
             : `${esc(fmtDate(f.date))}${f.duree_min ? `, ${f.duree_min} min d'enregistrement` : ""}`}</div>
         </button></li>`).join("")}
       </ul></details>`;
@@ -526,10 +528,12 @@ function closeReader() {
 $("#reader-close").onclick = closeReader;
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#reader").hidden) closeReader(); });
 
+window.openFiche = (id) => openFiche(id);
 function openFiche(id) {
   const f = (DATA.fiches || []).find((x) => x.id === id);
   if (!f) return;
-  const meta = f.source === "moodle" ? `${esc(f.matiere)}, d'après « ${esc(f.doc || "")} » sur Moodle` : `${esc(f.matiere)}, ${esc(fmtDate(f.date))}`;
+  const meta = f.source === "moodle" ? `${esc(f.matiere)}, d'après « ${esc(f.doc || "")} » sur Moodle`
+    : `${esc(f.matiere)}, ${esc(fmtDate(f.date))}${f.heure ? " à " + esc(f.heure) : ""}${f.source === "notes" ? ", d'après tes notes" : ""}`;
   openReader(f.matiere, `<p class="meta">${meta}</p>${md(f.md)}`);
 }
 
