@@ -335,3 +335,30 @@ progress { width: 100%; height: 8px; margin-top: 8px; accent-color: var(--ecam);
 .chips { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .chips li { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px 6px 4px 10px; font-size: .85rem; display: flex; align-items: center; gap: 4px; }
 .chips button { border: 0; background: none; cursor: pointer; color: var(--muted); font-size: 1rem; line-height: 1; padding: 2px 4px; }
+
+/* Tuiles des cours Moodle */
+.tiles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (min-width: 640px) { .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; } }
+.tile {
+  --top: #6A82DA; --bot: #4157BE;
+  position: relative; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px;
+  min-height: 118px; padding: 14px; border-radius: 24px; text-decoration: none; color: #fff;
+  background: radial-gradient(120% 90% at 50% 0%, var(--top) 0%, var(--bot) 78%);
+  box-shadow: 0 10px 24px -12px var(--bot), 0 2px 6px -2px color-mix(in srgb, var(--bot) 40%, transparent);
+  transition: transform .12s ease;
+}
+.tile:active { transform: scale(.97); }
+.tile:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+.tile-name { font-weight: 700; font-size: 1.02rem; line-height: 1.2; text-shadow: 0 1px 2px rgba(0,0,0,.18);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.tile-info { font-size: .78rem; font-weight: 600; opacity: .92; }
+.tile.corail { --top: #F0A080; --bot: #D8603F; }
+.tile.vert { --top: #7DD57F; --bot: #3A9A4C; }
+.tile.bleu { --top: #6A82DA; --bot: #4157BE; }
+.tile.violet { --top: #9B6FD8; --bot: #7446B8; }
+.tile.ambre { --top: #F2B45A; --bot: #C27410; }
+.tile.turquoise { --top: #5CC8C0; --bot: #14857D; }
+.tile.rose { --top: #EE86A8; --bot: #C9426F; }
+.tile.indigo { --top: #7A86E8; --bot: #4F4FC4; }
+.tile.olive { --top: #A9C25A; --bot: #6E8A1E; }
+.tile.ciel { --top: #6BB8EC; --bot: #2479B8; }

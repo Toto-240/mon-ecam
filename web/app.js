@@ -211,15 +211,25 @@ function renderNotes() {
 }
 
 /* ---------- Cours ---------- */
+const TILE_COLORS = ["corail", "vert", "bleu", "violet", "ambre", "turquoise", "rose", "indigo", "olive", "ciel"];
+
 function renderCours() {
-  const q = $("#filtre").value.trim().toLowerCase();
+  const q = norm($("#filtre").value);
+  const evs = events();
+  // couleur fixée par la position dans la liste complète : jamais deux voisines identiques
   const items = (DATA.cours || [])
     .map((c) => ({ ...c, nom: cleanCourse(c.nom) }))
-    .filter((c) => !q || c.nom.toLowerCase().includes(q))
-    .sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
-  $("#cours").innerHTML = items.length
-    ? items.map((c) => `<li><a href="${esc(c.url)}" target="_blank" rel="noopener"><span class="t">${esc(c.nom)}</span></a></li>`).join("")
-    : `<li class="m">Aucun cours ne correspond.</li>`;
+    .sort((a, b) => a.nom.localeCompare(b.nom, "fr"))
+    .map((c, i) => ({ ...c, color: TILE_COLORS[i % TILE_COLORS.length] }))
+    .filter((c) => !q || norm(c.nom).includes(q));
+  $("#cours").innerHTML = items.length ? items.map((c) => {
+    const next = evs.find((e) => e.d0 > NOW && norm(e.matiere) === norm(c.nom));
+    const n = (DATA.fiches || []).filter((f) => f.kind === "cours" && norm(f.matiere) === norm(c.nom)).length;
+    const info = [next ? `${next.type === "DS" ? "DS" : "Prochain cours"} ${relDay(next.d0)}` : "", n ? `${n} fiche${n > 1 ? "s" : ""}` : ""]
+      .filter(Boolean).join(" · ");
+    return `<li><a class="tile ${c.color}" href="${esc(c.url)}" target="_blank" rel="noopener">
+      <span class="tile-name">${esc(c.nom)}</span>${info ? `<span class="tile-info">${esc(info)}</span>` : ""}</a></li>`;
+  }).join("") : `<li class="empty-state">Aucun cours ne correspond.</li>`;
 }
 
 /* ---------- Données ---------- */
