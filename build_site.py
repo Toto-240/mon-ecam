@@ -13,6 +13,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+import changements
 from crypto_util import decrypt_json, encrypt_json
 
 BASE = Path(__file__).parent
@@ -55,6 +56,17 @@ def main():
         "travaux": [{k: d.get(k) for k in ("id", "titre", "matiere", "fichier", "mise_en_page", "cree")}
                     for d in read_enc_dir("devoirs", password)],
     }
+    # changements d'emploi du temps : comparaison avec la version en ligne
+    prev = changements.previous_published(password)
+    history = (prev or {}).get("changements", [])
+    new = []
+    if prev and prev.get("planning") and data["planning"]:
+        new = changements.detect(prev["planning"], data["planning"])
+    data["changements"] = changements.merge(history, new)
+    if new:
+        print(f"::notice::{len(new)} changement(s) d'emploi du temps")
+        changements.notify(new)
+
     shutil.rmtree(SITE, ignore_errors=True)
     shutil.copytree(WEB, SITE)
     (SITE / "data.enc").write_text(encrypt_json(data, password), encoding="utf-8")

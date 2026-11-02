@@ -46,6 +46,7 @@ jobs:
       - name: Chiffrer les données et préparer le site
         env:
           APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: python build_site.py
 
       - uses: actions/configure-pages@v5

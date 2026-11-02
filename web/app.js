@@ -116,6 +116,41 @@ function ficheFor(e) {
   return same.find((f) => f.heure === heure) || (first?.debut === e.debut && same.find((f) => !f.heure));
 }
 
+/* ---------- Changements d'emploi du temps sur le planning ---------- */
+const CHG_LABEL = { deplace: "Déplacé", salle: "Salle changée", prof: "Autre enseignant", ajoute: "Nouveau" };
+const recentChanges = () => (DATA.changements || []).filter((c) => NOW - new Date(c.quand) < 14 * 864e5);
+
+function changeTag(e) {
+  const c = recentChanges().find((c) => c.apres?.debut === e.debut && norm(c.matiere || c.titre) === norm(e.matiere || e.titre)
+    && CHG_LABEL[c.type]);
+  if (!c) return "";
+  const was = c.type === "salle" ? ` (avant ${c.avant?.salle || "?"})`
+    : c.type === "deplace" ? ` (avant ${fmtShort(c.avant?.debut)})` : "";
+  return `<div class="chg chg-${c.type}">${esc(CHG_LABEL[c.type] + was)}</div>`;
+}
+
+function fmtShort(iso) {
+  if (!iso) return "?";
+  const d = new Date(iso);
+  return `${JOURS[d.getDay()]} ${d.getDate()} à ${fmtTime(d)}`;
+}
+
+function ghostSlots(day) {
+  return recentChanges().filter((c) => (c.type === "annule" || c.type === "deplace") && c.avant?.debut
+      && dayKey(new Date(c.avant.debut)) === dayKey(day))
+    .map((c) => ({ ghost: true, c, d0: new Date(c.avant.debut), d1: new Date(c.avant.fin || c.avant.debut) }));
+}
+
+function ghostHtml(g) {
+  const c = g.c;
+  return `<li class="slot ghost">
+    <time>${fmtTime(g.d0)}<small>${fmtTime(g.d1)}</small></time>
+    <div><div class="t">${esc(c.matiere || c.titre)}</div>
+      <div class="m">${c.type === "annule" ? "Cours annulé" : `Déplacé au ${esc(fmtShort(c.apres?.debut))}`}</div></div>
+    <div><div class="r">${esc(c.avant?.salle || "")}</div></div>
+  </li>`;
+}
+
 function slotHtml(e) {
   const st = e.d1 <= NOW ? " past" : e.d0 <= NOW ? " now" : "";
   const canAdd = ["CM", "TD", "TP"].includes(e.type) && e.d0 <= NOW;
@@ -124,6 +159,7 @@ function slotHtml(e) {
     <time datetime="${e.d0.toISOString()}">${fmtTime(e.d0)}<small>${fmtTime(e.d1)}</small></time>
     <div><div class="t">${esc(e.matiere)}</div><div class="m">${esc(e.prof || e.groupes || "")}</div></div>
     <div><div class="r">${esc(e.salle)}</div><div class="k">${esc(kindLabel(e.type))}</div></div>
+    ${changeTag(e)}
     ${!canAdd ? "" : f
       ? `<button type="button" class="btn small fiche-btn done" data-fiche="${esc(f.id)}">Voir la fiche</button>`
       : `<button type="button" class="btn small fiche-btn" data-add="${esc(e.debut)}">+ Ajouter une fiche</button>`}
@@ -137,10 +173,11 @@ function renderSlots(byDay) {
     ? [0, 1, 2, 3, 4].map((i) => addDays(selectedDay, i - ((selectedDay.getDay() + 6) % 7)))
     : [selectedDay];
   ol.innerHTML = days.map((d) => {
-    const list = byDay.get(dayKey(d)) || [];
+    const ghosts = ghostSlots(d);
+    const list = [...(byDay.get(dayKey(d)) || []), ...ghosts].sort((a, b) => a.d0 - b.d0);
     const head = WIDE.matches
       ? `<li class="dayhead${dayKey(d) === dayKey(selectedDay) ? " sel" : ""}"><h3>${esc(fmtDayLong(d))}</h3></li>` : "";
-    const body = list.length ? list.map(slotHtml).join("")
+    const body = list.length ? list.map((x) => (x.ghost ? ghostHtml(x) : slotHtml(x))).join("")
       : `<li class="empty">Pas de cours ${WIDE.matches ? "" : relDay(d) === "aujourd'hui" ? "aujourd'hui" : "le " + esc(fmtDayLong(d))}</li>`;
     return head + body;
   }).join("");
@@ -246,6 +283,7 @@ function renderAll() {
   window.renderRevisions?.();
   window.renderDevoirsIA?.();
   window.renderDS?.();
+  window.renderNotifs?.();
 }
 
 /* ---------- Données chiffrées (data.enc publié par GitHub) ---------- */

@@ -22,7 +22,13 @@
     <p id="err" class="err" hidden></p>
     <p class="muted small"><a id="force" target="_blank" rel="noopener" hidden>Forcer une synchro sur GitHub</a></p>
   </div>
-  <button id="sync" class="sync" type="button">Recharger</button>
+  <div class="top-actions">
+    <button id="bell" class="bell" type="button" aria-label="Changements d'emploi du temps">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>
+      <span id="bell-badge" class="badge" hidden></span>
+    </button>
+    <button id="sync" class="sync" type="button">Recharger</button>
+  </div>
 </header>
 
 <main id="pane-planning" class="pane">
@@ -197,6 +203,17 @@
   </div>
 </div>
 
+<div id="notif-sheet" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="notif-title">
+  <div class="sheet-card">
+    <div class="sheet-head">
+      <div><h2 id="notif-title">Changements d'emploi du temps</h2>
+        <p class="muted small">Vérifiés à chaque synchro, toutes les 10 minutes. Les 60 derniers jours.</p></div>
+      <button type="button" id="notif-close" class="btn small">Fermer</button>
+    </div>
+    <ul id="notif-list" class="list notif-list"></ul>
+  </div>
+</div>
+
 <div id="reader" class="reader" hidden role="dialog" aria-modal="true" aria-labelledby="reader-title">
   <div class="reader-bar">
     <button id="reader-close" type="button" class="btn">Fermer</button>
@@ -220,5 +237,6 @@
 <script src="revisions.js"></script>
 <script src="devoirs.js"></script>
 <script src="ds.js"></script>
+<script src="notifs.js"></script>
 </body>
 </html>
