@@ -1,5 +1,5 @@
 // Garde l'interface disponible hors connexion ; les données restent en cache dans l'appli.
-const CACHE = "mon-ecam-v10";
+const CACHE = "mon-ecam-v12";
 const FILES = ["./", "index.html", "app.css", "app.js", "revisions.js", "devoirs.js", "ds.js", "icon.svg", "manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {
@@ -14,7 +14,9 @@ self.addEventListener("activate", (e) => {
 
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
-  if (e.request.method !== "GET" || url.pathname.endsWith("data.enc") || url.pathname.endsWith("config.json")) return;
+  // seulement les fichiers de l'appli : jamais GitHub, Moodle ni les polices
+  if (url.origin !== location.origin || e.request.method !== "GET"
+      || url.pathname.endsWith("data.enc") || url.pathname.endsWith("config.json")) return;
   e.respondWith(
     fetch(e.request)
       .then((r) => {

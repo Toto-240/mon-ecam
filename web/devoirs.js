@@ -58,8 +58,19 @@ window.faireDevoirMoodle = async function (cmid, titre, matiere, button) {
 };
 
 /* ---------- Devoirs faits ---------- */
+/* Devoirs supprimés : cachés tout de suite, en attendant que GitHub republie l'appli */
+const HIDDEN_KEY = "ecam-devoirs-supprimes";
+const hidden = {
+  all: () => { try { return JSON.parse(store.get(HIDDEN_KEY)) || []; } catch { return []; } },
+  add(id) { store.set(HIDDEN_KEY, JSON.stringify([...this.all(), id])); },
+};
+
 function renderTravaux() {
-  const items = [...(DATA.travaux || [])].sort((a, b) => (b.cree || "").localeCompare(a.cree || ""));
+  const present = new Set((DATA.travaux || []).map((d) => d.id));
+  store.set(HIDDEN_KEY, JSON.stringify(hidden.all().filter((id) => present.has(id)))); // ménage
+  const gone = new Set(hidden.all());
+  const items = [...(DATA.travaux || [])].filter((d) => !gone.has(d.id))
+    .sort((a, b) => (b.cree || "").localeCompare(a.cree || ""));
   $("#travaux").innerHTML = items.length ? items.map((d) => `<li><button type="button" class="item" data-travail="${esc(d.id)}">
       <div class="t">${esc(d.titre || "Devoir")}</div>
       <div class="m">${esc([d.matiere, d.cree ? fmtDate(d.cree.slice(0, 10)) : "",
@@ -94,11 +105,50 @@ async function openTravail(id, button) {
     <p class="meta">${esc(d.mise_en_page === "original"
       ? "Réponses ajoutées dans ton document Word d'origine, avec sa mise en page."
       : "Document Word avec la même structure que l'énoncé.")}</p>
-    ${md(d.md)}`);
+    ${md(d.md)}
+    <div class="row danger-zone"><button type="button" class="btn danger" id="dv-delete">Supprimer ce devoir</button>
+      <span id="dv-delete-msg" class="small muted" aria-live="polite"></span></div>`);
   const base = (d.fichier || "devoir.docx").replace(/\.docx$/i, "");
   $("#dv-docx").onclick = () => saveFile(d.docx, `${base}.docx`,
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
   $("#dv-pdf")?.addEventListener("click", () => saveFile(d.pdf, `${base}.pdf`, "application/pdf"));
+  $("#dv-delete").onclick = () => deleteTravail(d);
+}
+
+/* Supprime le devoir fait du dépôt GitHub (avec ton jeton) */
+let deleteArmed = 0;
+async function deleteTravail(d) {
+  const btn = $("#dv-delete"), msg = $("#dv-delete-msg");
+  if (!store.get(TOKEN_KEY)) { msg.textContent = "Ajoute d'abord ton jeton GitHub (onglet Micro, Réglages)."; return; }
+  if (Date.now() - deleteArmed > 4000) {
+    deleteArmed = Date.now();
+    btn.textContent = "Confirmer la suppression";
+    msg.textContent = "Appuie encore une fois pour supprimer définitivement ce devoir.";
+    setTimeout(() => { if (Date.now() - deleteArmed >= 4000) { btn.textContent = "Supprimer ce devoir"; msg.textContent = ""; } }, 4100);
+    return;
+  }
+  deleteArmed = 0;
+  btn.disabled = true;
+  msg.textContent = "Suppression…";
+  try {
+    const path = `/contents/devoirs/${encodeURIComponent(d.id)}.enc`;
+    const info = await gh(`${path}?ref=main`);
+    if (info.status !== 404) {
+      if (!info.ok) throw new Error(info.status === 401 ? "jeton GitHub refusé" : `GitHub ne répond pas (${info.status})`);
+      const { sha } = await info.json();
+      const r = await gh(path, { method: "DELETE", body: JSON.stringify({ message: "Devoir supprimé", sha, branch: "main" }) });
+      if (!r.ok) throw new Error(r.status === 403 ? "ce jeton ne peut pas modifier le dépôt" : `suppression refusée (${r.status})`);
+    }
+    hidden.add(d.id);
+    delete travauxCache[d.id];
+    closeReader();
+    renderTravaux();
+    dvStatus("Devoir supprimé.");
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = "Supprimer ce devoir";
+    msg.textContent = `Échec : ${e.message}`;
+  }
 }
 
 async function saveFile(b64, name, type) {
