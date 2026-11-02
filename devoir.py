@@ -205,6 +205,10 @@ def moodle_statement(cmid):
             break
 
     source = "page du devoir"
+    diag = (f"page devoir : titre={'oui' if title else 'non'}, zone principale={len(region.get_text(strip=True))} car., "
+            f"bloc consigne={'oui' if intro else 'non'}, liens fichiers={len(region.select('a[href*=pluginfile.php]'))}, "
+            f"connecté={'oui' if 'logout' in str(soup) else 'non'}")
+    print(f"::notice::{diag}")
     if len(text.strip()) < 40 and not files:
         files, extra = section_documents(s, soup, cmid)
         text = (text + "\n" + extra).strip()
@@ -221,6 +225,7 @@ def section_documents(s, assign_soup, cmid):
     link = assign_soup.select_one('a[href*="/course/view.php?id="]')
     m = re.search(r"course/view\.php\?id=(\d+)", link["href"]) if link else None
     if not m:
+        print("::notice::section : lien vers le cours introuvable")
         return [], ""
     page = BeautifulSoup(s.get(f"{ecam.MOODLE}/course/view.php?id={m.group(1)}", timeout=40).text, "html.parser")
     for hidden in page.select(".accesshide, .sr-only, .visually-hidden"):
@@ -232,6 +237,8 @@ def section_documents(s, assign_soup, cmid):
                     (n.get("data-for") == "section" or str(n.get("id", "")).startswith("section-"))), None)
     section = section or next((n for n in ancestors if getattr(n, "get", None) and
                                re.search(r"\bsection\b", " ".join(n.get("class", [])))), None)
+    print(f"::notice::section : activité trouvée={'oui' if node is not None else 'non'}, section trouvée={'oui' if section is not None else 'non'}, "
+          f"activités dans la page du cours={len(page.select('[id^=module-]'))}")
     if section is None:
         return [], ""
     files, texts = [], []
@@ -249,6 +256,7 @@ def section_documents(s, assign_soup, cmid):
                 files.append((doc["fichier"], doc["data"], ctype))
         if len(files) >= 4:
             break
+    print(f"::notice::section : {len(section.select('a[href*=\"/mod/\"]'))} activité(s), {len(files)} document(s) récupéré(s)")
     summary = section.select_one(".summarytext, .section_summary, .summary")
     if summary and summary.get_text(strip=True):
         texts.insert(0, "Présentation de la section :\n" + summary.get_text("\n", strip=True))
