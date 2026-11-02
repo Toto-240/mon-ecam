@@ -421,3 +421,14 @@ progress { width: 100%; height: 8px; margin-top: 8px; accent-color: var(--ecam);
 .ds-notes { margin: 0; white-space: pre-wrap; font-size: .92rem; }
 .ds-perso { margin-top: 14px; }
 .perso-note { margin: 10px 2px; }
+
+/* Révisions : tuiles par matière */
+button.tile { border: 0; font: inherit; text-align: left; cursor: pointer; width: 100%; }
+.tile-badge { position: absolute; top: 12px; right: 12px; font-size: .68rem; font-weight: 800; letter-spacing: .04em;
+  padding: 3px 7px; border-radius: 999px; background: rgba(255,255,255,.25); color: #fff; }
+.back { background: none; border: 0; color: var(--ecam); font: inherit; font-weight: 600; padding: 4px 0 10px; cursor: pointer; }
+@media (prefers-color-scheme: dark) { .back { color: var(--ink); } }
+.subject-head { min-height: 96px; cursor: default; }
+.subject-head:active { transform: none; }
+.subject-list { margin-top: 12px; }
+.tile-name { hyphens: auto; -webkit-hyphens: auto; overflow-wrap: anywhere; }

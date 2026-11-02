@@ -547,35 +547,57 @@ function renderFiches() {
   });
   const revs = Object.fromEntries((DATA.revisions || []).map((r) => [r.matiere, r]));
   const box = $("#matieres");
+  $("#rev-intro").hidden = false;
   if (!by.size) {
     box.innerHTML = `<p class="empty-state">Pas encore de fiche. Enregistre ou importe un cours : sa fiche apparaîtra ici, rangée par matière.</p>`;
     return;
   }
   const names = [...by.keys()].sort((a, b) => a.localeCompare(b, "fr"));
-  box.innerHTML = names.map((m) => {
-    const fs = by.get(m).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-    const r = revs[m];
-    const stale = r && r.sources < fs.length;
-    return `<details class="matiere" data-m="${esc(m)}"${openSubjects.has(m) ? " open" : ""}>
-      <summary><span class="t">${esc(m)}</span><span class="m">${fs.length} fiche${fs.length > 1 ? "s" : ""}${r ? ", révision prête" : ""}</span></summary>
-      <div class="row matiere-actions">
-        <button type="button" class="btn small" data-rev="${esc(m)}">${r ? (stale ? "Mettre à jour la révision" : "Refaire la révision") : "Créer la fiche de révision et le QCM"}</button></div>
-      <ul class="list">
-        ${r ? `<li class="rev"><button type="button" class="item" data-open-rev="${esc(m)}">
-          <div class="t">Fiche de révision et QCM</div>
-          <div class="m">${r.qcm?.length || 0} question${(r.qcm?.length || 0) > 1 ? "s" : ""}, à partir de ${r.sources} cours${stale ? " (des cours ont été ajoutés depuis)" : ""}</div>
-        </button></li>` : ""}
-        ${fs.map((f) => `<li><button type="button" class="item" data-open="${esc(f.id)}">
-          <div class="t">${esc(f.titre || m)}</div>
-          <div class="m">${f.source === "moodle" ? `D'après le support Moodle${f.date ? ", " + esc(fmtDate(f.date)) : ""}`
-            : f.source === "notes" ? `${esc(fmtDate(f.date))}, d'après tes notes et photos`
-            : `${esc(fmtDate(f.date))}${f.duree_min ? `, ${f.duree_min} min d'enregistrement` : ""}`}</div>
-        </button></li>`).join("")}
-      </ul></details>`;
-  }).join("");
-  box.querySelectorAll("details.matiere").forEach((d) => {
-    d.addEventListener("toggle", () => { d.open ? openSubjects.add(d.dataset.m) : openSubjects.delete(d.dataset.m); });
-  });
+  const current = [...openSubjects].reverse().find((m) => by.has(m));
+
+  /* Toutes les matières : une tuile de couleur chacune */
+  if (!current) {
+    openSubjects.clear();
+    box.innerHTML = `<ul class="tiles">${names.map((m) => {
+      const n = by.get(m).length, r = revs[m];
+      const info = [`${n} fiche${n > 1 ? "s" : ""}`, r ? "QCM prêt" : ""].filter(Boolean).join(" · ");
+      return `<li><button type="button" class="tile ${tileColor(m)}" data-m="${esc(m)}">
+        ${r ? `<span class="tile-badge" aria-hidden="true">QCM</span>` : ""}
+        <span class="tile-name">${esc(m)}</span><span class="tile-info">${esc(info)}</span></button></li>`;
+    }).join("")}</ul>`;
+    box.querySelectorAll("[data-m]").forEach((b) => {
+      b.onclick = () => { openSubjects.add(b.dataset.m); renderFiches(); scrollTo({ top: 0 }); };
+    });
+    return;
+  }
+
+  /* Une matière ouverte */
+  const m = current;
+  const fs = by.get(m).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  const r = revs[m];
+  const stale = r && r.sources < fs.length;
+  $("#rev-intro").hidden = true;
+  box.innerHTML = `
+    <button type="button" class="back" id="rev-back">‹ Toutes les matières</button>
+    <div class="tile subject-head ${tileColor(m)}">
+      <span class="tile-name">${esc(m)}</span>
+      <span class="tile-info">${fs.length} fiche${fs.length > 1 ? "s" : ""}${r ? ", révision prête" : ""}</span>
+    </div>
+    <div class="row">
+      <button type="button" class="btn small${r && !stale ? "" : " primary"}" data-rev="${esc(m)}">${r ? (stale ? "Mettre à jour la révision" : "Refaire la révision") : "Créer la fiche de révision et le QCM"}</button></div>
+    <ul class="list subject-list">
+      ${r ? `<li class="rev"><button type="button" class="item" data-open-rev="${esc(m)}">
+        <div class="t">Fiche de révision et QCM</div>
+        <div class="m">${r.qcm?.length || 0} question${(r.qcm?.length || 0) > 1 ? "s" : ""}, à partir de ${r.sources} cours${stale ? " (des cours ont été ajoutés depuis)" : ""}</div>
+      </button></li>` : ""}
+      ${fs.map((f) => `<li><button type="button" class="item" data-open="${esc(f.id)}">
+        <div class="t">${esc(f.titre || m)}</div>
+        <div class="m">${f.source === "moodle" ? `D'après le support Moodle${f.date ? ", " + esc(fmtDate(f.date)) : ""}`
+          : f.source === "notes" ? `${esc(fmtDate(f.date))}, d'après tes notes et photos`
+          : `${esc(fmtDate(f.date))}${f.duree_min ? `, ${f.duree_min} min d'enregistrement` : ""}`}</div>
+      </button></li>`).join("")}
+    </ul>`;
+  $("#rev-back").onclick = () => { openSubjects.clear(); renderFiches(); };
   box.querySelectorAll("[data-open]").forEach((b) => { b.onclick = () => openFiche(b.dataset.open); });
   box.querySelectorAll("[data-open-rev]").forEach((b) => { b.onclick = () => openRevision(b.dataset.openRev); });
   box.querySelectorAll("[data-rev]").forEach((b) => {

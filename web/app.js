@@ -279,6 +279,16 @@ function renderNotes() {
 /* ---------- Cours ---------- */
 const TILE_COLORS = ["corail", "vert", "bleu", "violet", "ambre", "turquoise", "rose", "indigo", "olive", "ciel"];
 
+/* Même couleur pour une matière partout (onglet Cours et onglet Révisions) */
+function tileColor(name) {
+  const noms = (DATA.cours || []).map((c) => cleanCourse(c.nom)).sort((a, b) => a.localeCompare(b, "fr"));
+  const n = norm(name);
+  let i = noms.findIndex((x) => norm(x) === n);
+  if (i < 0) i = noms.findIndex((x) => n && (norm(x).includes(n) || n.includes(norm(x))));
+  if (i < 0) i = [...n].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7);
+  return TILE_COLORS[i % TILE_COLORS.length];
+}
+
 function renderCours() {
   const q = norm($("#filtre").value);
   const evs = events();
