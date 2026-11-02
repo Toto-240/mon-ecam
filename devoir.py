@@ -223,8 +223,10 @@ def section_documents(s, assign_soup, cmid):
     from bs4 import BeautifulSoup
     import ecam_scraper as ecam
     import moodle_fiches
-    link = assign_soup.select_one('a[href*="/course/view.php?id="]')
-    m = re.search(r"course/view\.php\?id=(\d+)", link["href"]) if link else None
+    # numéro du cours : classe « course-N » du <body> ou configuration Moodle de la page
+    body = assign_soup.find("body")
+    m = re.search(r"\bcourse-(\d+)\b", " ".join(body.get("class", []))) if body else None
+    m = m or re.search(r'"courseId"\s*:\s*(\d+)', str(assign_soup))
     if not m:
         print("::notice::section : lien vers le cours introuvable")
         return [], ""
