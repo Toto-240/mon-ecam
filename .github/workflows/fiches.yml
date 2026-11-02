@@ -37,6 +37,7 @@ jobs:
             git -C main worktree add ../inbox FETCH_HEAD
             echo "sha=$(git -C inbox rev-parse HEAD)" >> "$GITHUB_OUTPUT"
             echo "has=1" >> "$GITHUB_OUTPUT"
+            echo "::notice::Boîte ouverte : $(ls ../inbox/inbox/*.bin 2>/dev/null | wc -l) fichier(s), $(ls -d ../inbox 2>/dev/null)"
           else
             echo "Boîte vide"
           fi

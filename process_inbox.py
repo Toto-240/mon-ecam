@@ -245,6 +245,7 @@ def main():
         sys.exit("APP_PASSWORD manquant")
     files = sorted((inbox / "inbox").glob("*.bin"))
     print(f"{len(files)} élément(s) à traiter")
+    summary = []
     done, failed_now = [], set()
     client = None
     for p in files:
@@ -256,6 +257,7 @@ def main():
             done.append(p.name)
             continue
         meta["id"] = re.sub(r"[^A-Za-z0-9_-]", "", str(meta.get("id") or p.stem))[:40]
+        summary.append(meta.get("kind") or "cours")
         try:
             client = client or gemini()
             if meta.get("kind") == "revision":
@@ -268,10 +270,12 @@ def main():
             else:
                 fiche_cours(client, meta, audio, out)
             print("  ok")
+            summary[-1] += " ok"
             done.append(p.name)
         except Exception as e:
             msg = str(e)[:300]
             print(f"  échec : {type(e).__name__}")
+            summary[-1] += f" échec ({type(e).__name__}: {re.sub(r'https?://\\S+', '<url>', msg)[:120]})"
             failed_now.add(meta["id"])
             # L'appli affiche l'erreur ; l'élément reste dans la boîte pour un nouvel essai.
             write(out / "erreurs" / f"{meta['id']}.enc",
@@ -286,6 +290,7 @@ def main():
             err.unlink()
     (inbox / ".traites").write_text("\n".join(done), encoding="utf-8")
     print(f"{len(done)}/{len(files)} terminé(s)")
+    print(f"::notice::Boîte : {len(files)} élément(s) ; " + (" | ".join(summary) or "rien"))
 
 
 if __name__ == "__main__":
