@@ -387,6 +387,7 @@ async function load() {
     return showLock("Mot de passe incorrect.");
   }
   if (offline) DATA.synchro = { erreur: "hors connexion, affichage de la dernière version enregistrée" };
+  window.applyDeleted?.();
   renderAll();
 }
 

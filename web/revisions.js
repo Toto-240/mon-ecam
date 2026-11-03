@@ -772,13 +772,80 @@ function closeReader() {
 $("#reader-close").onclick = closeReader;
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#reader").hidden) closeReader(); });
 
+/* ---------- Supprimer une fiche ou une révision ---------- */
+/* Cachées tout de suite, en attendant que GitHub republie l'appli */
+const GONE_KEY = "ecam-fiches-supprimees";
+const gone = {
+  all: () => { try { return JSON.parse(store.get(GONE_KEY)) || []; } catch { return []; } },
+  add(path) { store.set(GONE_KEY, JSON.stringify([...new Set([...this.all(), path])])); },
+};
+
+window.applyDeleted = function (fresh = true) {
+  if (!DATA) return;
+  let list = gone.all();
+  if (fresh) {   // données toutes neuves : on oublie ce qui a déjà disparu en ligne
+    const present = new Set([...(DATA.fiches || []).map((f) => `fiches/${f._fichier}`),
+      ...(DATA.revisions || []).map((r) => `revisions/${r._fichier}`)]);
+    list = list.filter((p) => present.has(p));
+    store.set(GONE_KEY, JSON.stringify(list));
+  }
+  const g = new Set(list);
+  DATA.fiches = (DATA.fiches || []).filter((f) => !g.has(`fiches/${f._fichier}`));
+  DATA.revisions = (DATA.revisions || []).filter((r) => !g.has(`revisions/${r._fichier}`));
+};
+
+function deleteZone(label, what) {
+  return `<div class="row danger-zone"><button type="button" class="btn danger" id="del-item">${esc(label)}</button>
+    <span id="del-msg" class="small muted" aria-live="polite"></span></div>
+    ${what ? `<p class="muted small">${esc(what)}</p>` : ""}`;
+}
+
+let delArmed = 0;
+function wireDelete(path, label) {
+  const btn = $("#del-item"), msg = $("#del-msg");
+  if (!btn) return;
+  btn.onclick = async () => {
+    if (!store.get(TOKEN_KEY)) { msg.textContent = "Ajoute d'abord ton jeton GitHub (onglet Micro, Réglages)."; return; }
+    if (Date.now() - delArmed > 4000) {
+      delArmed = Date.now();
+      btn.textContent = "Confirmer la suppression";
+      msg.textContent = "Appuie encore une fois pour supprimer définitivement.";
+      setTimeout(() => { if (Date.now() - delArmed >= 4000) { btn.textContent = label; msg.textContent = ""; } }, 4100);
+      return;
+    }
+    delArmed = 0;
+    btn.disabled = true;
+    msg.textContent = "Suppression…";
+    try {
+      const api = `/contents/${path.split("/").map(encodeURIComponent).join("/")}`;
+      const info = await gh(`${api}?ref=main&t=${Date.now()}`, { cache: "no-store" });
+      if (info.status !== 404) {
+        if (!info.ok) throw new Error(info.status === 401 ? "jeton GitHub refusé" : `GitHub ne répond pas (${info.status})`);
+        const { sha } = await info.json();
+        const r = await gh(api, { method: "DELETE", body: JSON.stringify({ message: "Suppression", sha, branch: "main" }) });
+        if (!r.ok) throw new Error(r.status === 403 ? "ce jeton ne peut pas modifier le dépôt" : `suppression refusée (${r.status})`);
+      }
+      gone.add(path);
+      closeReader();
+      window.applyDeleted(false);
+      renderAll();
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = label;
+      msg.textContent = `Échec : ${e.message}`;
+    }
+  };
+}
+
 function openFiche(id) {
   const f = (DATA.fiches || []).find((x) => x.id === id);
   if (!f) return;
   const meta = f.source === "moodle" ? `${esc(f.matiere)}, d'après « ${esc(f.doc || "")} » sur Moodle`
     : f.source === "complete" ? `${esc(f.matiere)}, « ${esc(f.doc || "")} » (Moodle) complété par le cours du ${esc(fmtDate(f.date))}${f.heure ? " à " + esc(f.heure) : ""}`
     : `${esc(f.matiere)}, ${esc(fmtDate(f.date))}${f.heure ? " à " + esc(f.heure) : ""}${f.source === "notes" ? ", d'après tes notes" : ""}`;
-  openReader(f.matiere, `<p class="meta">${meta}</p>${md(f.md)}`);
+  openReader(f.matiere, `<p class="meta">${meta}</p>${md(f.md)}${f._fichier ? deleteZone("Supprimer cette fiche",
+    f.source === "moodle" || f.source === "complete" ? "Elle ne sera pas refaite automatiquement à partir de Moodle." : "") : ""}`);
+  if (f._fichier) wireDelete(`fiches/${f._fichier}`, "Supprimer cette fiche");
 }
 
 function openRevision(matiere, id) {
@@ -794,7 +861,9 @@ function openRevision(matiere, id) {
     <div class="why" hidden>${esc(q.explication || "")}</div></div>`).join("");
   openReader(`Révision : ${matiere}`, `<p class="meta">${esc(matiere)}, à partir de ${r.sources} fiche${r.sources > 1 ? "s" : ""}${r.ds ? ` (pour le DS du ${esc(fmtDate(r.ds.slice(0, 10)))})` : ""}</p>${md(r.md)}
     ${qcm ? `<section class="qcm"><h2>QCM</h2><p id="score" class="score" aria-live="polite"></p>${qcm}
-      <button type="button" class="btn" id="qcm-reset">Recommencer</button></section>` : ""}`);
+      <button type="button" class="btn" id="qcm-reset">Recommencer</button></section>` : ""}
+    ${r._fichier ? deleteZone("Supprimer cette révision", "Seules la fiche de révision et son QCM sont supprimés, pas tes fiches de cours.") : ""}`);
+  if (r._fichier) wireDelete(`revisions/${r._fichier}`, "Supprimer cette révision");
   const body = $("#reader-body");
   let good = 0, done = 0;
   const total = r.qcm.length;

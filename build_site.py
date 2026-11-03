@@ -34,7 +34,10 @@ def read_enc_dir(name, password):
     items = []
     for p in sorted((BASE / name).glob("*.enc")):
         try:
-            items.append(decrypt_json(p.read_text(encoding="utf-8"), password))
+            item = decrypt_json(p.read_text(encoding="utf-8"), password)
+            if isinstance(item, dict):
+                item["_fichier"] = p.name  # pour pouvoir le supprimer depuis l'appli
+            items.append(item)
         except Exception:
             print(f"{name}/{p.name} illisible, ignoré")
     return items
