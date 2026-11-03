@@ -79,6 +79,7 @@ function renderDoor(evs) {
   </div>`;
   el.querySelector(".door-rec")?.addEventListener("click", (ev) => {
     showPane("enregistrer");
+    $("#f-date").value = "";   // aujourd'hui, et le cours en cours est choisi tout seul
     window.startRecording?.(ev.currentTarget.dataset.matiere);
   });
 }
@@ -124,7 +125,9 @@ const norm = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g,
 function ficheFor(e) {
   const day = e.debut.slice(0, 10), heure = e.debut.slice(11, 16);
   // une fiche avec une heure va à son créneau ; sans heure (anciens envois), au premier créneau du jour
-  const same = (DATA.fiches || []).filter((f) => f.source !== "moodle" && f.date === day && norm(f.matiere) === norm(e.matiere));
+  const linked = (DATA.fiches || []).find((f) => f.creneau === e.debut);
+  if (linked) return linked;
+  const same = (DATA.fiches || []).filter((f) => f.source !== "moodle" && !f.creneau && f.date === day && norm(f.matiere) === norm(e.matiere));
   const first = events().find((x) => x.debut.slice(0, 10) === day && norm(x.matiere) === norm(e.matiere));
   return same.find((f) => f.heure === heure) || (first?.debut === e.debut && same.find((f) => !f.heure));
 }

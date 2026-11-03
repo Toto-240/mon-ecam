@@ -105,6 +105,11 @@
     <select id="f-matiere" class="field" required></select>
     <label for="f-date">Date du cours</label>
     <input id="f-date" class="field" type="date" required>
+    <label for="f-creneau">Cours du planning</label>
+    <select id="f-creneau" class="field"></select>
+    <label for="f-support">Support Moodle à compléter</label>
+    <select id="f-support" class="field"></select>
+    <p class="muted small link-hint">Avec un support, sa fiche est complétée par ce que le prof dit à l'oral : une seule fiche au final.</p>
     <div class="row">
       <button id="rec-start" type="button" class="btn primary">Enregistrer le cours</button>
       <label class="btn" for="f-audio">Importer un enregistrement</label>
@@ -210,6 +215,8 @@
       <div><h2 id="add-title">Ajouter une fiche</h2><p id="add-what" class="muted small"></p></div>
       <button type="button" id="add-close" class="btn small">Fermer</button>
     </div>
+    <label for="add-support" class="first">Support Moodle à compléter</label>
+    <select id="add-support" class="field"></select>
     <div class="add-grid">
       <button type="button" class="btn" id="add-rec" hidden>Enregistrer maintenant</button>
       <label class="btn" for="add-audio">Importer un enregistrement</label>

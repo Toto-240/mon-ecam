@@ -150,7 +150,61 @@ function fillForm(force) {
   sel.innerHTML = `<option value="">Choisis la matière</option>` +
     matieres().map((m) => `<option${m === keep ? " selected" : ""}>${esc(m)}</option>`).join("");
   if (!$("#f-date").value) $("#f-date").value = todayIso();
+  fillLinks(sel.value, $("#f-date").value);
 }
+
+/* ---------- Relier à un cours : créneau du planning et support Moodle ---------- */
+const hm = (iso) => String(iso || "").slice(11, 16);
+const sameMatiere = (a, b) => { const x = norm(a), y = norm(b); return !!x && !!y && (x === y || x.includes(y) || y.includes(x)); };
+
+function slotsFor(matiere, date) {
+  const day = events().filter((e) => e.debut.slice(0, 10) === date && ["CM", "TD", "TP", "DS"].includes(e.type) && !e.perso);
+  const mine = day.filter((e) => sameMatiere(e.matiere, matiere));
+  return mine.length ? mine : day;
+}
+
+function supportsFor(matiere) {
+  return (DATA.fiches || []).filter((f) => (f.source === "moodle" || f.source === "complete") && sameMatiere(f.matiere, matiere))
+    .sort((a, b) => (b.date || "").localeCompare(a.date || "") || (a.titre || "").localeCompare(b.titre || "", "fr"));
+}
+
+/* Remplit les listes « cours du planning » et « support Moodle » */
+function fillLinks(matiere, date) {
+  const slots = slotsFor(matiere, date);
+  const cs = $("#f-creneau"), keepSlot = cs.value;
+  // par défaut : le cours en ce moment (ou qui vient de finir), sinon le seul cours de la matière ce jour-là
+  const auto = slots.find((e) => e.d0 <= NOW && NOW < e.d1) || slots.filter((e) => e.d1 <= NOW && NOW - e.d1 < 3 * 3600e3).pop()
+    || (slots.filter((e) => sameMatiere(e.matiere, matiere)).length === 1 ? slots.find((e) => sameMatiere(e.matiere, matiere)) : null);
+  const pick = slots.some((e) => e.debut === keepSlot) ? keepSlot : auto?.debut || "";
+  cs.innerHTML = `<option value="">${slots.length ? "Aucun" : "Aucun cours ce jour-là"}</option>` + slots.map((e) =>
+    `<option value="${esc(e.debut)}"${e.debut === pick ? " selected" : ""}>${esc(`${fmtTime(e.d0)}–${fmtTime(e.d1)} ${e.type} ${e.matiere}${e.salle ? ", " + e.salle : ""}`)}</option>`).join("");
+  fillSupports($("#f-support"), matiere);
+}
+
+function fillSupports(sel, matiere) {
+  const keep = sel.value;
+  const list = supportsFor(matiere);
+  sel.innerHTML = `<option value="">${list.length ? "Aucun (fiche à part)" : "Aucun support Moodle pour cette matière"}</option>` +
+    list.map((f) => `<option value="${esc(f.id)}"${f.id === keep ? " selected" : ""}>${esc((f.doc || f.titre || "Support").slice(0, 70))}${f.source === "complete" ? " (déjà complété)" : ""}</option>`).join("");
+  sel.disabled = !list.length;
+}
+
+/* Ce qu'on joint à l'envoi */
+function linkMeta() {
+  const creneau = $("#f-creneau").value, support = $("#f-support").value;
+  return { ...(creneau && { creneau, heure: hm(creneau) }), ...(support && { support }) };
+}
+
+$("#f-matiere").addEventListener("change", () => fillLinks($("#f-matiere").value, $("#f-date").value));
+$("#f-date").addEventListener("change", () => fillLinks($("#f-matiere").value, $("#f-date").value));
+$("#f-creneau").addEventListener("change", () => {
+  // choisir un cours d'une autre matière met la matière à jour
+  const e = events().find((x) => x.debut === $("#f-creneau").value);
+  if (e && !sameMatiere(e.matiere, $("#f-matiere").value) && matieres().includes(e.matiere)) {
+    $("#f-matiere").value = e.matiere;
+    fillSupports($("#f-support"), e.matiere);
+  }
+});
 
 /* ---------- Chiffrement de l'envoi (même format que crypto_util.py) ---------- */
 async function encryptUpload(meta, audio) {
@@ -251,7 +305,7 @@ $("#f-audio").addEventListener("change", async (ev) => {
   if (!matiere) { alertForm("Choisis d'abord la matière."); return; }
   if (file.size > MAX_MB * 1e6) { alertForm(`Fichier trop gros (${Math.round(file.size / 1e6)} Mo, maximum ${MAX_MB} Mo).`); return; }
   try {
-    await send({ id: newId(), kind: "cours", matiere, date: $("#f-date").value, nom: file.name, type: file.type },
+    await send({ id: newId(), kind: "cours", matiere, date: $("#f-date").value, nom: file.name, type: file.type, ...linkMeta() },
       await file.arrayBuffer());
   } catch {}
 });
@@ -335,7 +389,8 @@ function showPaused(r) {
 }
 
 function saveNativeMeta(r) {
-  store.set(REC_META, JSON.stringify({ t0: r.t0, matiere: r.matiere, date: r.date, id: r.id, acc: r.acc, since: r.since }));
+  store.set(REC_META, JSON.stringify({ t0: r.t0, matiere: r.matiere, date: r.date, id: r.id, acc: r.acc, since: r.since,
+    heure: r.heure, creneau: r.creneau, support: r.support }));
 }
 
 $("#rec-pause").onclick = async () => {
@@ -374,7 +429,7 @@ window.startRecording = async function (matiere) {
   fillForm(matiere);
   matiere = matiere || $("#f-matiere").value;
   if (!matiere) { alertForm("Choisis d'abord la matière."); return; }
-  const base = { t0: Date.now(), matiere, date: $("#f-date").value || todayIso(), id: newId() };
+  const base = { t0: Date.now(), matiere, date: $("#f-date").value || todayIso(), id: newId(), ...linkMeta() };
 
   if (Dicta) {
     try {
@@ -404,7 +459,8 @@ window.startRecording = async function (matiere) {
   mr.ondataavailable = (e) => {
     if (!e.data.size) return;
     r.chunks.push(e.data);
-    idb.put("current", { meta: { id: r.id, matiere: r.matiere, date: r.date, mime: mr.mimeType }, chunks: r.chunks });
+    idb.put("current", { meta: { id: r.id, matiere: r.matiere, date: r.date, mime: mr.mimeType,
+      heure: r.heure, creneau: r.creneau, support: r.support }, chunks: r.chunks });
   };
   mr.start(30000); // sauvegarde toutes les 30 s, en cas de fermeture
   showLive(r);
@@ -450,6 +506,7 @@ async function sendNative(meta) {
   const audio = await readNative();
   if (!audio.byteLength) throw new Error("enregistrement vide");
   await send({ id: meta.id, kind: "cours", matiere: meta.matiere, date: meta.date, type: "audio/mp4",
+    heure: meta.heure, creneau: meta.creneau, support: meta.support,
     duree_s: Math.round((meta.since === undefined ? Date.now() - meta.t0 : recElapsed(meta)) / 1000) }, audio);
   await Dicta.discard();
   store.del(REC_META);
@@ -469,6 +526,7 @@ $("#rec-stop").onclick = async () => {
     if (r.native) return await sendNative(r);
     const blob = new Blob(r.chunks, { type: r.mr.mimeType || MIME });
     await send({ id: r.id, kind: "cours", matiere: r.matiere, date: r.date, type: blob.type,
+      heure: r.heure, creneau: r.creneau, support: r.support,
       duree_s: Math.round(r.duree / 1000) }, await blob.arrayBuffer());
     await idb.del("current");
   } catch {
@@ -646,6 +704,7 @@ function renderFiches() {
       ${fs.map((f) => `<li><button type="button" class="item" data-open="${esc(f.id)}">
         <div class="t">${esc(f.titre || m)}</div>
         <div class="m">${f.source === "moodle" ? `D'après le support Moodle${f.date ? ", " + esc(fmtDate(f.date)) : ""}`
+          : f.source === "complete" ? `Support Moodle complété par le cours du ${esc(fmtDate(f.date))}`
           : f.source === "notes" ? `${esc(fmtDate(f.date))}, d'après tes notes et photos`
           : `${esc(fmtDate(f.date))}${f.duree_min ? `, ${f.duree_min} min d'enregistrement` : ""}`}</div>
       </button></li>`).join("")}
@@ -685,6 +744,7 @@ function openFiche(id) {
   const f = (DATA.fiches || []).find((x) => x.id === id);
   if (!f) return;
   const meta = f.source === "moodle" ? `${esc(f.matiere)}, d'après « ${esc(f.doc || "")} » sur Moodle`
+    : f.source === "complete" ? `${esc(f.matiere)}, « ${esc(f.doc || "")} » (Moodle) complété par le cours du ${esc(fmtDate(f.date))}${f.heure ? " à " + esc(f.heure) : ""}`
     : `${esc(f.matiere)}, ${esc(fmtDate(f.date))}${f.heure ? " à " + esc(f.heure) : ""}${f.source === "notes" ? ", d'après tes notes" : ""}`;
   openReader(f.matiere, `<p class="meta">${meta}</p>${md(f.md)}`);
 }

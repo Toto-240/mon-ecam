@@ -131,7 +131,9 @@ let addCtx = null, addFiles = [];
 
 window.openAddSheet = function (e) {
   if (!e) return;
-  addCtx = { matiere: e.matiere, date: e.debut.slice(0, 10), heure: e.debut.slice(11, 16), now: e.d0 <= NOW && NOW < e.d1 };
+  addCtx = { matiere: e.matiere, date: e.debut.slice(0, 10), heure: e.debut.slice(11, 16), creneau: e.debut, now: e.d0 <= NOW && NOW < e.d1 };
+  $("#add-support").value = "";
+  fillSupports($("#add-support"), e.matiere);
   addFiles = [];
   $("#add-what").textContent = `${e.matiere}, ${fmtDayLong(e.d0)} à ${fmtTime(e.d0)}`;
   $("#add-rec").hidden = !addCtx.now;
@@ -171,9 +173,13 @@ $("#add-photo").addEventListener("change", addPicked);
 $("#add-doc").addEventListener("change", addPicked);
 
 $("#add-rec").onclick = () => {
-  const m = addCtx.matiere;
+  const m = addCtx.matiere, ctx = addCtx, sup = $("#add-support").value;
   closeAdd();
   showPane("enregistrer");
+  $("#f-date").value = ctx.date;
+  fillForm(m);
+  $("#f-creneau").value = ctx.creneau;
+  $("#f-support").value = sup;
   startRecording(m);
 };
 
@@ -185,6 +191,7 @@ $("#add-audio").addEventListener("change", async (ev) => {
   $("#add-bar").hidden = false;
   try {
     await send({ id: newId(), kind: "cours", matiere: addCtx.matiere, date: addCtx.date, heure: addCtx.heure,
+      creneau: addCtx.creneau, ...($("#add-support").value && { support: $("#add-support").value }),
       nom: f.name, type: f.type }, await f.arrayBuffer(), "add");
   } catch {}
 });
@@ -205,6 +212,7 @@ $("#add-send").onclick = async () => {
     const parts = await Promise.all(addFiles.map((f) => f.arrayBuffer()));
     const all = await new Blob(parts).arrayBuffer();
     await send({ id: newId(), kind: "notes", matiere: addCtx.matiere, date: addCtx.date, heure: addCtx.heure, texte,
+      creneau: addCtx.creneau, ...($("#add-support").value && { support: $("#add-support").value }),
       files: addFiles.map((f) => ({ name: f.name, type: f.type, size: f.size })) }, all, "add");
   } catch {}
   btn.disabled = false;

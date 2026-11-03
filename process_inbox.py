@@ -69,6 +69,25 @@ Les points sur lesquels le prof a insisté, les annonces (examen, devoir, date).
 Règles : ignore les bavardages et les passages hors sujet. N'invente rien : si un passage est inaudible,
 écris « (passage inaudible) ». Garde les termes techniques exacts."""
 
+PROMPT_COMPLETER = """Tu es un assistant pour un étudiant en Bachelor cybersécurité à l'ECAM LaSalle (Lyon).
+Voici la fiche qu'il a déjà, faite à partir du support Moodle « {doc} » (matière « {matiere} ») :
+
+=== FICHE ACTUELLE ===
+{fiche}
+=== FIN DE LA FICHE ===
+
+Ci-joint {quoi} du cours du {date} qui porte sur ce support.
+
+Réécris la fiche COMPLÈTE en Markdown, en gardant sa structure (# titre, **En bref**, parties…) :
+- garde tout ce qui est juste dans la fiche actuelle ;
+- ajoute à leur place les explications, exemples, précisions et schémas décrits que le prof a donnés en plus du support ;
+- corrige ce que le cours contredit ;
+- ajoute ou complète une partie « ## Ce que le prof a souligné » (points sur lesquels il a insisté, annonces : examen, devoir, date) ;
+- termine par « ## Questions pour réviser » (5 questions, sans les réponses).
+
+Règles : n'invente rien, ignore les bavardages, garde les termes techniques exacts.
+Réponds uniquement avec la fiche."""
+
 PROMPT_REVISION = """Tu prépares les révisions d'un étudiant pour la matière « {matiere} ».
 Voici ses fiches de cours, de la plus ancienne à la plus récente :
 
@@ -131,12 +150,44 @@ def to_mp3(audio: bytes, workdir: Path):
     return dst, round(float(dur or 0) / 60)
 
 
+def load_support(meta, out: Path):
+    """Fiche du support Moodle à compléter (None si pas demandé ou introuvable)."""
+    sid = re.sub(r"[^A-Za-z0-9_-]", "", str(meta.get("support") or ""))
+    if not sid:
+        return None
+    p = out / "fiches" / f"{sid}.enc"
+    if not p.exists():
+        print("  support introuvable : fiche à part")
+        return None
+    return decrypt_json(p.read_text(encoding="utf-8"), os.environ["APP_PASSWORD"])
+
+
+def completer(client, support, meta, parts, quoi, out: Path, minutes=None):
+    """Complète la fiche du support avec le cours (audio ou notes) ; même fichier, une seule fiche."""
+    prompt = PROMPT_COMPLETER.format(doc=support.get("doc") or support.get("titre") or "", matiere=support.get("matiere"),
+                                     fiche=support["md"], quoi=quoi, date=meta.get("date") or "")
+    md, model = generate(client, parts + [prompt])
+    titre = next((l[2:].strip() for l in md.splitlines() if l.startswith("# ")), support.get("titre"))
+    fiche = {**support, "source": "complete", "titre": titre, "md": md.strip(), "modele": model,
+             "md_moodle": support.get("md_moodle") or support["md"],   # version d'origine gardée
+             "date": meta.get("date") or support.get("date"), "heure": meta.get("heure"), "creneau": meta.get("creneau"),
+             "complete_par": (support.get("complete_par") or []) + [meta["id"]],
+             "maj": datetime.now().isoformat(timespec="seconds")}
+    if minutes is not None:
+        fiche["duree_min"] = (support.get("duree_min") or 0) + minutes
+    write(out / "fiches" / f"{support['id']}.enc", fiche)
+    print("  support Moodle complété")
+
+
 def fiche_cours(client, meta, audio, out: Path):
+    support = load_support(meta, out)
     with tempfile.TemporaryDirectory() as tmp:
         mp3, minutes = to_mp3(audio, Path(tmp))
         print(f"  audio : {minutes} min")
         f = wait_active(client, client.files.upload(file=str(mp3), config={"mime_type": "audio/mpeg"}))
         try:
+            if support:
+                return completer(client, support, meta, [f], "l'enregistrement audio", out, minutes)
             prompt = PROMPT_COURS.format(matiere=meta.get("matiere") or "cours", date=meta.get("date") or "")
             md, model = generate(client, [f, prompt])
         finally:
@@ -146,7 +197,7 @@ def fiche_cours(client, meta, audio, out: Path):
                 pass
     titre = next((l[2:].strip() for l in md.splitlines() if l.startswith("# ")), meta.get("matiere"))
     fiche = {"id": meta["id"], "kind": "cours", "matiere": meta.get("matiere"), "date": meta.get("date"),
-             "heure": meta.get("heure"),
+             "heure": meta.get("heure"), "creneau": meta.get("creneau"),
              "titre": titre, "duree_min": minutes, "md": md.strip(), "modele": model,
              "cree": datetime.now().isoformat(timespec="seconds")}
     write(out / "fiches" / f"{meta['id']}.enc", fiche)
@@ -224,12 +275,15 @@ def notes_parts(meta, data):
 
 
 def fiche_notes(client, meta, data, out: Path):
+    support = load_support(meta, out)
+    if support:
+        return completer(client, support, meta, notes_parts(meta, data), "les notes et photos (ou documents)", out)
     prompt = PROMPT_NOTES.format(matiere=meta.get("matiere") or "cours", date=meta.get("date") or "")
     md, model = generate(client, notes_parts(meta, data) + [prompt])
     titre = next((l[2:].strip() for l in md.splitlines() if l.startswith("# ")), meta.get("matiere"))
     write(out / "fiches" / f"{meta['id']}.enc", {
         "id": meta["id"], "kind": "cours", "source": "notes", "matiere": meta.get("matiere"),
-        "date": meta.get("date"), "heure": meta.get("heure"), "titre": titre, "md": md.strip(),
+        "date": meta.get("date"), "heure": meta.get("heure"), "creneau": meta.get("creneau"), "titre": titre, "md": md.strip(),
         "modele": model, "cree": datetime.now().isoformat(timespec="seconds")})
 
 
