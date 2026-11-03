@@ -7,7 +7,7 @@
 const PERSO_PATH = "/contents/perso/etat.enc";
 const PERSO_BASE = "ecam-perso-base";     // dernier état connu de GitHub
 const PERSO_PENDING = "ecam-perso-ops";   // changements pas encore envoyés
-const emptyPerso = () => ({ faits: {}, ds: [], maj: "" });
+const emptyPerso = () => ({ faits: {}, ds: [], dsSel: {}, maj: "" });
 
 const persoStore = {
   get(k, def) { try { return JSON.parse(store.get(k)) ?? def; } catch { return def; } },
@@ -16,11 +16,13 @@ const persoStore = {
 
 /* Un changement = une petite opération, rejouée sur la version de GitHub au moment d'envoyer */
 function applyOp(s, op) {
-  s = { ...emptyPerso(), ...s, faits: { ...(s?.faits || {}) }, ds: [...(s?.ds || [])] };
+  s = { ...emptyPerso(), ...s, faits: { ...(s?.faits || {}) }, ds: [...(s?.ds || [])], dsSel: { ...(s?.dsSel || {}) } };
   if (op.op === "fait") {
     if (op.val) s.faits[op.key] = op.val; else delete s.faits[op.key];
   } else if (op.op === "ds+") {
     s.ds = s.ds.filter((d) => d.id !== op.ds.id).concat(op.ds);
+  } else if (op.op === "dssel") {
+    if (op.exclus?.length) s.dsSel[op.key] = op.exclus; else delete s.dsSel[op.key];
   } else if (op.op === "ds-") {
     s.ds = s.ds.filter((d) => d.id !== op.id);
   }
@@ -146,3 +148,5 @@ window.setFait = (d, on) => persoChange({ op: "fait", key: devoirKey(d), val: on
 window.persoDS = () => PERSO.ds;
 window.addPersoDS = (ds) => persoChange({ op: "ds+", ds });
 window.delPersoDS = (id) => persoChange({ op: "ds-", id });
+window.dsExclus = (key) => PERSO.dsSel?.[key] || [];
+window.setDsExclus = (key, exclus) => persoChange({ op: "dssel", key, exclus });

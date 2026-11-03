@@ -280,7 +280,7 @@ async function send(meta, audio, ui = "upload") {
     await ensureInbox();
     msg.textContent = `Envoi (${(blob.size / 1e6).toFixed(1)} Mo)…`;
     await putFile(meta.id, b64, (p) => { bar.value = p; });
-    pending.add({ id: meta.id, kind: meta.kind, matiere: meta.matiere, titre: meta.titre, date: meta.date, at: new Date().toISOString() });
+    pending.add({ id: meta.id, kind: meta.kind, matiere: meta.matiere, titre: meta.titre, date: meta.date, ds: meta.ds, at: new Date().toISOString() });
     msg.textContent = meta.kind === "revision" ? "Demande envoyée. La fiche de révision arrive dans quelques minutes."
       : meta.kind?.startsWith("devoir") ? "Envoyé. Le devoir fait arrive dans quelques minutes, dans la liste ci-dessous."
       : meta.kind === "notes" ? "Envoyé. La fiche arrive dans quelques minutes (onglet Révisions et sur le planning)."
@@ -655,7 +655,8 @@ function resolvePending() {
   const errs = Object.fromEntries((DATA.erreurs || []).map((e) => [e.id, e]));
   const revs = DATA.revisions || [];
   const list = pending.all().filter((p) => {
-    if (p.kind === "revision") return !revs.some((r) => r.matiere === p.matiere && r.cree && new Date(r.cree) > new Date(p.at) - 120e3);
+    if (p.kind === "revision") return !revs.some((r) => r.matiere === p.matiere && (r.ds || null) === (p.ds || null)
+      && r.cree && new Date(r.cree) > new Date(p.at) - 120e3);
     return !fiches.has(p.id);
   });
   pending.save(list);
@@ -687,7 +688,7 @@ function renderFiches() {
     if (!by.has(f.matiere)) by.set(f.matiere, []);
     by.get(f.matiere).push(f);
   });
-  const revs = Object.fromEntries((DATA.revisions || []).map((r) => [r.matiere, r]));
+  const revs = Object.fromEntries((DATA.revisions || []).filter((r) => !r.ds).map((r) => [r.matiere, r]));
   const box = $("#matieres");
   $("#rev-intro").hidden = false;
   if (!by.size) {
@@ -780,16 +781,18 @@ function openFiche(id) {
   openReader(f.matiere, `<p class="meta">${meta}</p>${md(f.md)}`);
 }
 
-function openRevision(matiere) {
-  const r = (DATA.revisions || []).find((x) => x.matiere === matiere);
+function openRevision(matiere, id) {
+  const revs = DATA.revisions || [];
+  const r = id ? revs.find((x) => x.id === id) : revs.find((x) => x.matiere === matiere && !x.ds) || revs.find((x) => x.matiere === matiere);
   if (!r) return;
+  matiere = r.matiere;
   r.qcm = (Array.isArray(r.qcm) ? r.qcm : []).filter((q) => q && Array.isArray(q.choix) && q.choix.length > 1)
     .map((q) => ({ ...q, bonne: Number(q.bonne) || 0 }));
   const qcm = (r.qcm || []).map((q, i) => `<div class="q" data-q="${i}">
     <p>${i + 1}. ${esc(q.question)}</p>
     ${q.choix.map((c, j) => `<button type="button" data-c="${j}">${esc(c)}</button>`).join("")}
     <div class="why" hidden>${esc(q.explication || "")}</div></div>`).join("");
-  openReader(`Révision : ${matiere}`, `<p class="meta">${esc(matiere)}, à partir de ${r.sources} cours</p>${md(r.md)}
+  openReader(`Révision : ${matiere}`, `<p class="meta">${esc(matiere)}, à partir de ${r.sources} fiche${r.sources > 1 ? "s" : ""}${r.ds ? ` (pour le DS du ${esc(fmtDate(r.ds.slice(0, 10)))})` : ""}</p>${md(r.md)}
     ${qcm ? `<section class="qcm"><h2>QCM</h2><p id="score" class="score" aria-live="polite"></p>${qcm}
       <button type="button" class="btn" id="qcm-reset">Recommencer</button></section>` : ""}`);
   const body = $("#reader-body");
@@ -809,7 +812,7 @@ function openRevision(matiere) {
       };
     });
   });
-  $("#qcm-reset")?.addEventListener("click", () => openRevision(matiere));
+  $("#qcm-reset")?.addEventListener("click", () => openRevision(null, r.id));
 }
 
 /* ---------- Rendu ---------- */

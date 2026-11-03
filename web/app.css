@@ -434,3 +434,13 @@ button.tile { border: 0; font: inherit; text-align: left; cursor: pointer; width
 .tile-name { hyphens: auto; -webkit-hyphens: auto; overflow-wrap: anywhere; }
 .rec-dot.paused { background: #F5B94A; animation: none; }
 .sheet label.first { margin-top: 4px; } #add-support { margin-bottom: 12px; }
+
+/* DS : choix des fiches à réviser */
+.ds-pick { margin-top: 12px; }
+.ds-pick > summary { cursor: pointer; padding: 6px 0; font-size: .95rem; }
+.ds-pick .pick-all { margin: 6px 0 8px; }
+.pick-list li.pick { display: flex; align-items: center; gap: 10px; padding: 8px 12px; }
+.pick-list li.pick input { width: 22px; height: 22px; flex: none; accent-color: var(--ecam); margin: 0; }
+.pick-list li.pick .item { flex: 1; min-width: 0; padding: 0; }
+.pick-list li.pick.off .t, .pick-list li.pick.off .m { opacity: .45; text-decoration: line-through; }
+.ds-rev { margin-top: 10px; }

@@ -23,6 +23,10 @@ function profSaid(fiches) {
   return out.slice(0, 5);
 }
 
+/* Un DS est repéré par son id (DS ajouté à la main) ou sa matière + son jour */
+const dsKey = (e) => e.persoId || `${norm(e.matiere)}|${e.debut.slice(0, 10)}`;
+const dsOpen = new Set();
+
 window.renderDS = function () {
   const exams = upcomingExams();
   const soon = exams.filter((e) => e.d0 - NOW < 7 * 864e5).length;
@@ -38,11 +42,18 @@ window.renderDS = function () {
   const revs = DATA.revisions || [];
   box.innerHTML = exams.map((e, i) => {
     const days = Math.ceil((startOfDay(e.d0) - startOfDay(NOW)) / 864e5);
-    const fs = allFiches.filter((f) => norm(f.matiere) === norm(e.matiere))
-      .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-    const r = revs.find((x) => norm(x.matiere) === norm(e.matiere));
-    const stale = r && r.sources < fs.length;
+    const fs = allFiches.filter((f) => sameMatiere(f.matiere, e.matiere))
+      .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+    const key = dsKey(e);
+    const exclus = new Set(window.dsExclus?.(key) || []);
+    const chosen = fs.filter((f) => !exclus.has(f.id));
+    // révision faite pour ce DS (avec ta sélection), sinon celle de la matière
+    const r = revs.find((x) => x.ds === e.debut && sameMatiere(x.matiere, e.matiere))
+      || revs.find((x) => !x.ds && sameMatiere(x.matiere, e.matiere));
+    const sameSel = r?.fiches ? [...r.fiches].sort().join() === chosen.map((f) => f.id).sort().join() : false;
+    const stale = r && (r.ds ? !sameSel : true);
     const said = profSaid(fs);
+    e.chosen = chosen.map((f) => f.id);
     return `<article class="ds${days <= 7 ? " soon" : ""}">
       <div class="ds-top">
         <div>
@@ -55,18 +66,32 @@ window.renderDS = function () {
       </div>
       ${e.persoNotes ? `<h4>Tes notes</h4><p class="ds-notes">${esc(e.persoNotes)}</p>` : ""}
       ${said.length ? `<h4>Ce que le prof a dit</h4><ul class="said">${said.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>` : ""}
-      <h4>À réviser${fs.length ? ` (${fs.length} fiche${fs.length > 1 ? "s" : ""})` : ""}</h4>
-      ${fs.length ? `<ul class="list">
-        ${r ? `<li class="rev"><button type="button" class="item" data-ds-rev="${esc(r.matiere)}">
-          <div class="t">Fiche de révision et QCM</div>
-          <div class="m">${r.qcm?.length || 0} question${(r.qcm?.length || 0) > 1 ? "s" : ""}${stale ? ", des cours ont été ajoutés depuis" : ""}</div></button></li>` : ""}
-        ${fs.slice(-6).reverse().map((f) => `<li><button type="button" class="item" data-ds-fiche="${esc(f.id)}">
-          <div class="t">${esc(f.titre || f.matiere)}</div>
-          <div class="m">${f.source === "moodle" ? "Support Moodle" : esc(fmtDate(f.date))}</div></button></li>`).join("")}
-      </ul>
+      ${fs.length ? `
+      ${r ? `<ul class="list ds-rev"><li class="rev"><button type="button" class="item" data-ds-rev="${esc(r.id)}">
+          <div class="t">Fiche de révision et QCM${r.ds ? "" : " (toute la matière)"}</div>
+          <div class="m">${r.qcm?.length || 0} question${(r.qcm?.length || 0) > 1 ? "s" : ""}, ${r.sources} fiche${r.sources > 1 ? "s" : ""}${r.ds && !sameSel ? " · ta sélection a changé depuis" : ""}</div></button></li></ul>` : ""}
+      <details class="ds-pick"${dsOpen.has(key) ? " open" : ""} data-key="${esc(key)}">
+        <summary><b>Fiches à réviser</b> <span class="muted">${chosen.length} sur ${fs.length}</span></summary>
+        <p class="muted small">Décoche les fiches que tu n'as pas à apprendre pour ce DS. La révision et le QCM seront faits avec celles cochées.</p>
+        <div class="row tight pick-all">
+          <button type="button" class="btn small" data-sel-all="${i}">Tout cocher</button>
+          <button type="button" class="btn small" data-sel-none="${i}">Tout décocher</button>
+        </div>
+        <ul class="list pick-list">
+          ${fs.map((f) => `<li class="pick${exclus.has(f.id) ? " off" : ""}">
+            <input type="checkbox" id="sel-${i}-${esc(f.id)}" data-sel="${i}" data-id="${esc(f.id)}"${exclus.has(f.id) ? "" : " checked"}
+              aria-label="Réviser ${esc(f.titre || f.matiere)}">
+            <button type="button" class="item" data-ds-fiche="${esc(f.id)}">
+              <div class="t">${esc(f.titre || f.matiere)}</div>
+              <div class="m">${f.source === "moodle" ? "Support Moodle" : f.source === "complete" ? "Support Moodle + cours" : esc(fmtDate(f.date))}</div></button>
+          </li>`).join("")}
+        </ul>
+      </details>
       <div class="row">
-        <button type="button" class="btn small${r && !stale ? "" : " primary"}" data-ds-make="${i}">${r ? (stale ? "Mettre à jour la révision et le QCM" : "Refaire la révision et le QCM") : "Créer la révision et le QCM"}</button>
-        ${fs.length > 6 ? `<button type="button" class="btn small" data-ds-all="${esc(e.matiere)}">Voir les ${fs.length} fiches</button>` : ""}
+        <button type="button" class="btn small${r && !stale ? "" : " primary"}" data-ds-make="${i}"${chosen.length ? "" : " disabled"}>${
+          !chosen.length ? "Coche au moins une fiche"
+          : r?.ds ? (sameSel ? "Refaire la révision et le QCM" : `Mettre à jour avec les ${chosen.length} fiches cochées`)
+          : `Créer la révision et le QCM (${chosen.length} fiche${chosen.length > 1 ? "s" : ""})`}</button>
       </div>`
       : `<p class="muted small">Pas encore de fiche pour cette matière. Ajoute-en depuis le planning (bouton « + Ajouter une fiche » sous chaque cours) ou enregistre le prochain cours.</p>`}
       ${e.persoId ? `<div class="row ds-perso"><button type="button" class="btn small danger" data-ds-del="${esc(e.persoId)}">${e.perso ? "Supprimer ce DS" : "Retirer tes notes"}</button></div>` : ""}
@@ -83,22 +108,33 @@ window.renderDS = function () {
     };
   });
   box.querySelectorAll("[data-ds-fiche]").forEach((b) => { b.onclick = () => openFiche(b.dataset.dsFiche); });
-  box.querySelectorAll("[data-ds-rev]").forEach((b) => { b.onclick = () => openRevision(b.dataset.dsRev); });
-  box.querySelectorAll("[data-ds-all]").forEach((b) => {
-    b.onclick = () => {
-      const m = (DATA.fiches || []).find((f) => norm(f.matiere) === norm(b.dataset.dsAll))?.matiere || b.dataset.dsAll;
-      openSubjects.add(m);
-      showPane("revisions");
-      window.renderRevisions?.();
+  box.querySelectorAll("[data-ds-rev]").forEach((b) => { b.onclick = () => openRevision(null, b.dataset.dsRev); });
+  box.querySelectorAll("details.ds-pick").forEach((d) => {
+    d.addEventListener("toggle", () => { d.open ? dsOpen.add(d.dataset.key) : dsOpen.delete(d.dataset.key); });
+  });
+  // cocher / décocher : enregistré (et synchronisé entre tes appareils)
+  const setSel = (e, ids) => {
+    const all = (DATA.fiches || []).filter((f) => f.kind === "cours" && sameMatiere(f.matiere, e.matiere)).map((f) => f.id);
+    window.setDsExclus?.(dsKey(e), all.filter((id) => !ids.includes(id)));
+  };
+  box.querySelectorAll("[data-sel]").forEach((c) => {
+    c.onchange = () => {
+      const e = exams[+c.dataset.sel];
+      const ids = [...box.querySelectorAll(`[data-sel="${c.dataset.sel}"]`)].filter((x) => x.checked).map((x) => x.dataset.id);
+      setSel(e, ids);
     };
   });
+  box.querySelectorAll("[data-sel-all]").forEach((b) => {
+    b.onclick = () => { const e = exams[+b.dataset.selAll]; setSel(e, (DATA.fiches || []).map((f) => f.id)); };
+  });
+  box.querySelectorAll("[data-sel-none]").forEach((b) => { b.onclick = () => setSel(exams[+b.dataset.selNone], []); });
   box.querySelectorAll("[data-ds-make]").forEach((b) => {
     b.onclick = async () => {
       const e = exams[+b.dataset.dsMake];
       const m = (DATA.fiches || []).find((f) => norm(f.matiere) === norm(e.matiere))?.matiere || e.matiere;
       b.disabled = true;
       b.textContent = "Demande envoyée, révision en préparation…";
-      try { await send({ id: newId(), kind: "revision", matiere: m, ds: e.debut }, new ArrayBuffer(0), "add"); }
+      try { await send({ id: newId(), kind: "revision", matiere: m, ds: e.debut, fiches: e.chosen }, new ArrayBuffer(0), "add"); }
       catch { b.disabled = false; b.textContent = "Réessayer"; }
     };
   });

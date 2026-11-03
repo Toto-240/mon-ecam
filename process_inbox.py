@@ -222,16 +222,20 @@ def fiche_cours(client, meta, audio, out: Path):
 
 def fiche_revision(client, meta, out: Path, password: str):
     matiere = meta.get("matiere")
+    wanted = set(meta.get("fiches") or [])
     fiches = []
     for p in sorted((out / "fiches").glob("*.enc")):
         try:
             f = decrypt_json(p.read_text(encoding="utf-8"), password)
         except Exception:
             continue
-        if f.get("kind") == "cours" and f.get("matiere") == matiere:
+        if f.get("kind") != "cours":
+            continue
+        # fiches choisies pour un DS, sinon toutes celles de la matière
+        if (f.get("id") in wanted) if wanted else (f.get("matiere") == matiere):
             fiches.append(f)
     if not fiches:
-        raise RuntimeError("Aucune fiche de cours pour cette matière")
+        raise RuntimeError("Aucune fiche de cours pour cette matière" if not wanted else "Aucune des fiches choisies n'a été trouvée")
     fiches.sort(key=lambda f: f.get("date") or "")
     texte = "\n\n---\n\n".join(f"Cours du {f.get('date')} :\n{f['md']}" for f in fiches)
     raw, model = generate(client, PROMPT_REVISION.format(matiere=matiere, fiches=texte), json_mode=True)
@@ -241,6 +245,12 @@ def fiche_revision(client, meta, out: Path, password: str):
     rev = {"id": meta["id"], "kind": "revision", "matiere": matiere, "md": data.get("fiche", "").strip(),
            "qcm": qcm, "sources": len(fiches), "modele": model,
            "cree": datetime.now().isoformat(timespec="seconds")}
+    if wanted and meta.get("ds"):
+        # révision propre à ce DS, faite avec les fiches cochées
+        rev.update(ds=meta["ds"], fiches=[f["id"] for f in fiches])
+        rev["id"] = f"ds-{slug(matiere)}-{str(meta['ds'])[:10]}"
+        write(out / "revisions" / f"{rev['id']}.enc", rev)
+        return
     write(out / "revisions" / f"{slug(matiere)}.enc", rev)
 
 
