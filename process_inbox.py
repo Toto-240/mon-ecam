@@ -147,6 +147,16 @@ def generate(client, contents, json_mode=False, strong=False):
     raise RuntimeError("Aucun modèle Gemini n'a répondu (" + " ; ".join(errors) + ")")
 
 
+def wait_active(client, f):
+    """Attend que Gemini ait fini de préparer le fichier envoyé (audio)."""
+    for _ in range(120):
+        if f.state and f.state.name != "PROCESSING":
+            break
+        time.sleep(3)
+        f = client.files.get(name=f.name)
+    return f
+
+
 def to_mp3(audio: bytes, workdir: Path):
     src, dst = workdir / "in.audio", workdir / "cours.mp3"
     src.write_bytes(audio)

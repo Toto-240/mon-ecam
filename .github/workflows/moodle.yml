@@ -29,6 +29,8 @@ jobs:
       TZ: Europe/Paris
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # historique complet : le « pull --rebase » marche même si l'appli a écrit entre-temps
 
       - uses: actions/setup-python@v5
         with:
@@ -61,7 +63,8 @@ jobs:
           git add -A fiches moodle_vus.enc 2>/dev/null || true
           if ! git diff --cached --quiet; then
             git commit -q -m "Fiches Moodle"
-            for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && break; sleep 3; done
+            ok=0; for i in 1 2 3 4 5; do git pull -q --rebase origin main && git push -q origin HEAD:main && ok=1 && break; sleep 5; done
+            [ "$ok" = 1 ] || { echo "::error::Enregistrement sur GitHub impossible, nouvel essai au prochain passage"; exit 1; }
             echo "changed=1" >> "$GITHUB_ENV"
           fi
 

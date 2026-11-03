@@ -27,6 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          fetch-depth: 0   # historique complet : le « pull --rebase » marche même si l'appli a écrit entre-temps
           path: main
 
       - name: Ouvrir la boîte de dépôt
@@ -75,7 +76,8 @@ jobs:
           for d in fiches revisions erreurs devoirs; do if [ -e "$d" ]; then git add -A "$d"; fi; done
           if ! git diff --cached --quiet; then
             git commit -q -m "Fiches mises à jour"
-            for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && break; sleep 3; done
+            ok=0; for i in 1 2 3 4 5; do git pull -q --rebase origin main && git push -q origin HEAD:main && ok=1 && break; sleep 5; done
+            [ "$ok" = 1 ] || { echo "::error::Enregistrement sur GitHub impossible, nouvel essai au prochain passage"; exit 1; }
           fi
 
       - if: steps.inbox.outputs.has

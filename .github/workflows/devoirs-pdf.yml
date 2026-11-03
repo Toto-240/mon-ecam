@@ -21,6 +21,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # historique complet : le « pull --rebase » marche même si l'appli a écrit entre-temps
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -40,7 +42,8 @@ jobs:
           git add -A devoirs
           if ! git diff --cached --quiet; then
             git commit -q -m "PDF des devoirs"
-            for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && break; sleep 3; done
+            ok=0; for i in 1 2 3 4 5; do git pull -q --rebase origin main && git push -q origin HEAD:main && ok=1 && break; sleep 5; done
+            [ "$ok" = 1 ] || { echo "::error::Enregistrement sur GitHub impossible, nouvel essai au prochain passage"; exit 1; }
             gh workflow run sync.yml -R "${{ github.repository }}"
           fi
         env:
