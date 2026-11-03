@@ -60,13 +60,9 @@ jobs:
         run: |
           git config user.name "Mon ECAM"
           git config user.email "mon-ecam@users.noreply.github.com"
-          git add -A fiches moodle_vus.enc 2>/dev/null || true
-          if ! git diff --cached --quiet; then
-            git commit -q -m "Fiches Moodle"
-            ok=0; for i in 1 2 3 4 5; do git pull -q --rebase origin main && git push -q origin HEAD:main && ok=1 && break; sleep 5; done
-            [ "$ok" = 1 ] || { echo "::error::Enregistrement sur GitHub impossible, nouvel essai au prochain passage"; exit 1; }
-            echo "changed=1" >> "$GITHUB_ENV"
-          fi
+          before=$(git rev-parse HEAD)
+          bash save_main.sh "Fiches Moodle" fiches moodle_vus.enc
+          [ "$(git rev-parse HEAD)" != "$before" ] && echo "changed=1" >> "$GITHUB_ENV" || true
 
       - name: Publier dans l'appli
         if: always() && env.changed == '1'

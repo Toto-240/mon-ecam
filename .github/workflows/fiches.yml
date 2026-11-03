@@ -73,12 +73,7 @@ jobs:
         run: |
           git config user.name "Mon ECAM"
           git config user.email "mon-ecam@users.noreply.github.com"
-          for d in fiches revisions erreurs devoirs; do if [ -e "$d" ]; then git add -A "$d"; fi; done
-          if ! git diff --cached --quiet; then
-            git commit -q -m "Fiches mises à jour"
-            ok=0; for i in 1 2 3 4 5; do git pull -q --rebase origin main && git push -q origin HEAD:main && ok=1 && break; sleep 5; done
-            [ "$ok" = 1 ] || { echo "::error::Enregistrement sur GitHub impossible, nouvel essai au prochain passage"; exit 1; }
-          fi
+          bash save_main.sh "Fiches mises à jour" fiches revisions erreurs devoirs
 
       - if: steps.inbox.outputs.has
         name: Vider la boîte
