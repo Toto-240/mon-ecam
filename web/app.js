@@ -394,7 +394,59 @@ function setSyncButton(busy) {
   b.disabled = !!busy;
 }
 
-$("#sync").onclick = () => { checkVersion(); load(); };
+$("#sync").onclick = () => {
+  checkVersion();
+  // la nuit (0h-7h30) il n'y a pas de synchro automatique : le bouton la lance
+  if (isNight()) requestSync(); else load();
+};
+
+/* ---------- Synchro à la demande ---------- */
+function isNight() {
+  const d = new Date();
+  return d.getHours() * 100 + d.getMinutes() < 730;
+}
+
+let syncWait = null;
+async function requestSync() {
+  if (syncWait) return;
+  const token = store.get("ecam-gh-token");
+  if (!token || !window.gh) {
+    await load();
+    $("#maj").textContent += " · Pour lancer une synchro la nuit, ajoute ton jeton GitHub (onglet Micro, Réglages).";
+    return;
+  }
+  setSyncButton(true);
+  $("#sync").textContent = "Synchro…";
+  const before = DATA?.maj;
+  try {
+    // lance la synchro (droit « Actions » du jeton) ; sinon dépose une demande dans le dépôt (droit « Contenu »)
+    let r = await gh("/actions/workflows/sync.yml/dispatches", { method: "POST", body: JSON.stringify({ ref: "main" }) });
+    if (!r.ok) {
+      const path = "/contents/perso/synchro.json";
+      const cur = await gh(`${path}?ref=main&t=${Date.now()}`, { cache: "no-store" });
+      const sha = cur.ok ? (await cur.json()).sha : undefined;
+      r = await gh(path, { method: "PUT", body: JSON.stringify({ message: "Synchro demandée", branch: "main", sha,
+        content: btoa(JSON.stringify({ demande: new Date().toISOString() })) }) });
+      if (!r.ok) throw new Error(r.status === 401 ? "jeton GitHub refusé" : `GitHub a refusé (${r.status})`);
+    }
+  } catch (e) {
+    setSyncButton(false);
+    $("#maj").textContent = `Synchro impossible : ${e.message}`;
+    return;
+  }
+  $("#maj").textContent = "Synchro lancée, résultat dans 2 à 3 minutes…";
+  // on recharge les données dès que la nouvelle version est publiée (8 min maximum)
+  const t0 = Date.now();
+  syncWait = setInterval(async () => {
+    let done = Date.now() - t0 > 8 * 60e3;
+    try {
+      const r = await fetch(`data.enc?t=${Date.now()}`, { cache: "no-store" });
+      const d = await decrypt(await r.json(), store.get("ecam-pw"));
+      if (d.maj !== before) done = true;
+    } catch {}
+    if (done) { clearInterval(syncWait); syncWait = null; await load(); }
+  }, 20e3);
+}
 
 /* Nouvelle version de l'interface publiée ? On recharge la page (l'appli iPhone reste
    ouverte en arrière-plan et garderait sinon l'ancienne interface). */
@@ -421,6 +473,8 @@ fetch("config.json", { cache: "no-store" }).then((r) => r.json()).then((c) => {
   const a = $("#force");
   a.href = `https://github.com/${c.repo}/actions/workflows/sync.yml`;
   a.hidden = false;
+  // avec le jeton, le lien lance directement la synchro depuis l'appli (à toute heure)
+  a.onclick = (ev) => { if (store.get("ecam-gh-token")) { ev.preventDefault(); requestSync(); } };
 }).catch(() => {});
 
 $("#filtre").oninput = renderCours;
