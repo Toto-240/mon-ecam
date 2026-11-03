@@ -222,7 +222,8 @@ def docx_answer(client, generate, data, meta, extra=None):
     prompt = PROMPT_DOCX.format(paragraphes=listing[:120000], **_fmt(meta))
     contents = (extra or []) + images + [prompt]
     raw, model = generate(client, contents, json_mode=True, strong=True)
-    out = json.loads(re.sub(r"^```(?:json)?|```$", "", raw.strip()).strip())
+    from process_inbox import parse_json
+    out = parse_json(raw)
     for cel in out.get("cellules", []) or []:
         if str(cel.get("texte", "")).strip():
             _fill_cell(doc, cel.get("cellule"), str(cel["texte"]).strip())

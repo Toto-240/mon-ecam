@@ -147,6 +147,21 @@ def generate(client, contents, json_mode=False, strong=False):
     raise RuntimeError("Aucun modèle Gemini n'a répondu (" + " ; ".join(errors) + ")")
 
 
+def parse_json(raw):
+    """JSON renvoyé par Gemini. Les formules LaTeX (\\frac, \\sum…) y laissent souvent des
+    « \\ » invalides : on les double avant de relire."""
+    text = re.sub(r"^```(?:json)?|```$", "", raw.strip()).strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        # commandes LaTeX qui commencent comme un échappement JSON (\frac, \beta, \theta, \nu…)
+        latex = (r"\\(?=(?:frac|beta|bar|begin|binom|big|bf|boldsymbol|theta|tau|text|times|tilde|tfrac|to\b"
+                 r"|rho|right|rangle|rm|nu|neq|nabla|not|newline|ne\b|ni\b|underline|upsilon|cdot)(?![a-z]))")
+        text = re.sub(latex, r"\\\\", text)
+        text = re.sub(r'\\(?!["\\/bfnrtu])', r"\\\\", text)   # \sum, \alpha, \mathbb…
+        return json.loads(text, strict=False)
+
+
 def wait_active(client, f):
     """Attend que Gemini ait fini de préparer le fichier envoyé (audio)."""
     for _ in range(120):
@@ -239,7 +254,7 @@ def fiche_revision(client, meta, out: Path, password: str):
     fiches.sort(key=lambda f: f.get("date") or "")
     texte = "\n\n---\n\n".join(f"Cours du {f.get('date')} :\n{f['md']}" for f in fiches)
     raw, model = generate(client, PROMPT_REVISION.format(matiere=matiere, fiches=texte), json_mode=True)
-    data = json.loads(re.sub(r"^```(?:json)?|```$", "", raw.strip()).strip())
+    data = parse_json(raw)
     qcm = [q for q in data.get("qcm", []) if isinstance(q, dict) and len(q.get("choix", [])) >= 2
            and isinstance(q.get("bonne"), int) and 0 <= q["bonne"] < len(q["choix"])]
     rev = {"id": meta["id"], "kind": "revision", "matiere": matiere, "md": data.get("fiche", "").strip(),
