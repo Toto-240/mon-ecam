@@ -209,6 +209,33 @@
   </button>
 </nav>
 
+<div id="depot-sheet" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="depot-title">
+  <div class="sheet-card">
+    <div class="sheet-head">
+      <div><h2 id="depot-title">Déposer sur Moodle</h2><p id="depot-what" class="muted small"></p></div>
+      <button type="button" id="depot-close" class="btn small">Fermer</button>
+    </div>
+    <div id="depot-choose">
+      <p class="small"><b>Quel fichier déposer ?</b></p>
+      <ul id="depot-sources" class="list depot-sources"></ul>
+      <label class="btn" for="depot-file">Choisir un fichier sur cet appareil</label>
+      <input id="depot-file" type="file" hidden>
+      <p id="depot-file-name" class="small"></p>
+      <label class="check"><input type="checkbox" id="depot-envoyer">
+        <span>Si Moodle le demande, <b>envoyer aussi le devoir pour évaluation</b> (définitif : tu ne pourras plus le modifier)</span></label>
+      <div id="depot-decl" hidden>
+        <p class="small muted" id="depot-decl-text"></p>
+        <label class="check"><input type="checkbox" id="depot-decl-ok"> <span>J'accepte cette déclaration</span></label>
+      </div>
+    </div>
+    <div class="row">
+      <button type="button" id="depot-send" class="btn primary">Déposer</button>
+    </div>
+    <p id="depot-msg" class="small"></p>
+    <progress id="depot-bar" max="1" value="0" hidden></progress>
+  </div>
+</div>
+
 <div id="add-sheet" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="add-title">
   <div class="sheet-card">
     <div class="sheet-head">
@@ -271,6 +298,7 @@
 <script src="revisions.js"></script>
 <script src="perso.js"></script>
 <script src="devoirs.js"></script>
+<script src="depot.js"></script>
 <script src="ds.js"></script>
 <script src="notifs.js"></script>
 </body>

@@ -220,7 +220,9 @@ function cleanCourse(name) {
 
 function renderDevoirs() {
   const all = (DATA.devoirs || []).map((d) => ({ ...d, due: new Date(d.echeance) })).sort((a, b) => a.due - b.due);
-  const fait = (d) => window.isFait?.(d);
+  const cmidOf = (d) => (String(d.url).match(/mod\/assign\/view\.php\?id=(\d+)/) || [])[1];
+  // un devoir déposé sur Moodle (et envoyé si besoin) compte comme fait
+  const fait = (d) => window.isFait?.(d) || window.depotDone?.(cmidOf(d));
   const items = all.filter((d) => !fait(d)), done = all.filter(fait);
   const soon = items.filter((d) => d.due - NOW < 7 * 864e5).length;
   const badge = $("#badge");
@@ -242,8 +244,10 @@ function renderDevoirs() {
         <button type="button" class="btn small fait-btn" data-fait="${i}">✓ Fait</button>
         ${cmid ? `<button type="button" class="btn small" data-ia="${esc(cmid)}"
         data-titre="${esc(d.titre)}" data-matiere="${esc(cleanCourse(d.cours))}">Faire avec l'IA</button>
-        <a class="btn small" href="${esc(d.url)}" target="_blank" rel="noopener">Déposer sur Moodle</a>` : ""}
+        <button type="button" class="btn small" data-depot="${esc(cmid)}" data-titre="${esc(d.titre)}"
+          data-matiere="${esc(cleanCourse(d.cours))}">Déposer sur Moodle</button>` : ""}
       </div>
+      ${cmid ? window.depotLine?.(cmid) || "" : ""}
     </li>`;
   }).join("") : `<li class="m">${done.length ? "Tout est fait 👍" : "Rien à rendre pour l'instant."}</li>`;
   const box = $("#devoirs-faits");
@@ -256,6 +260,12 @@ function renderDevoirs() {
     </li>`).join("");
   document.querySelectorAll("#devoirs [data-ia]").forEach((b) => {
     b.onclick = () => window.faireDevoirMoodle?.(b.dataset.ia, b.dataset.titre, b.dataset.matiere, b);
+  });
+  document.querySelectorAll("#devoirs [data-depot]").forEach((b) => {
+    b.onclick = () => window.openDepot?.(b.dataset.depot, b.dataset.titre, b.dataset.matiere);
+  });
+  document.querySelectorAll("#devoirs [data-envoyer]").forEach((b) => {
+    b.onclick = () => window.openDepot?.(b.dataset.envoyer, b.dataset.titre, b.dataset.matiere, true);
   });
   document.querySelectorAll("[data-fait]").forEach((b) => { b.onclick = () => window.setFait?.(all[+b.dataset.fait], true); });
   document.querySelectorAll("[data-defait]").forEach((b) => { b.onclick = () => window.setFait?.(all[+b.dataset.defait], false); });

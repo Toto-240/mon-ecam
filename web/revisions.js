@@ -280,13 +280,14 @@ async function send(meta, audio, ui = "upload") {
     await ensureInbox();
     msg.textContent = `Envoi (${(blob.size / 1e6).toFixed(1)} Mo)…`;
     await putFile(meta.id, b64, (p) => { bar.value = p; });
-    pending.add({ id: meta.id, kind: meta.kind, matiere: meta.matiere, titre: meta.titre, date: meta.date, ds: meta.ds, at: new Date().toISOString() });
-    msg.textContent = meta.kind === "revision" ? "Demande envoyée. La fiche de révision arrive dans quelques minutes."
+    pending.add({ id: meta.id, kind: meta.kind, matiere: meta.matiere, titre: meta.titre, date: meta.date, ds: meta.ds, cmid: meta.cmid, action: meta.action, at: new Date().toISOString() });
+    msg.textContent = meta.kind === "depot" ? "Envoyé. Le dépôt sur Moodle se fait dans 1 à 3 minutes, suis-le dans À rendre."
+      : meta.kind === "revision" ? "Demande envoyée. La fiche de révision arrive dans quelques minutes."
       : meta.kind?.startsWith("devoir") ? "Envoyé. Le devoir fait arrive dans quelques minutes, dans la liste ci-dessous."
       : meta.kind === "notes" ? "Envoyé. La fiche arrive dans quelques minutes (onglet Révisions et sur le planning)."
       : "Envoyé. Ta fiche sera prête dans quelques minutes.";
     bar.value = 1;
-    setTimeout(() => { box.hidden = true; if (ui === "add") document.body.style.overflow = ""; }, ui === "add" ? 2500 : 6000);
+    setTimeout(() => { box.hidden = true; if (ui === "add" || ui === "depot") document.body.style.overflow = ""; }, ui === "add" || ui === "depot" ? 2500 : 6000);
     window.renderRevisions?.();
     window.renderDevoirsIA?.();
     watchPending();
@@ -651,7 +652,7 @@ function watchPending() {
 }
 
 function resolvePending() {
-  const fiches = new Set([...(DATA.fiches || []), ...(DATA.travaux || [])].map((f) => f.id));
+  const fiches = new Set([...(DATA.fiches || []), ...(DATA.travaux || []), ...(DATA.depots || [])].map((f) => f.id));
   const errs = Object.fromEntries((DATA.erreurs || []).map((e) => [e.id, e]));
   const revs = DATA.revisions || [];
   const list = pending.all().filter((p) => {
@@ -665,7 +666,7 @@ function resolvePending() {
 
 function renderPending() {
   const all = resolvePending();
-  renderPendingList($("#pending"), all.filter((p) => !p.kind?.startsWith("devoir")));
+  renderPendingList($("#pending"), all.filter((p) => !p.kind?.startsWith("devoir") && p.kind !== "depot"));
   renderPendingList($("#dv-pending"), all.filter((p) => p.kind?.startsWith("devoir")));
 }
 
@@ -885,6 +886,7 @@ function openRevision(matiere, id) {
 }
 
 /* ---------- Rendu ---------- */
+window.pendingAll = () => resolvePending();
 window.renderRevisions = function () {
   fillForm();
   renderPending();

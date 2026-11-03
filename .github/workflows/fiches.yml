@@ -73,7 +73,7 @@ jobs:
         run: |
           git config user.name "Mon ECAM"
           git config user.email "mon-ecam@users.noreply.github.com"
-          bash save_main.sh "Fiches mises à jour" fiches revisions erreurs devoirs
+          bash save_main.sh "Fiches mises à jour" fiches revisions erreurs devoirs depots
 
       - if: steps.inbox.outputs.has
         name: Vider la boîte

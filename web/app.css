@@ -444,3 +444,16 @@ button.tile { border: 0; font: inherit; text-align: left; cursor: pointer; width
 .pick-list li.pick .item { flex: 1; min-width: 0; padding: 0; }
 .pick-list li.pick.off .t, .pick-list li.pick.off .m { opacity: .45; text-decoration: line-through; }
 .ds-rev { margin-top: 10px; }
+
+/* Dépôt sur Moodle */
+.check { display: flex; gap: 8px; align-items: flex-start; font-size: .9rem; margin: 12px 0 4px; cursor: pointer; font-weight: 400 !important; }
+.check input { width: 18px; height: 18px; flex: none; margin-top: 1px; accent-color: var(--ecam); }
+.depot-sources { margin: 6px 0 12px; }
+.depot-sources li { padding: 10px 12px; }
+.depot-sources .check { display: inline-flex; margin: 6px 14px 0 0; }
+.depot-line { margin: 8px 0 0; font-size: .85rem; line-height: 1.35; }
+.depot-line.ok { color: var(--ok, #1a7f4b); }
+.depot-line.wait { color: var(--muted); }
+.depot-line.fail { color: #C0392B; }
+.depot-line .muted { color: var(--muted); }
+.linkish { background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; }

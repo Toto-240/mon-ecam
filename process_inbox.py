@@ -360,6 +360,9 @@ def main():
                 fiche_revision(client, meta, out, password)
             elif meta.get("kind") == "notes":
                 fiche_notes(client, meta, audio, out)
+            elif meta.get("kind") == "depot":
+                import depot
+                write(out / "depots" / f"{meta['id']}.enc", depot.make(meta, audio))
             elif meta.get("kind") in ("devoir", "devoir_moodle"):
                 import devoir
                 write(out / "devoirs" / f"{meta['id']}.enc", devoir.make(client, generate, meta, audio))
@@ -375,10 +378,12 @@ def main():
             failed_now.add(meta["id"])
             # L'appli affiche l'erreur ; l'élément reste dans la boîte pour un nouvel essai.
             write(out / "erreurs" / f"{meta['id']}.enc",
-                  {"id": meta["id"], "kind": "erreur", "matiere": meta.get("matiere"), "message": msg,
+                  {"id": meta["id"], "kind": "erreur", "matiere": meta.get("matiere"), "message": msg, "cmid": meta.get("cmid"),
                    "quand": datetime.now().isoformat(timespec="seconds")})
             if meta.get("kind") == "revision" and "Aucune fiche" in msg:
                 done.append(p.name)  # inutile de réessayer
+            if meta.get("kind") == "depot":
+                done.append(p.name)  # un dépôt Moodle n'est jamais refait tout seul : l'étudiant relance
     # un élément réussi efface l'erreur d'un essai précédent
     for name in done:
         err = out / "erreurs" / f"{Path(name).stem}.enc"
