@@ -427,11 +427,16 @@ async function requestSync() {
       const sha = cur.ok ? (await cur.json()).sha : undefined;
       r = await gh(path, { method: "PUT", body: JSON.stringify({ message: "Synchro demandée", branch: "main", sha,
         content: btoa(JSON.stringify({ demande: new Date().toISOString() })) }) });
-      if (!r.ok) throw new Error(r.status === 401 ? "jeton GitHub refusé" : `GitHub a refusé (${r.status})`);
+      if (!r.ok) {
+        const msg = (await r.json().catch(() => ({}))).message || "";
+        throw new Error(r.status === 401 ? "jeton GitHub refusé ou expiré"
+          : r.status === 403 || r.status === 404 ? `ce jeton ne peut pas écrire dans le dépôt (${r.status} ${msg})`
+          : `GitHub a refusé (${r.status} ${msg})`);
+      }
     }
   } catch (e) {
     setSyncButton(false);
-    $("#maj").textContent = `Synchro impossible : ${e.message}`;
+    $("#maj").textContent = `Synchro impossible : ${e.name === "TypeError" ? "GitHub injoignable (" + e.message + ")" : e.message}`;
     return;
   }
   $("#maj").textContent = "Synchro lancée, résultat dans 2 à 3 minutes…";
