@@ -465,6 +465,8 @@ async function checkVersion() {
     const r = await fetch(`version.json?t=${Date.now()}`, { cache: "no-store" });
     const { v } = await r.json();
     if (!v || v === APP_VERSION) return;
+    // jamais pendant un enregistrement : on recharge seulement quand le micro est libre
+    if (window.recordingActive?.()) return;
     if (sessionStorage.getItem("ecam-reload") === v) return; // déjà essayé : pas de boucle
     sessionStorage.setItem("ecam-reload", v);
     const u = new URL(location.href);

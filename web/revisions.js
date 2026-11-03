@@ -543,11 +543,41 @@ function confirmSafe(text) {
   return false;
 }
 
+window.recordingActive = () => !!rec || !!store.get(REC_META);
+
+/* Statut de l'enregistreur natif ; juste après un rechargement de la page,
+   le pont avec l'appli peut mettre un instant à répondre : on réessaie. */
+async function nativeStatus() {
+  for (let i = 0; i < 6; i++) {
+    const st = await Promise.race([Dicta.status(), new Promise((ok) => setTimeout(() => ok(null), 1500))]).catch(() => null);
+    if (st) return st;
+    await new Promise((ok) => setTimeout(ok, 500));
+  }
+  return null;
+}
+
+let recovering = false;
 async function offerRecovery() {
+  if (recovering) return;
+  recovering = true;
+  try { await recover(); } finally { recovering = false; }
+}
+// en revenant dans l'appli (écran déverrouillé), on revérifie qu'un enregistrement n'a pas été perdu de vue
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && !rec && store.get(REC_META)) offerRecovery();
+});
+
+async function recover() {
   if (Dicta && !rec) {
     let meta = null;
     try { meta = JSON.parse(store.get(REC_META)); } catch {}
-    const st = await Dicta.status().catch(() => null);
+    const st = meta ? await nativeStatus() : await Dicta.status().catch(() => null);
+    if (meta && !st) {
+      // l'appli ne répond pas encore : on garde l'enregistrement, nouvel essai au prochain retour
+      alertForm(`Enregistrement de ${meta.matiere} en cours : reviens sur l'onglet Micro dans un instant.`);
+      setTimeout(offerRecovery, 3000);
+      return;
+    }
     if (st?.recording && meta) {
       // l'appli a été rechargée pendant le cours : on reprend l'affichage (et l'état pause)
       if (meta.since === undefined) { meta.acc = 0; meta.since = meta.t0; }
@@ -556,6 +586,7 @@ async function offerRecovery() {
       showLive({ ...meta, native: true });
       return;
     }  // l'appli a été rechargée pendant le cours
+    if (st && !st.recording && !st.size && meta) store.del(REC_META);  // plus rien à récupérer
     if (st && !st.recording && st.size > 0 && meta) {
       $("#upload").hidden = false;
       $("#upload-bar").value = 0;
