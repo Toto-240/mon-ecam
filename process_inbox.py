@@ -30,15 +30,22 @@ PREFERRED = [m for m in (os.environ.get("GEMINI_MODEL"), "gemini-flash-latest", 
 _models = None
 
 
-def models(client):
-    global _models
+# Modèles plus forts, essayés d'abord pour les devoirs (quota gratuit plus petit : sinon les modèles habituels)
+STRONG = ["gemini-pro-latest", "gemini-3-pro-preview", "gemini-2.5-pro"]
+_names = None
+
+
+def models(client, strong=False):
+    global _models, _names
     if _models is None:
         try:
-            names = {m.name.split("/")[-1] for m in client.models.list()}
-            _models = [m for m in PREFERRED if m in names] or PREFERRED
+            _names = {m.name.split("/")[-1] for m in client.models.list()}
+            _models = [m for m in PREFERRED if m in _names] or PREFERRED
         except Exception:
-            _models = PREFERRED
+            _names, _models = set(), PREFERRED
         print(f"  modèles disponibles : {len(_models)}")
+    if strong:
+        return [m for m in STRONG if m in (_names or set())] + _models
     return _models
 
 PROMPT_COURS = """Tu es un assistant pour un étudiant en Bachelor cybersécurité à l'ECAM LaSalle (Lyon).
@@ -123,10 +130,10 @@ class QuotaError(RuntimeError):
     """Quota gratuit Gemini épuisé pour aujourd'hui."""
 
 
-def generate(client, contents, json_mode=False):
+def generate(client, contents, json_mode=False, strong=False):
     from google.genai import types
     errors = []
-    for model in models(client):
+    for model in models(client, strong):
         try:
             cfg = types.GenerateContentConfig(response_mime_type="application/json") if json_mode else None
             r = client.models.generate_content(model=model, contents=contents, config=cfg)

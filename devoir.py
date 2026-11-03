@@ -18,20 +18,34 @@ Voici l'énoncé d'un devoir{titre}. {consigne}
 
 Réalise le devoir en entier, en français : réponses complètes, justifiées et rédigées comme un bon
 étudiant (calculs détaillés, commandes ou code en blocs, schémas décrits en texte si besoin).
-Ne saute aucune question. Si une question demande un avis personnel ou une expérience vécue,
-propose une réponse plausible et signale-la par « (à personnaliser) »."""
+Ne saute aucune question, et remplis aussi les tableaux à compléter.
+
+TRÈS IMPORTANT : les images jointes font partie de l'énoncé (captures Wireshark, trames en hexadécimal,
+schémas, tables d'adressage…). Lis-les attentivement et réponds avec les VRAIES valeurs qu'elles montrent
+(adresses MAC/IP, octets, champs, noms de constructeurs) en citant où tu les lis. N'invente jamais de
+valeurs « d'exemple » ou « typiques ». Si une valeur est vraiment illisible, écris « (illisible sur la capture) ».
+Quand l'énoncé demande une capture d'écran (Packet Tracer…), donne les commandes et la sortie attendue
+en bloc de code, suivies de « (à remplacer par ta capture d'écran) ».
+Si une question demande un avis personnel ou une expérience vécue, propose une réponse plausible et
+signale-la par « (à personnaliser) »."""
 
 PROMPT_DOCX = PROMPT + """
 
-L'énoncé est un document Word découpé en paragraphes numérotés [n]. Réponds UNIQUEMENT en JSON :
+L'énoncé est un document Word découpé en paragraphes numérotés [n]. Les images sont jointes dans
+l'ordre, et repérées dans le texte par « [image k] » à l'endroit où elles se trouvent.
+Les cellules des tableaux sont repérées par [Tt Ll Cc] (tableau t, ligne l, colonne c, à partir de 0).
+Réponds UNIQUEMENT en JSON :
 {{
   "reponses": [{{"apres": <numéro du paragraphe après lequel insérer la réponse>, "texte": "<réponse, plusieurs lignes possibles>"}}],
+  "cellules": [{{"cellule": "T0 L1 C2", "texte": "<contenu de la cellule vide à remplir>"}}],
   "md": "<le devoir complet en Markdown : énoncé recopié avec chaque réponse sous sa question>"
 }}
 Insère chaque réponse juste après la question (ou après le dernier paragraphe de la question).
+Quand un même paragraphe contient plusieurs questions (A, B, C…), donne une réponse par question,
+préfixée « Réponse A : », « Réponse B : »…, dans un seul "texte".
 Dans "texte", utilise des lignes commençant par "- " pour les listes et ``` pour le code.
 
-Paragraphes de l'énoncé :
+Énoncé :
 {paragraphes}"""
 
 PROMPT_REBUILD = PROMPT + """
@@ -127,15 +141,91 @@ def _insert_after(par, text, doc):
     return anchor
 
 
-def docx_answer(client, generate, data, meta):
+IMAGE_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
+
+
+def _images_of(par, doc):
+    """Images d'un paragraphe Word (dans l'ordre) : [(octets, type)]."""
+    out = []
+    for blip in par._p.xpath(".//a:blip"):
+        rid = blip.get("{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed")
+        part = doc.part.related_parts.get(rid) if rid else None
+        if part is not None:
+            out.append((part.blob, part.content_type))
+    return out
+
+
+def _image_part(blob, ctype):
+    """Image -> morceau pour Gemini (les formats Windows type EMF sont convertis si possible)."""
+    from google.genai import types
+    if ctype not in IMAGE_TYPES:
+        try:
+            from PIL import Image
+            buf = io.BytesIO()
+            Image.open(io.BytesIO(blob)).convert("RGB").save(buf, "PNG")
+            blob, ctype = buf.getvalue(), "image/png"
+        except Exception:
+            return None
+    return types.Part.from_bytes(data=blob, mime_type=ctype)
+
+
+def docx_parts(doc):
+    """Texte numéroté + images + tableaux d'un énoncé Word."""
+    pars = doc.paragraphs
+    lines, images = [], []
+    for i, p in enumerate(pars):
+        marks = ""
+        for blob, ctype in _images_of(p, doc):
+            part = _image_part(blob, ctype)
+            if part is not None:
+                images.append(part)
+                marks += f" [image {len(images)}]"
+        if p.text.strip() or marks:
+            lines.append(f"[{i}] {p.text}{marks}")
+    for t, table in enumerate(doc.tables):
+        lines.append(f"\nTableau T{t} :")
+        for l, row in enumerate(table.rows):
+            seen = set()
+            for c, cell in enumerate(row.cells):
+                if id(cell._tc) in seen:   # cellules fusionnées
+                    continue
+                seen.add(id(cell._tc))
+                txt = cell.text.strip().replace("\n", " / ")
+                lines.append(f"[T{t} L{l} C{c}] {txt or '(vide)'}")
+    return "\n".join(lines), images
+
+
+def _fill_cell(doc, ref, text):
+    m = re.match(r"T(\d+)\s*L(\d+)\s*C(\d+)", ref or "")
+    if not m:
+        return
+    t, l, c = map(int, m.groups())
+    try:
+        cell = doc.tables[t].rows[l].cells[c]
+    except IndexError:
+        return
+    lines = [x for x in text.splitlines() if x.strip()] or [text]
+    first = cell.paragraphs[-1] if not cell.paragraphs[-1].text.strip() else cell.add_paragraph()
+    _runs(first, lines[0].strip())
+    for line in lines[1:]:
+        _runs(cell.add_paragraph(), re.sub(r"^\s*[-*•]\s+", "• ", line.strip()))
+
+
+def docx_answer(client, generate, data, meta, extra=None):
     from docx import Document
     doc = Document(io.BytesIO(data))
     pars = doc.paragraphs
-    listing = "\n".join(f"[{i}] {p.text}" for i, p in enumerate(pars) if p.text.strip())
-    if len(listing) < 30:
-        raise RuntimeError("Énoncé Word vide (le texte est peut-être dans des images)")
-    raw, model = generate(client, PROMPT_DOCX.format(paragraphes=listing[:100000], **_fmt(meta)), json_mode=True)
+    listing, images = docx_parts(doc)
+    if len(listing) < 30 and not images:
+        raise RuntimeError("Énoncé Word vide")
+    print(f"  énoncé Word : {len(pars)} paragraphes, {len(images)} image(s), {len(doc.tables)} tableau(x)")
+    prompt = PROMPT_DOCX.format(paragraphes=listing[:120000], **_fmt(meta))
+    contents = (extra or []) + images + [prompt]
+    raw, model = generate(client, contents, json_mode=True, strong=True)
     out = json.loads(re.sub(r"^```(?:json)?|```$", "", raw.strip()).strip())
+    for cel in out.get("cellules", []) or []:
+        if str(cel.get("texte", "")).strip():
+            _fill_cell(doc, cel.get("cellule"), str(cel["texte"]).strip())
     # du bas vers le haut, pour ne pas décaler les numéros
     for rep in sorted(out.get("reponses", []), key=lambda r: -int(r.get("apres", 0))):
         i = int(rep.get("apres", -1))
@@ -149,7 +239,7 @@ def docx_answer(client, generate, data, meta):
 # ---------- Autres énoncés : reconstruction ----------
 
 def rebuild(client, generate, parts, meta):
-    md, model = generate(client, parts + [PROMPT_REBUILD.format(**_fmt(meta))])
+    md, model = generate(client, parts + [PROMPT_REBUILD.format(**_fmt(meta))], strong=True)
     md = re.sub(r"^```(?:markdown|md)?\s*|\s*```$", "", md.strip())
     buf = io.BytesIO()
     md_to_docx(md).save(buf)
@@ -283,15 +373,22 @@ def make(client, generate, meta, data):
         titre, text, files = moodle_statement(meta["cmid"])
         meta.setdefault("titre", titre)
         docx_file = next((f for f in files if f[0].lower().endswith(".docx")), None)
-        if docx_file and not text.strip():
-            data, filename = docx_file[1], docx_file[0]
+        if docx_file:
+            # le sujet Word est complété directement (mise en page, images et tableaux d'origine)
+            extra = [f"Consigne du devoir sur Moodle :\n{text}"] if text.strip() else []
+            for fname, content, ctype in files:
+                if fname != docx_file[0] and not fname.lower().endswith(".docx"):
+                    extra += statement_parts(client, content, fname, ctype)
+            meta["nom"] = docx_file[0]
+            out, md, model = docx_answer(client, generate, docx_file[1], meta, extra)
+            return _result(meta, out, md, model, "original")
         else:
             parts = [f"Consigne du devoir sur Moodle :\n{text}"] if text.strip() else []
             for fname, content, ctype in files:
                 if fname.lower().endswith(".docx"):
                     from docx import Document
-                    d = Document(io.BytesIO(content))
-                    parts.append(f"Fichier joint {fname} :\n" + "\n".join(p.text for p in d.paragraphs))
+                    listing, imgs = docx_parts(Document(io.BytesIO(content)))
+                    parts += [f"Fichier joint {fname} :\n{listing}"] + imgs
                 else:
                     parts += statement_parts(client, content, fname, ctype)
             if not parts:
