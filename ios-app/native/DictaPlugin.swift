@@ -10,6 +10,8 @@ public class DictaPlugin: CAPPlugin, CAPBridgedPlugin {
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "start", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "stop", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "pause", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "resume", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "read", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "discard", returnType: CAPPluginReturnPromise),
@@ -17,6 +19,7 @@ public class DictaPlugin: CAPPlugin, CAPBridgedPlugin {
 
     private var recorder: AVAudioRecorder?
     private var observing = false
+    private var userPaused = false   // mis en pause par l'étudiant : ne pas reprendre après un appel
 
     private var fileURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -47,6 +50,7 @@ public class DictaPlugin: CAPPlugin, CAPBridgedPlugin {
                     let r = try AVAudioRecorder(url: self.fileURL, settings: settings)
                     guard r.record() else { call.reject("Impossible de démarrer l'enregistrement"); return }
                     self.recorder = r
+                    self.userPaused = false
                     self.watchInterruptions()
                     call.resolve(["ok": true])
                 } catch {
@@ -64,9 +68,28 @@ public class DictaPlugin: CAPPlugin, CAPBridgedPlugin {
                                                object: nil, queue: .main) { [weak self] note in
             guard let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
                   AVAudioSession.InterruptionType(rawValue: raw) == .ended,
-                  let r = self?.recorder else { return }
+                  let r = self?.recorder, self?.userPaused == false else { return }
             try? AVAudioSession.sharedInstance().setActive(true)
             r.record()
+        }
+    }
+
+    @objc func pause(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard let r = self.recorder else { call.reject("Aucun enregistrement en cours"); return }
+            r.pause()
+            self.userPaused = true
+            call.resolve(["seconds": r.currentTime])
+        }
+    }
+
+    @objc func resume(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard let r = self.recorder else { call.reject("Aucun enregistrement en cours"); return }
+            try? AVAudioSession.sharedInstance().setActive(true)
+            guard r.record() else { call.reject("Impossible de reprendre l'enregistrement"); return }
+            self.userPaused = false
+            call.resolve(["seconds": r.currentTime])
         }
     }
 
@@ -74,6 +97,7 @@ public class DictaPlugin: CAPPlugin, CAPBridgedPlugin {
         DispatchQueue.main.async {
             self.recorder?.stop()
             self.recorder = nil
+            self.userPaused = false
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
             call.resolve(["size": self.fileSize()])
         }
@@ -83,6 +107,7 @@ public class DictaPlugin: CAPPlugin, CAPBridgedPlugin {
         DispatchQueue.main.async {
             call.resolve([
                 "recording": self.recorder != nil,
+                "paused": self.recorder != nil && self.userPaused,
                 "seconds": self.recorder?.currentTime ?? 0,
                 "size": self.fileSize(),
             ])

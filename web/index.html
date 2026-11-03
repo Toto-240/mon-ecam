@@ -89,11 +89,12 @@
   <h2>Enregistrer un cours</h2>
 
   <div id="rec-live" class="rec-live" hidden>
-    <div class="rec-head"><span class="rec-dot on"></span> Enregistrement en cours</div>
+    <div class="rec-head"><span id="rec-live-dot" class="rec-dot on"></span> <span id="rec-state">Enregistrement en cours</span></div>
     <div id="rec-time" class="rec-time">0:00</div>
     <div id="rec-what" class="rec-what"></div>
     <p id="rec-hint" class="muted small"></p>
     <div class="row">
+      <button id="rec-pause" type="button" class="btn">Pause</button>
       <button id="rec-stop" type="button" class="btn primary">Terminer et créer la fiche</button>
       <button id="rec-cancel" type="button" class="btn">Annuler</button>
     </div>

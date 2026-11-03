@@ -432,3 +432,4 @@ button.tile { border: 0; font: inherit; text-align: left; cursor: pointer; width
 .subject-head:active { transform: none; }
 .subject-list { margin-top: 12px; }
 .tile-name { hyphens: auto; -webkit-hyphens: auto; overflow-wrap: anywhere; }
+.rec-dot.paused { background: #F5B94A; animation: none; }

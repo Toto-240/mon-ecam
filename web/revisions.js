@@ -314,10 +314,53 @@ function showLive(r) {
   $("#rec-hint").textContent = r.native
     ? "Tu peux verrouiller l'iPhone : l'enregistrement continue. À la fin du cours, rouvre l'appli et appuie sur Terminer."
     : "Garde l'appli ouverte et l'écran allumé (tu peux baisser la luminosité). À la fin du cours, appuie sur Terminer.";
-  const tick = () => { $("#rec-time").textContent = fmtDuration(Math.max(0, Math.floor((Date.now() - r.t0) / 1000))); };
+  r.acc = r.acc || 0;                       // durée déjà enregistrée avant la dernière pause (ms)
+  if (r.since === undefined) r.since = r.t0;  // début du morceau en cours, null si en pause
+  const tick = () => { $("#rec-time").textContent = fmtDuration(Math.floor(recElapsed(r) / 1000)); };
   tick();
   r.timer = setInterval(tick, 500);
+  showPaused(r);
 }
+
+const recElapsed = (r) => Math.max(0, (r.acc || 0) + (r.since ? Date.now() - r.since : 0));
+
+function showPaused(r) {
+  const p = !r.since;
+  $("#rec-state").textContent = p ? "Enregistrement en pause" : "Enregistrement en cours";
+  $("#rec-live-dot").classList.toggle("on", !p);
+  $("#rec-live-dot").classList.toggle("paused", p);
+  $("#rec-pause").textContent = p ? "Reprendre" : "Pause";
+  $("#rec-pause").classList.toggle("primary", p);
+  $("#rec-dot").hidden = p;
+}
+
+function saveNativeMeta(r) {
+  store.set(REC_META, JSON.stringify({ t0: r.t0, matiere: r.matiere, date: r.date, id: r.id, acc: r.acc, since: r.since }));
+}
+
+$("#rec-pause").onclick = async () => {
+  const r = rec;
+  if (!r) return;
+  const b = $("#rec-pause");
+  b.disabled = true;
+  try {
+    if (r.since) {          // pause
+      if (r.native) await Dicta.pause(); else r.mr.pause();
+      r.acc = recElapsed(r);
+      r.since = null;
+    } else {                // reprise
+      if (r.native) await Dicta.resume(); else r.mr.resume();
+      r.since = Date.now();
+    }
+    if (r.native) saveNativeMeta(r);
+    showPaused(r);
+  } catch (e) {
+    $("#rec-hint").textContent = notImplemented(e)
+      ? "La pause demande la dernière version de l'appli iPhone (à réinstaller avec Sideloadly). L'enregistrement continue."
+      : `Pause impossible : ${e.message || e}`;
+  }
+  b.disabled = false;
+};
 
 function hideLive() {
   if (rec?.timer) clearInterval(rec.timer);
@@ -336,8 +379,9 @@ window.startRecording = async function (matiere) {
   if (Dicta) {
     try {
       await Dicta.start();
-      store.set(REC_META, JSON.stringify(base));
-      showLive({ ...base, native: true });
+      const r = { ...base, native: true, acc: 0, since: base.t0 };
+      saveNativeMeta(r);
+      showLive(r);
       return;
     } catch (e) {
       if (!notImplemented(e)) { alertForm(`${e.message || e}. Autorise le micro pour Mon ECAM dans les Réglages de l'iPhone.`); return; }
@@ -370,6 +414,8 @@ window.startRecording = async function (matiere) {
 async function stopRecording() {
   if (!rec) return null;
   const r = rec;
+  r.duree = recElapsed(r);
+  r.acc = r.duree; r.since = null;
   if (r.native) {
     try { r.size = (await Dicta.stop()).size; } catch { r.size = 0; }
     hideLive();
@@ -404,7 +450,7 @@ async function sendNative(meta) {
   const audio = await readNative();
   if (!audio.byteLength) throw new Error("enregistrement vide");
   await send({ id: meta.id, kind: "cours", matiere: meta.matiere, date: meta.date, type: "audio/mp4",
-    duree_s: Math.round((Date.now() - meta.t0) / 1000) }, audio);
+    duree_s: Math.round((meta.since === undefined ? Date.now() - meta.t0 : recElapsed(meta)) / 1000) }, audio);
   await Dicta.discard();
   store.del(REC_META);
 }
@@ -423,7 +469,7 @@ $("#rec-stop").onclick = async () => {
     if (r.native) return await sendNative(r);
     const blob = new Blob(r.chunks, { type: r.mr.mimeType || MIME });
     await send({ id: r.id, kind: "cours", matiere: r.matiere, date: r.date, type: blob.type,
-      duree_s: Math.round((Date.now() - r.t0) / 1000) }, await blob.arrayBuffer());
+      duree_s: Math.round(r.duree / 1000) }, await blob.arrayBuffer());
     await idb.del("current");
   } catch {
     offerRecovery();
@@ -444,7 +490,14 @@ async function offerRecovery() {
     let meta = null;
     try { meta = JSON.parse(store.get(REC_META)); } catch {}
     const st = await Dicta.status().catch(() => null);
-    if (st?.recording && meta) { showLive({ ...meta, native: true }); return; }  // l'appli a été rechargée pendant le cours
+    if (st?.recording && meta) {
+      // l'appli a été rechargée pendant le cours : on reprend l'affichage (et l'état pause)
+      if (meta.since === undefined) { meta.acc = 0; meta.since = meta.t0; }
+      if (st.paused && meta.since) { meta.acc = recElapsed(meta); meta.since = null; }
+      if (!st.paused && !meta.since) meta.since = Date.now();
+      showLive({ ...meta, native: true });
+      return;
+    }  // l'appli a été rechargée pendant le cours
     if (st && !st.recording && st.size > 0 && meta) {
       $("#upload").hidden = false;
       $("#upload-bar").value = 0;
