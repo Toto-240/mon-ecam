@@ -15,6 +15,7 @@ public class DictaPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "read", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "discard", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "share", returnType: CAPPluginReturnPromise),
     ]
 
     private var recorder: AVAudioRecorder?
@@ -125,6 +126,32 @@ public class DictaPlugin: CAPPlugin, CAPBridgedPlugin {
         handle.seek(toFileOffset: UInt64(offset))
         let data = handle.readData(ofLength: length)
         call.resolve(["data": data.base64EncodedString(), "eof": data.count < length])
+    }
+
+    /// Enregistre un fichier (devoir Word / PDF) : feuille de partage iOS
+    /// (Enregistrer dans Fichiers, ouvrir dans Word, AirDrop…).
+    @objc func share(_ call: CAPPluginCall) {
+        guard let b64 = call.getString("data"), let data = Data(base64Encoded: b64) else {
+            call.reject("Fichier vide"); return
+        }
+        let raw = call.getString("name") ?? "devoir"
+        let name = raw.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("partage", isDirectory: true)
+        try? FileManager.default.removeItem(at: dir)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent(name)
+        do { try data.write(to: url) } catch { call.reject("Écriture impossible"); return }
+        DispatchQueue.main.async {
+            guard let vc = self.bridge?.viewController else { call.reject("Affichage impossible"); return }
+            let sheet = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+            if let pop = sheet.popoverPresentationController {   // iPad
+                pop.sourceView = vc.view
+                pop.sourceRect = CGRect(x: vc.view.bounds.midX, y: vc.view.bounds.midY, width: 0, height: 0)
+                pop.permittedArrowDirections = []
+            }
+            sheet.completionWithItemsHandler = { _, done, _, _ in call.resolve(["ok": done]) }
+            vc.present(sheet, animated: true)
+        }
     }
 
     @objc func discard(_ call: CAPPluginCall) {

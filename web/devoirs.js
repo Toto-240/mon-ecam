@@ -152,9 +152,22 @@ async function deleteTravail(d) {
 }
 
 async function saveFile(b64, name, type) {
+  // Appli iPhone : feuille de partage native (Enregistrer dans Fichiers, ouvrir dans Word…)
+  if (typeof Dicta !== "undefined" && Dicta) {
+    try { await Dicta.share({ data: b64, name, type }); return; }
+    catch (e) {
+      if (notImplemented(e)) {
+        dvStatus("Pour télécharger dans l'appli iPhone, installe la dernière version de l'appli (Sideloadly). En attendant, ouvre l'appli dans Safari.");
+        return;
+      }
+      dvStatus(`Téléchargement impossible : ${e.message || e}`);
+      return;
+    }
+  }
   const file = new File([unb64(b64)], name, { type });
-  // iPhone : feuille de partage (Enregistrer dans Fichiers, ouvrir dans Word…)
-  if (navigator.canShare?.({ files: [file] })) {
+  // Téléphone (Safari, Android) : feuille de partage ; sur ordinateur : vrai téléchargement
+  const mobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent));
+  if (mobile && navigator.canShare?.({ files: [file] })) {
     try { await navigator.share({ files: [file], title: name }); return; } catch (e) { if (e?.name === "AbortError") return; }
   }
   const a = document.createElement("a");
