@@ -2,7 +2,7 @@ name: Métronome
 
 # Les lancements programmés de GitHub prennent souvent 20 à 40 min de retard.
 # Ce workflow reste allumé et lance lui-même la synchro toutes les 10 minutes
-# (jour et nuit), puis se relance avant
+# (sauf la nuit, de 0h à 7h30 heure de Paris), puis se relance avant
 # la limite de 6 h de GitHub. Les lancements programmés ne servent que de filet.
 on:
   workflow_dispatch:
@@ -36,6 +36,10 @@ jobs:
           while [ "$(date +%s)" -lt "$end" ]; do
             every=600
             now=$(date +%s)
+            hm=$((10#$(date +%H%M)))   # heure de Paris (TZ ci-dessus)
+            if [ "$hm" -lt 730 ]; then
+              sleep 30; continue           # pause de nuit : pas de synchro de 0h à 7h30
+            fi
             if [ $((now - last)) -ge "$every" ]; then
               gh workflow run sync.yml -R "$REPO" && echo "$(date +%H:%M) synchro lancée" || echo "$(date +%H:%M) échec du lancement"
               last=$now

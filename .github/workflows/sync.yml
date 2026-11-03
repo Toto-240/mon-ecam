@@ -3,8 +3,10 @@ name: Synchro ECAM
 on:
   schedule:
     # Heures en UTC (Paris = UTC+1 l'hiver, UTC+2 l'été)
-    - cron: "*/10 5-19 * * *"       # toutes les 10 min, environ 6h-21h à Paris
-    - cron: "7 20-23,0-4 * * *"     # une fois par heure la nuit
+    - cron: "*/10 5-21 * * *"       # filet de sécurité (le métronome lance la synchro toutes les 10 min)
+    - cron: "7 22,23 * * *"         # une fois par heure en soirée
+    # Pas de synchro automatique de 0h à 7h30 (heure de Paris), voir le job « nuit » ci-dessous.
+    # Le bouton « Run workflow » et les nouvelles fiches restent possibles la nuit.
   workflow_dispatch:          # bouton "Run workflow" pour forcer une synchro
   push:
     branches: [main]
@@ -20,7 +22,26 @@ concurrency:
   cancel-in-progress: true   # si une synchro traîne, la suivante la remplace
 
 jobs:
+  nuit:
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.h.outputs.go }}
+    steps:
+      - id: h
+        env:
+          TZ: Europe/Paris
+        run: |
+          hm=$((10#$(date +%H%M)))
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$hm" -lt 730 ]; then
+            echo "::notice::Pause de nuit (0h-7h30) : pas de synchro"
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+
   sync:
+    needs: nuit
+    if: needs.nuit.outputs.go == 'true'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
