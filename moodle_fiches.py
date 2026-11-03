@@ -259,6 +259,9 @@ def main():
     if seen.get("_v") != 2:  # les échecs des premiers passages venaient du quota : on les réessaie
         seen = {k: v for k, v in seen.items() if not str(v).startswith("échec")}
         seen["_v"] = 2
+    if seen.get("_vide") != 1:
+        seen = {k: ("échec:2" if v == "vide" else v) for k, v in seen.items()}
+        seen["_vide"] = 1
     client = gemini()
 
     s = requests.Session()
@@ -301,7 +304,10 @@ def main():
                 note(causes, "téléchargement", e)
                 continue
             if not docs:
-                seen[f"{cmid}:-"] = "vide"
+                # téléchargement raté ou rien d'utilisable : on réessaie aux 2 passages suivants
+                k = f"{cmid}:-"
+                prev = re.match(r"(?:vide|échec):(\d+)", str(seen.get(k, "")))
+                seen[k] = f"échec:{int(prev.group(1)) + 1 if prev else 1}"
                 continue
             for doc in docs:
                 if finished(seen, doc["key"]):
