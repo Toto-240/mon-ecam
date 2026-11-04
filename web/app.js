@@ -529,6 +529,7 @@ function showPane(name) {
     b.dataset.pane === name ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
   document.querySelectorAll(".pane").forEach((p) => { p.hidden = p.id !== "pane-" + name; });
   store.set("ecam-pane", name);
+  document.body.dataset.pane = name;   // ex. : le bandeau du pense-bête n'apparaît que dans le Planning
   scrollTo(0, 0);
 }
 document.querySelectorAll(".panes button").forEach((b) => { b.onclick = () => showPane(b.dataset.pane); });
