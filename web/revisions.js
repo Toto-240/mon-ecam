@@ -785,23 +785,31 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#rea
 /* ---------- Supprimer une fiche ou une révision ---------- */
 /* Cachées tout de suite, en attendant que GitHub republie l'appli */
 const GONE_KEY = "ecam-fiches-supprimees";
+/* { chemin, quand } : on cache seulement la version supprimée, pas une nouvelle refaite ensuite
+   sous le même nom (ex. révision d'un DS supprimée puis recréée) */
 const gone = {
-  all: () => { try { return JSON.parse(store.get(GONE_KEY)) || []; } catch { return []; } },
-  add(path) { store.set(GONE_KEY, JSON.stringify([...new Set([...this.all(), path])])); },
+  all: () => {
+    try { return (JSON.parse(store.get(GONE_KEY)) || []).filter((g) => g && typeof g === "object" && g.path); }
+    catch { return []; }
+  },
+  add(path) { store.set(GONE_KEY, JSON.stringify([...this.all().filter((g) => g.path !== path), { path, at: new Date().toISOString() }])); },
 };
 
 window.applyDeleted = function (fresh = true) {
   if (!DATA) return;
+  const items = [...(DATA.fiches || []).map((f) => [`fiches/${f._fichier}`, f]),
+    ...(DATA.revisions || []).map((r) => [`revisions/${r._fichier}`, r])];
+  const byPath = new Map(items);
+  const made = (x) => new Date(x.maj || x.cree || 0);
   let list = gone.all();
-  if (fresh) {   // données toutes neuves : on oublie ce qui a déjà disparu en ligne
-    const present = new Set([...(DATA.fiches || []).map((f) => `fiches/${f._fichier}`),
-      ...(DATA.revisions || []).map((r) => `revisions/${r._fichier}`)]);
-    list = list.filter((p) => present.has(p));
+  if (fresh) {
+    // on oublie : ce qui a disparu en ligne, et ce qui a été refait après la suppression
+    list = list.filter((g) => byPath.has(g.path) && !(made(byPath.get(g.path)) > new Date(g.at)));
     store.set(GONE_KEY, JSON.stringify(list));
   }
-  const g = new Set(list);
-  DATA.fiches = (DATA.fiches || []).filter((f) => !g.has(`fiches/${f._fichier}`));
-  DATA.revisions = (DATA.revisions || []).filter((r) => !g.has(`revisions/${r._fichier}`));
+  const hide = new Set(list.filter((g) => !(byPath.get(g.path) && made(byPath.get(g.path)) > new Date(g.at))).map((g) => g.path));
+  DATA.fiches = (DATA.fiches || []).filter((f) => !hide.has(`fiches/${f._fichier}`));
+  DATA.revisions = (DATA.revisions || []).filter((r) => !hide.has(`revisions/${r._fichier}`));
 };
 
 function deleteZone(label, what) {
