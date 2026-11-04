@@ -8,6 +8,11 @@ on:
     # Pas de synchro automatique de 0h à 7h30 (heure de Paris), voir le job « nuit » ci-dessous.
     # Le bouton « Run workflow » et les nouvelles fiches restent possibles la nuit.
   workflow_dispatch:          # bouton "Run workflow" pour forcer une synchro
+    inputs:
+      rapide:
+        description: "Publier sans refaire le tour de Moodle et de l'intranet (nouvelles fiches)"
+        type: boolean
+        default: false
   push:
     branches: [main]
 
@@ -59,6 +64,7 @@ jobs:
       - run: pip install -r requirements.txt
 
       - name: Récupérer Moodle + intranet
+        if: inputs.rapide != true
         env:
           ECAM_USER: ${{ secrets.ECAM_USER }}
           ECAM_PASSWORD: ${{ secrets.ECAM_PASSWORD }}
@@ -68,6 +74,7 @@ jobs:
         env:
           APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          RAPIDE: ${{ inputs.rapide == true && '1' || '' }}
         run: python build_site.py
 
       - uses: actions/configure-pages@v5

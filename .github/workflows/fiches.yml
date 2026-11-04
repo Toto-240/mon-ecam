@@ -49,12 +49,9 @@ jobs:
 
       - if: steps.inbox.outputs.has
         name: Installer les outils
-        run: |
-          sudo apt-get update -qq
-          # ffmpeg pour l'audio ; LibreOffice pour le PDF des devoirs (fidèle au Word)
-          PKGS="ffmpeg libreoffice-writer fonts-crosextra-carlito fonts-crosextra-caladea fonts-liberation"
-          sudo apt-get install -y -qq --no-install-recommends $PKGS >/dev/null
-          pip install -q -r main/requirements.txt google-genai python-docx python-pptx
+        # ffmpeg et LibreOffice ne sont installés que si un enregistrement ou un devoir en a besoin
+        # (process_inbox.py) : une révision n'attend pas leur installation
+        run: pip install -q -r main/requirements.txt google-genai python-docx python-pptx
 
       - if: steps.inbox.outputs.has
         name: Créer les fiches
@@ -95,4 +92,5 @@ jobs:
         name: Publier dans l'appli
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run sync.yml -R "${{ github.repository }}"
+        # publication rapide : sans refaire le tour de Moodle et de l'intranet
+        run: gh workflow run sync.yml -R "${{ github.repository }}" -f rapide=true

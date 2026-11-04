@@ -14,6 +14,7 @@ Les journaux restent volontairement vagues : le dépôt est public.
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -160,6 +161,25 @@ def parse_json(raw):
         text = re.sub(latex, r"\\\\", text)
         text = re.sub(r'\\(?!["\\/bfnrtu])', r"\\\\", text)   # \sum, \alpha, \mathbb…
         return json.loads(text, strict=False)
+
+
+_tools = False
+
+
+def ensure_tools():
+    """Installe ffmpeg (audio) et LibreOffice (PDF des devoirs) au premier besoin seulement."""
+    global _tools
+    if _tools or (shutil.which("ffmpeg") and (shutil.which("soffice") or shutil.which("libreoffice"))):
+        _tools = True
+        return
+    if not os.environ.get("GITHUB_ACTIONS"):
+        return
+    print("  installation de ffmpeg et LibreOffice…")
+    pkgs = ["ffmpeg", "libreoffice-writer", "fonts-crosextra-carlito", "fonts-crosextra-caladea", "fonts-liberation"]
+    subprocess.run(["sudo", "apt-get", "update", "-qq"], check=False, capture_output=True)
+    subprocess.run(["sudo", "apt-get", "install", "-y", "-qq", "--no-install-recommends", *pkgs],
+                   check=False, capture_output=True)
+    _tools = True
 
 
 def wait_active(client, f):
@@ -356,6 +376,8 @@ def main():
         summary.append(meta.get("kind") or "cours")
         try:
             client = client or gemini()
+            if meta.get("kind") not in ("revision", "notes", "depot"):
+                ensure_tools()   # enregistrements (ffmpeg) et devoirs (PDF)
             if meta.get("kind") == "revision":
                 fiche_revision(client, meta, out, password)
             elif meta.get("kind") == "notes":

@@ -77,6 +77,14 @@ def main():
     }
     # changements d'emploi du temps : comparaison avec la version en ligne
     prev = changements.previous_published(password)
+    if os.environ.get("RAPIDE") and not prev and not (DATA / "planning.json").exists():
+        sys.exit("Publication rapide impossible (version en ligne illisible) : la synchro normale suivra")
+    if os.environ.get("RAPIDE") and prev and not (DATA / "planning.json").exists():
+        # publication rapide (nouvelles fiches) : planning, devoirs, notes et cours de la version en ligne
+        for k in ("planning", "devoirs", "notes", "cours", "maj"):
+            if prev.get(k):
+                data[k] = prev[k]
+        print("::notice::Publication rapide : données Moodle et intranet reprises de la version en ligne")
     history = (prev or {}).get("changements", [])
     new = []
     if prev and prev.get("planning") and data["planning"]:
