@@ -5,7 +5,7 @@
 
 const TOKEN_KEY = "ecam-gh-token";
 const PENDING_KEY = "ecam-pending";
-const MAX_MB = 70;
+const MAX_MB = 300;   // gros fichiers envoyés en morceaux de 20 Mo
 const ITER = 250000;
 
 const repo = () => window.REPO || "Toto-240/mon-ecam";
@@ -247,10 +247,27 @@ async function ensureInbox() {
   if (!r.ok && r.status !== 422) throw new Error(`création de la boîte impossible (${r.status})`);
 }
 
-function putFile(id, b64, onProgress) {
+const PART = 20e6;   // GitHub refuse les fichiers trop gros d'un seul coup
+
+/* Envoie le fichier chiffré : en un seul morceau, ou en morceaux « id.i-n.part » recollés côté GitHub */
+async function putBlob(id, blob, onProgress) {
+  if (blob.size <= PART) return putFile(`${id}.bin`, await toBase64(blob), onProgress);
+  const n = Math.ceil(blob.size / PART);
+  for (let i = 0; i < n; i++) {
+    const part = blob.slice(i * PART, Math.min(blob.size, (i + 1) * PART));
+    const name = `${id}.${String(i).padStart(3, "0")}-${String(n).padStart(3, "0")}.part`;
+    let tries = 0;
+    for (;;) {
+      try { await putFile(name, await toBase64(part), (p) => onProgress((i + p) / n)); break; }
+      catch (e) { if (++tries >= 3 || /jeton/.test(e.message)) throw e; await new Promise((r) => setTimeout(r, 2000 * tries)); }
+    }
+  }
+}
+
+function putFile(name, b64, onProgress) {
   return new Promise((ok, ko) => {
     const x = new XMLHttpRequest();
-    x.open("PUT", `https://api.github.com/repos/${repo()}/contents/inbox/${id}.bin`);
+    x.open("PUT", `https://api.github.com/repos/${repo()}/contents/inbox/${name}`);
     x.setRequestHeader("Authorization", `Bearer ${store.get(TOKEN_KEY)}`);
     x.setRequestHeader("Accept", "application/vnd.github+json");
     x.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
@@ -275,11 +292,9 @@ async function send(meta, audio, ui = "upload") {
   try {
     msg.textContent = "Chiffrement…";
     const blob = await encryptUpload(meta, audio);
-    msg.textContent = "Préparation…";
-    const b64 = await toBase64(blob);
     await ensureInbox();
-    msg.textContent = `Envoi (${(blob.size / 1e6).toFixed(1)} Mo)…`;
-    await putFile(meta.id, b64, (p) => { bar.value = p; });
+    msg.textContent = `Envoi (${(blob.size / 1e6).toFixed(1)} Mo${blob.size > PART ? `, en ${Math.ceil(blob.size / PART)} morceaux` : ""})…`;
+    await putBlob(meta.id, blob, (p) => { bar.value = p; });
     pending.add({ id: meta.id, kind: meta.kind, matiere: meta.matiere, titre: meta.titre, date: meta.date, ds: meta.ds, cmid: meta.cmid, action: meta.action, at: new Date().toISOString() });
     msg.textContent = meta.kind === "depot" ? "Envoyé. Le dépôt sur Moodle se fait dans 1 à 3 minutes, suis-le dans À rendre."
       : meta.kind === "revision" ? "Demande envoyée. La fiche de révision arrive dans quelques minutes."

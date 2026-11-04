@@ -354,23 +354,49 @@ def write(path: Path, obj):
     path.write_text(encrypt_json(obj, os.environ["APP_PASSWORD"]), encoding="utf-8")
 
 
+class InboxItem:
+    """Un envoi de l'appli : un fichier « id.bin », ou des morceaux « id.i-n.part » (gros fichiers)."""
+    def __init__(self, stem, paths):
+        self.stem, self.paths = stem, paths
+        self.names = [p.name for p in paths]
+        self.label = paths[0].name if len(paths) == 1 else f"{stem} ({len(paths)} morceaux)"
+
+    def read_bytes(self):
+        return b"".join(p.read_bytes() for p in self.paths)
+
+
+def inbox_items(folder: Path):
+    items = [InboxItem(p.stem, [p]) for p in sorted(folder.glob("*.bin"))]
+    groups = {}
+    for p in folder.glob("*.part"):
+        m = re.match(r"(.+)\.(\d+)-(\d+)\.part$", p.name)
+        if m:
+            groups.setdefault((m.group(1), int(m.group(3))), {})[int(m.group(2))] = p
+    for (stem, n), parts in sorted(groups.items()):
+        if len(parts) == n and all(i in parts for i in range(n)):
+            items.append(InboxItem(stem, [parts[i] for i in range(n)]))
+        else:
+            print(f"- {stem} : {len(parts)}/{n} morceaux arrivés, traité au prochain passage")
+    return items
+
+
 def main():
     inbox, out = Path(sys.argv[1]), Path(sys.argv[2])
     password = os.environ.get("APP_PASSWORD")
     if not password:
         sys.exit("APP_PASSWORD manquant")
-    files = sorted((inbox / "inbox").glob("*.bin"))
+    files = inbox_items(inbox / "inbox")
     print(f"{len(files)} élément(s) à traiter")
     summary = []
     done, failed_now = [], set()
     client = None
     for p in files:
-        print(f"- {p.name}")
+        print(f"- {p.label}")
         try:
             meta, audio = decrypt_upload(p.read_bytes(), password)
         except Exception:
             print("  illisible (mauvais mot de passe ?), ignoré")
-            done.append(p.name)
+            done.extend(p.names)
             continue
         meta["id"] = re.sub(r"[^A-Za-z0-9_-]", "", str(meta.get("id") or p.stem))[:40]
         summary.append(meta.get("kind") or "cours")
@@ -392,7 +418,7 @@ def main():
                 fiche_cours(client, meta, audio, out)
             print("  ok")
             summary[-1] += " ok"
-            done.append(p.name)
+            done.extend(p.names)
         except Exception as e:
             msg = str(e)[:300]
             print(f"  échec : {type(e).__name__}")
@@ -403,13 +429,14 @@ def main():
                   {"id": meta["id"], "kind": "erreur", "matiere": meta.get("matiere"), "message": msg, "cmid": meta.get("cmid"),
                    "quand": datetime.now().isoformat(timespec="seconds")})
             if meta.get("kind") == "revision" and "Aucune fiche" in msg:
-                done.append(p.name)  # inutile de réessayer
+                done.extend(p.names)  # inutile de réessayer
             if meta.get("kind") == "depot":
-                done.append(p.name)  # un dépôt Moodle n'est jamais refait tout seul : l'étudiant relance
+                done.extend(p.names)  # un dépôt Moodle n'est jamais refait tout seul : l'étudiant relance
     # un élément réussi efface l'erreur d'un essai précédent
     for name in done:
-        err = out / "erreurs" / f"{Path(name).stem}.enc"
-        if err.exists() and Path(name).stem not in failed_now:
+        stem = name.split(".")[0]
+        err = out / "erreurs" / f"{stem}.enc"
+        if err.exists() and stem not in failed_now:
             err.unlink()
     (inbox / ".traites").write_text("\n".join(done), encoding="utf-8")
     print(f"{len(done)}/{len(files)} terminé(s)")

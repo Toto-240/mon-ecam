@@ -76,7 +76,7 @@ jobs:
         name: Vider la boîte
         working-directory: inbox
         run: |
-          total=$(ls inbox/*.bin 2>/dev/null | wc -l)
+          total=$(ls inbox/*.bin inbox/*.part 2>/dev/null | wc -l)
           traites=$(grep -c . .traites || true)
           [ "$traites" -gt 0 ] || exit 0
           # tout a été traité et rien n'est arrivé entre-temps : on supprime la boîte
