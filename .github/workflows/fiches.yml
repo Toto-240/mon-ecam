@@ -101,4 +101,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         # publication rapide : sans refaire le tour de Moodle et de l'intranet
-        run: gh workflow run sync.yml -R "${{ github.repository }}" -f rapide=true
+        run: |
+          for i in 1 2 3; do gh workflow run sync.yml -R "${{ github.repository }}" -f rapide=true && exit 0; sleep 10; done
+          echo "::warning::Publication non lancée, la synchro suivante (20 min max) affichera les nouveautés"
