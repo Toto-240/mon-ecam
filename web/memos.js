@@ -34,9 +34,10 @@ function memoGroup(m) {
 function memoLi(m) {
   const [g] = memoGroup(m);
   const when = m.pour && g === "later" ? fmtDayLong(new Date(m.pour + "T12:00")) : g === "late" ? `prévu ${fmtDayLong(new Date(m.pour + "T12:00"))}` : "";
-  return `<li class="memo${m.fait ? " done" : ""}${g === "late" && !m.fait ? " late" : ""}">
+  const tag = !m.fait && g === "auj" ? `<span class="memo-tag">Aujourd'hui</span>` : !m.fait && g === "late" ? `<span class="memo-tag late">En retard</span>` : "";
+  return `<li class="memo${m.fait ? " done" : ""}${g === "late" && !m.fait ? " late" : ""}${g === "auj" && !m.fait ? " today" : ""}">
     <input type="checkbox" data-memo-check="${esc(m.id)}"${m.fait ? " checked" : ""} aria-label="Fait : ${esc(m.texte)}">
-    <div class="memo-body"><div class="t">${esc(m.texte)}</div>${when ? `<div class="m">${esc(when)}</div>` : ""}</div>
+    <div class="memo-body">${tag}<div class="t">${esc(m.texte)}</div>${when ? `<div class="m">${esc(when)}</div>` : ""}</div>
     <button type="button" class="memo-del" data-memo-del="${esc(m.id)}" aria-label="Supprimer">×</button>
   </li>`;
 }
@@ -59,9 +60,22 @@ window.renderMemos = function () {
     || (a.cree || "").localeCompare(b.cree || ""));
 
   // pastille : ce qui est pour aujourd'hui ou en retard
-  const urgent = todo.filter((m) => ["late", "auj"].includes(memoGroup(m)[0])).length;
+  const urgentList = todo.filter((m) => ["late", "auj"].includes(memoGroup(m)[0]));
+  const urgent = urgentList.length;
   $("#memo-badge").hidden = !urgent;
   $("#memo-badge").textContent = urgent;
+  $("#memo-btn").classList.toggle("alert", !!urgent);
+
+  // bandeau visible sur tous les onglets tant qu'il reste des notes pour aujourd'hui
+  const banner = $("#memo-banner");
+  banner.hidden = !urgent;
+  if (urgent) {
+    const late = urgentList.filter((m) => memoGroup(m)[0] === "late").length;
+    banner.innerHTML = `<span class="pin" aria-hidden="true">!</span>
+      <span class="txt"><b>Aujourd'hui :</b> ${esc(urgentList.slice(0, 2).map((m) => m.texte.split("\n")[0]).join(" · "))}${urgent > 2 ? ` · +${urgent - 2}` : ""}
+      ${late ? `<em>(${late} en retard)</em>` : ""}</span><span class="go" aria-hidden="true">›</span>`;
+    banner.setAttribute("aria-label", `${urgent} note${urgent > 1 ? "s" : ""} pour aujourd'hui, ouvrir le pense-bête`);
+  }
 
   // fenêtre complète, par groupes
   let html = "", last = null;
@@ -88,7 +102,8 @@ window.renderMemos = function () {
   const soon = todo.filter((m) => ["late", "auj", "dem"].includes(memoGroup(m)[0]));
   const box = $("#memo-today");
   box.hidden = !soon.length;
-  box.innerHTML = soon.length ? `<div class="memo-today-head"><b>À ne pas oublier</b>
+  box.classList.toggle("has-today", !!urgent);
+  box.innerHTML = soon.length ? `<div class="memo-today-head"><b>${urgent ? `Aujourd'hui : ${urgent} à faire` : "À ne pas oublier"}</b>
       <button type="button" class="linkish" id="memo-all">Pense-bête (${todo.length})</button></div>
       <ul class="memo-list">${soon.slice(0, 5).map((m) => memoLi(m).replace('class="memo', `class="memo g-${memoGroup(m)[0]}`)).join("")}</ul>
       ${soon.length > 5 ? `<p class="small muted">… et ${soon.length - 5} autre(s)</p>` : ""}` : "";
@@ -107,6 +122,7 @@ function closeMemos() {
   document.body.style.overflow = "";
 }
 $("#memo-btn").onclick = openMemos;
+$("#memo-banner").onclick = openMemos;
 $("#memo-close").onclick = closeMemos;
 $("#memo-sheet").addEventListener("click", (ev) => { if (ev.target.id === "memo-sheet") closeMemos(); });
 document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && !$("#memo-sheet").hidden) closeMemos(); });

@@ -485,3 +485,27 @@ button.tile { border: 0; font: inherit; text-align: left; cursor: pointer; width
 .memo-today li.memo { padding: 6px 8px; }
 .memo-today .g-late .t, .memo-today .g-late .m { color: #C0392B; }
 .memo-today .small { padding: 0 8px; }
+
+/* Notes du jour bien visibles */
+.memo-banner { display: flex; align-items: center; gap: 10px; width: calc(100% - 32px); max-width: 828px; margin: 4px auto 12px; padding: 10px 14px;
+  border: 0; border-radius: 14px; background: #E8590C; color: #fff; font: inherit; text-align: left; cursor: pointer;
+  box-shadow: 0 6px 16px -8px #E8590C; }
+.memo-banner[hidden] { display: none !important; }
+.memo-banner .pin { flex: none; width: 24px; height: 24px; border-radius: 50%; background: #fff; color: #E8590C;
+  display: grid; place-items: center; font-weight: 800; }
+.memo-banner .txt { flex: 1; min-width: 0; font-size: .92rem; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.memo-banner em { font-style: normal; opacity: .9; }
+.memo-banner .go { font-size: 1.4rem; line-height: 1; }
+#memo-btn.alert { border-color: #E8590C; color: #E8590C; }
+#memo-btn.alert .badge { background: #E8590C; }
+@media (prefers-reduced-motion: no-preference) { #memo-btn.alert .badge { animation: memo-pulse 1.6s ease-in-out infinite; } }
+@keyframes memo-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(232, 89, 12, .55); } 50% { box-shadow: 0 0 0 6px rgba(232, 89, 12, 0); } }
+.memo-tag { display: inline-block; font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em;
+  color: #fff; background: #E8590C; border-radius: 6px; padding: 1px 6px; margin-bottom: 3px; }
+.memo-tag.late { background: #C0392B; }
+.memo.today .t, .memo.late .t { font-weight: 700; }
+.memo-list li.memo.today { box-shadow: inset 4px 0 0 #E8590C; }
+.memo-list li.memo.late { box-shadow: inset 4px 0 0 #C0392B; }
+.memo-today.has-today { background: color-mix(in srgb, #E8590C 12%, var(--surface)); border-color: #E8590C; }
+.memo-today.has-today .memo-today-head b { color: #E8590C; }
+.memo-h.auj { color: #E8590C; }
