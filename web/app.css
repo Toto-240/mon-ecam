@@ -511,3 +511,7 @@ button.tile { border: 0; font: inherit; text-align: left; cursor: pointer; width
 .memo-h.auj { color: #E8590C; }
 body[data-pane]:not([data-pane="planning"]) .memo-banner { display: none !important; }
 .memo-sync { background: color-mix(in srgb, #F5B94A 18%, var(--surface)); border-radius: 10px; padding: 8px 10px; color: var(--ink); }
+.memo-sync-state { margin: 8px 2px 0; }
+.memo-sync-state.ok { color: var(--ok, #1a7f4b); }
+.memo-sync-state.wait { color: var(--muted); }
+.memo-sync-state.bad { color: #C0392B; font-weight: 600; }

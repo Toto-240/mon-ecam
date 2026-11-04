@@ -86,8 +86,17 @@ async function encryptJson(obj, password) {
 /* ---------- GitHub ---------- */
 const hasToken = () => !!store.get(TOKEN_KEY);
 
+/* Requête GitHub avec délai max : une requête coupée (téléphone en veille) ne bloque plus la synchro */
+function ghT(path, opts = {}, ms = 25000) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms);
+  return gh(path, { ...opts, signal: ctl.signal })
+    .catch((e) => { throw new Error(e.name === "AbortError" ? "GitHub ne répond pas (délai dépassé)" : "pas de connexion Internet"); })
+    .finally(() => clearTimeout(t));
+}
+
 async function fetchRemote() {
-  const r = await gh(`${PERSO_PATH}?ref=main&t=${Date.now()}`, { cache: "no-store" });
+  const r = await ghT(`${PERSO_PATH}?ref=main&t=${Date.now()}`, { cache: "no-store" });
   if (r.status === 404) return { sha: null, state: null };
   if (!r.ok) throw new Error(r.status === 401 ? "jeton GitHub refusé" : `GitHub ne répond pas (${r.status})`);
   const j = await r.json();
@@ -95,17 +104,18 @@ async function fetchRemote() {
   return { sha: j.sha, state };
 }
 
-let syncing = null, lastPull = 0;
+let syncing = null, syncStart = 0, lastPull = 0;
 function persoSync() {
   if (!hasToken()) { persoNote(); return Promise.resolve(); }
-  if (syncing) return syncing.then(() => persoSync());
+  if (syncing && Date.now() - syncStart < 90e3) return syncing.then(() => persoSync());
+  syncStart = Date.now();   // une synchro bloquée depuis plus de 90 s est abandonnée
   syncing = (async () => {
     for (let essai = 0; essai < 3; essai++) {
       const { sha, state } = await fetchRemote();
       const ops = persoStore.get(PERSO_PENDING, []);
       if (!ops.length) { if (state) persoStore.set(PERSO_BASE, state); return; }
       const next = prune(ops.reduce(applyOp, state || emptyPerso()));
-      const r = await gh(PERSO_PATH, { method: "PUT", body: JSON.stringify({
+      const r = await ghT(PERSO_PATH, { method: "PUT", body: JSON.stringify({
         message: "Mise à jour", branch: "main", ...(sha ? { sha } : {}),
         content: btoa(await encryptJson(next, store.get("ecam-pw"))) }) });
       if (r.ok) {
@@ -118,7 +128,8 @@ function persoSync() {
       if (r.status !== 409 && r.status !== 422) throw new Error(r.status === 403 ? "ce jeton ne peut pas modifier le dépôt" : `envoi refusé (${r.status})`);
     }
     throw new Error("GitHub occupé, nouvel essai plus tard");
-  })().then(() => persoNote(), (e) => persoNote(`Pas encore synchronisé : ${e.message}. Réessai automatique.`))
+  })().then(() => { store.set("ecam-perso-ok", new Date().toISOString()); store.del("ecam-perso-err"); persoNote(); },
+    (e) => { store.set("ecam-perso-err", e.message); persoNote(`Pas encore synchronisé : ${e.message}. Réessai automatique.`); })
     .finally(() => {
       syncing = null;
       const before = JSON.stringify(PERSO);
@@ -133,7 +144,8 @@ function persoChange(op) {
   op.quand = new Date().toISOString();
   persoStore.set(PERSO_PENDING, [...persoStore.get(PERSO_PENDING, []), op]);
   recompute();
-  rerender();
+  try { rerender(); } catch (e) { console.error(e); }   // un souci d'affichage ne doit jamais bloquer l'envoi
+  persoNote();
   persoSync();
 }
 
@@ -143,6 +155,15 @@ function persoNote(err) {
     ? "Enregistré sur cet appareil seulement. Ajoute ton jeton GitHub (onglet Micro, Réglages) pour le retrouver sur tes autres appareils."
     : "");
   document.querySelectorAll(".perso-note").forEach((el) => { el.textContent = text; el.hidden = !text; });
+  const st = $("#memo-sync-state");
+  if (st) {
+    const ok = store.get("ecam-perso-ok"), err = store.get("ecam-perso-err");
+    st.textContent = !hasToken() ? "Pas de jeton GitHub sur cet appareil : notes gardées ici seulement."
+      : err ? `⚠ Pas synchronisé (${pending} en attente) : ${err}`
+      : pending ? `⏳ ${pending} changement${pending > 1 ? "s" : ""} en cours d'envoi…`
+      : `✓ Synchronisé${ok ? ` à ${new Date(ok).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}` : ""}`;
+    st.className = `small memo-sync-state${err || !hasToken() ? " bad" : pending ? " wait" : " ok"}`;
+  }
 }
 
 /* Appelé à chaque affichage : récupère la dernière version de GitHub (au plus une fois par minute) */
@@ -196,3 +217,4 @@ window.saveMemo = (memo) => persoChange({ op: "memo+", memo });
 window.delMemo = (id) => persoChange({ op: "memo-", id });
 
 window.persoSyncNow = () => { lastPull = Date.now(); return persoSync(); };
+window.persoShowState = () => persoNote(store.get("ecam-perso-err") ? `Pas encore synchronisé : ${store.get("ecam-perso-err")}.` : undefined);
