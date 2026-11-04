@@ -656,7 +656,8 @@ function resolvePending() {
   const errs = Object.fromEntries((DATA.erreurs || []).map((e) => [e.id, e]));
   const revs = DATA.revisions || [];
   const list = pending.all().filter((p) => {
-    if (p.kind === "revision") return !revs.some((r) => r.matiere === p.matiere && (r.ds || null) === (p.ds || null)
+    // révision arrivée après la demande (même matière, pour le DS ou toute la matière)
+    if (p.kind === "revision") return !revs.some((r) => sameMatiere(r.matiere, p.matiere)
       && r.cree && new Date(r.cree) > new Date(p.at) - 120e3);
     return !fiches.has(p.id);
   });

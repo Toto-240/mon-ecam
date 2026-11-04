@@ -78,15 +78,23 @@ jobs:
         run: |
           total=$(ls inbox/*.bin 2>/dev/null | wc -l)
           traites=$(grep -c . .traites || true)
-          if [ "$traites" -ge "$total" ]; then
-            # supprime la branche seulement si rien n'a été ajouté entre-temps
-            git -C ../main push -q --force-with-lease=inbox:${{ steps.inbox.outputs.sha }} origin :inbox \
-              && echo "Boîte vidée" || echo "Nouveaux éléments arrivés, ils seront traités au prochain passage"
-          elif [ "$traites" -gt 0 ]; then
-            git config user.name "Mon ECAM"; git config user.email "mon-ecam@users.noreply.github.com"
-            while read -r f; do [ -n "$f" ] && git rm -q "inbox/$f"; done < .traites
-            git commit -q -m "Éléments traités retirés" && git push -q origin HEAD:inbox || true
+          [ "$traites" -gt 0 ] || exit 0
+          # tout a été traité et rien n'est arrivé entre-temps : on supprime la boîte
+          if [ "$traites" -ge "$total" ] && git -C ../main push -q --force-with-lease=inbox:${{ steps.inbox.outputs.sha }} origin :inbox; then
+            echo "Boîte vidée"; exit 0
           fi
+          # sinon : on retire seulement les éléments traités de la dernière version de la boîte
+          # (sans ça, ils étaient refaits à chaque passage)
+          git config user.name "Mon ECAM"; git config user.email "mon-ecam@users.noreply.github.com"
+          for i in 1 2 3; do
+            git fetch -q origin inbox || exit 0
+            git reset -q --hard FETCH_HEAD
+            while read -r f; do [ -n "$f" ] && git rm -q --ignore-unmatch "inbox/$f"; done < .traites
+            git diff --cached --quiet && exit 0
+            git commit -q -m "Éléments traités retirés" && git push -q origin HEAD:inbox && { echo "Éléments traités retirés"; exit 0; }
+            sleep 3
+          done
+          echo "::warning::Boîte non vidée, les éléments seront retirés au prochain passage"
 
       - if: steps.inbox.outputs.has
         name: Publier dans l'appli
