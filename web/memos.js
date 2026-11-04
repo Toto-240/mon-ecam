@@ -113,6 +113,7 @@ window.renderMemos = function () {
 
 function openMemos() {
   window.renderMemos();
+  window.persoSyncNow?.();   // envoie ce qui est en attente et montre si ça ne marche pas
   $("#memo-sheet").hidden = false;
   document.body.style.overflow = "hidden";
   setTimeout(() => $("#memo-text").focus(), 50);

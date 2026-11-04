@@ -194,3 +194,5 @@ window.uploadEnonce = async (id, file) => {
 window.persoMemos = () => PERSO.memos || [];
 window.saveMemo = (memo) => persoChange({ op: "memo+", memo });
 window.delMemo = (id) => persoChange({ op: "memo-", id });
+
+window.persoSyncNow = () => { lastPull = Date.now(); return persoSync(); };
