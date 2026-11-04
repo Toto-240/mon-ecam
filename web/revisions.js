@@ -690,6 +690,9 @@ function renderFiches() {
     by.get(f.matiere).push(f);
   });
   const revs = Object.fromEntries((DATA.revisions || []).filter((r) => !r.ds).map((r) => [r.matiere, r]));
+  // révisions faites pour un DS (avec les fiches cochées), les plus récentes d'abord
+  const dsRevs = (m) => (DATA.revisions || []).filter((r) => r.ds && sameMatiere(r.matiere, m))
+    .sort((a, b) => (b.ds || "").localeCompare(a.ds || ""));
   const box = $("#matieres");
   $("#rev-intro").hidden = false;
   if (!by.size) {
@@ -703,7 +706,7 @@ function renderFiches() {
   if (!current) {
     openSubjects.clear();
     box.innerHTML = `<ul class="tiles">${names.map((m) => {
-      const n = by.get(m).length, r = revs[m];
+      const n = by.get(m).length, r = revs[m] || dsRevs(m)[0];
       const info = [`${n} fiche${n > 1 ? "s" : ""}`, r ? "QCM prêt" : ""].filter(Boolean).join(" · ");
       return `<li><button type="button" class="tile ${tileColor(m)}" data-m="${esc(m)}">
         ${r ? `<span class="tile-badge" aria-hidden="true">QCM</span>` : ""}
@@ -734,6 +737,10 @@ function renderFiches() {
         <div class="t">Fiche de révision et QCM</div>
         <div class="m">${r.qcm?.length || 0} question${(r.qcm?.length || 0) > 1 ? "s" : ""}, à partir de ${r.sources} cours${stale ? " (des cours ont été ajoutés depuis)" : ""}</div>
       </button></li>` : ""}
+      ${dsRevs(m).map((x) => `<li class="rev"><button type="button" class="item" data-open-rev-id="${esc(x.id)}">
+        <div class="t">Révision pour le DS du ${esc(fmtDate(String(x.ds).slice(0, 10)))}</div>
+        <div class="m">${x.qcm?.length || 0} question${(x.qcm?.length || 0) > 1 ? "s" : ""}, à partir des ${x.sources} fiche${x.sources > 1 ? "s" : ""} que tu as cochées</div>
+      </button></li>`).join("")}
       ${fs.map((f) => `<li><button type="button" class="item" data-open="${esc(f.id)}">
         <div class="t">${esc(f.titre || m)}</div>
         <div class="m">${f.source === "moodle" ? `D'après le support Moodle${f.date ? ", " + esc(fmtDate(f.date)) : ""}`
@@ -745,6 +752,7 @@ function renderFiches() {
   $("#rev-back").onclick = () => { openSubjects.clear(); renderFiches(); };
   box.querySelectorAll("[data-open]").forEach((b) => { b.onclick = () => openFiche(b.dataset.open); });
   box.querySelectorAll("[data-open-rev]").forEach((b) => { b.onclick = () => openRevision(b.dataset.openRev); });
+  box.querySelectorAll("[data-open-rev-id]").forEach((b) => { b.onclick = () => openRevision(null, b.dataset.openRevId); });
   box.querySelectorAll("[data-rev]").forEach((b) => {
     b.onclick = async () => {
       b.disabled = true;
