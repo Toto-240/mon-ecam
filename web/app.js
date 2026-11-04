@@ -360,6 +360,7 @@ function renderAll() {
   window.renderDevoirsIA?.();
   window.renderDS?.();
   window.renderNotifs?.();
+  window.renderMemos?.();
 }
 
 /* ---------- Données chiffrées (data.enc publié par GitHub) ---------- */

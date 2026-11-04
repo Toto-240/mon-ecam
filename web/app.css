@@ -461,3 +461,27 @@ button.tile { border: 0; font: inherit; text-align: left; cursor: pointer; width
 /* Devoirs ajoutés à la main */
 #add-dv { margin-bottom: 12px; }
 .due-body { display: block; }
+
+/* Pense-bête */
+.top-actions { display: flex; gap: 8px; align-items: center; }
+.memo-when { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.memo-when .chip { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: .85rem; cursor: pointer; }
+.memo-when .chip[aria-pressed="true"] { background: var(--ecam); border-color: var(--ecam); color: #fff; }
+.memo-when .chip-date { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: .85rem; }
+.memo-when .chip-date.on { border-color: var(--ecam); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ecam) 30%, transparent); }
+.memo-h { font-size: .85rem; margin: 16px 2px 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.memo-h.late { color: #C0392B; }
+.memo-list { list-style: none; margin: 0; padding: 0; }
+.memo-list li.memo { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; }
+.memo input[type="checkbox"] { width: 20px; height: 20px; margin-top: 1px; flex: none; accent-color: var(--ecam); }
+.memo-body { flex: 1; min-width: 0; }
+.memo-body .t { white-space: pre-wrap; overflow-wrap: anywhere; }
+.memo.done .t { text-decoration: line-through; color: var(--muted); }
+.memo.late .m { color: #C0392B; }
+.memo-del { background: none; border: 0; color: var(--muted); font-size: 1.3rem; line-height: 1; cursor: pointer; padding: 0 4px; }
+.memo-today { background: color-mix(in srgb, #F5B94A 14%, var(--surface)); border: 1px solid color-mix(in srgb, #F5B94A 45%, var(--line));
+  border-radius: 16px; padding: 10px 6px 4px; margin-bottom: 12px; }
+.memo-today-head { display: flex; justify-content: space-between; align-items: baseline; padding: 0 8px 4px; }
+.memo-today li.memo { padding: 6px 8px; }
+.memo-today .g-late .t, .memo-today .g-late .m { color: #C0392B; }
+.memo-today .small { padding: 0 8px; }

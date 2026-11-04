@@ -23,6 +23,10 @@
     <p class="muted small"><a id="force" target="_blank" rel="noopener" hidden>Synchroniser maintenant</a></p>
   </div>
   <div class="top-actions">
+    <button id="memo-btn" class="bell" type="button" aria-label="Pense-bête">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l3 3v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
+      <span id="memo-badge" class="badge" hidden></span>
+    </button>
     <button id="bell" class="bell" type="button" aria-label="Changements d'emploi du temps">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>
       <span id="bell-badge" class="badge" hidden></span>
@@ -33,6 +37,7 @@
 
 <main id="pane-planning" class="pane">
   <h2 class="sr">Planning</h2>
+  <section id="memo-today" class="memo-today" hidden></section>
   <div id="door"></div>
   <nav id="days" class="days" aria-label="Jours"></nav>
   <ol id="slots" class="slots"></ol>
@@ -293,6 +298,27 @@
   </div>
 </div>
 
+<div id="memo-sheet" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="memo-title">
+  <div class="sheet-card">
+    <div class="sheet-head">
+      <div><h2 id="memo-title">Pense-bête</h2>
+        <p class="muted small">Tes petites notes : à réviser, à refaire, à apporter… Synchronisé entre tes appareils.</p></div>
+      <button type="button" id="memo-close" class="btn small">Fermer</button>
+    </div>
+    <form id="memo-form" autocomplete="off">
+      <textarea id="memo-text" class="field" rows="2" placeholder="Ex. : réviser le chapitre 3, refaire l'exercice 2, apporter la calculatrice…"></textarea>
+      <div class="memo-when" role="group" aria-label="Pour quand">
+        <button type="button" class="chip" data-when="auj">Aujourd'hui</button>
+        <button type="button" class="chip" data-when="dem" aria-pressed="true">Demain</button>
+        <button type="button" class="chip" data-when="none">Sans date</button>
+        <input type="date" id="memo-date" class="chip-date" aria-label="Choisir une date">
+      </div>
+      <div class="row"><button type="submit" class="btn primary">Ajouter</button></div>
+    </form>
+    <div id="memo-list"></div>
+  </div>
+</div>
+
 <div id="notif-sheet" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="notif-title">
   <div class="sheet-card">
     <div class="sheet-head">
@@ -330,5 +356,6 @@
 <script src="depot.js"></script>
 <script src="ds.js"></script>
 <script src="notifs.js"></script>
+<script src="memos.js"></script>
 </body>
 </html>

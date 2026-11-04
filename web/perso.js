@@ -7,7 +7,7 @@
 const PERSO_PATH = "/contents/perso/etat.enc";
 const PERSO_BASE = "ecam-perso-base";     // dernier état connu de GitHub
 const PERSO_PENDING = "ecam-perso-ops";   // changements pas encore envoyés
-const emptyPerso = () => ({ faits: {}, ds: [], dsSel: {}, dsFinis: {}, devoirs: [], maj: "" });
+const emptyPerso = () => ({ faits: {}, ds: [], dsSel: {}, dsFinis: {}, devoirs: [], memos: [], maj: "" });
 
 const persoStore = {
   get(k, def) { try { return JSON.parse(store.get(k)) ?? def; } catch { return def; } },
@@ -16,11 +16,16 @@ const persoStore = {
 
 /* Un changement = une petite opération, rejouée sur la version de GitHub au moment d'envoyer */
 function applyOp(s, op) {
-  s = { ...emptyPerso(), ...s, faits: { ...(s?.faits || {}) }, ds: [...(s?.ds || [])], dsSel: { ...(s?.dsSel || {}) }, dsFinis: { ...(s?.dsFinis || {}) }, devoirs: [...(s?.devoirs || [])] };
+  s = { ...emptyPerso(), ...s, faits: { ...(s?.faits || {}) }, ds: [...(s?.ds || [])], dsSel: { ...(s?.dsSel || {}) }, dsFinis: { ...(s?.dsFinis || {}) }, devoirs: [...(s?.devoirs || [])], memos: [...(s?.memos || [])] };
   if (op.op === "fait") {
     if (op.val) s.faits[op.key] = op.val; else delete s.faits[op.key];
   } else if (op.op === "ds+") {
     s.ds = s.ds.filter((d) => d.id !== op.ds.id).concat(op.ds);
+  } else if (op.op === "memo+") {
+    const i = s.memos.findIndex((m) => m.id === op.memo.id);
+    if (i >= 0) s.memos[i] = op.memo; else s.memos.push(op.memo);
+  } else if (op.op === "memo-") {
+    s.memos = s.memos.filter((m) => m.id !== op.id);
   } else if (op.op === "dv+") {
     s.devoirs = s.devoirs.filter((d) => d.id !== op.dv.id).concat(op.dv);
   } else if (op.op === "dv-") {
@@ -43,6 +48,7 @@ function prune(s) {
   s.dsFinis = Object.fromEntries(Object.entries(s.dsFinis || {}).filter(([, v]) => v >= old));
   s.ds = s.ds.filter((d) => (d.date || "") >= dsOld);
   s.devoirs = (s.devoirs || []).filter((d) => (d.echeance || "") >= dsOld);
+  s.memos = (s.memos || []).filter((m) => !m.fait || m.fait >= dsOld);   // faits gardés 2 mois
   return s;
 }
 
@@ -59,6 +65,7 @@ function recompute() {
 
 function rerender() {
   if (!DATA) return;
+  window.renderMemos?.();
   renderPlanning();
   renderDevoirs();
   window.renderDS?.();
@@ -182,3 +189,8 @@ window.uploadEnonce = async (id, file) => {
     body: JSON.stringify({ message: "Énoncé ajouté", branch: "main", content: await toBase64(blob) }) });
   if (!r.ok) throw new Error(r.status === 401 ? "jeton GitHub refusé" : r.status === 422 ? "fichier trop gros" : `envoi refusé (${r.status})`);
 };
+
+/* Pense-bête */
+window.persoMemos = () => PERSO.memos || [];
+window.saveMemo = (memo) => persoChange({ op: "memo+", memo });
+window.delMemo = (id) => persoChange({ op: "memo-", id });
