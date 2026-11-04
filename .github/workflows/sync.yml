@@ -20,6 +20,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  deployments: read  # pour repérer une publication bloquée
   actions: write   # pour l'anti-pause des 60 jours
 
 concurrency:
@@ -76,6 +77,25 @@ jobs:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           RAPIDE: ${{ inputs.rapide == true && '1' || '' }}
         run: python build_site.py
+
+      - name: Débloquer une publication restée en cours
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          # une synchro annulée peut laisser une publication « en cours » qui bloque toutes les suivantes
+          limit=$(date -u -d '-8 min' +%Y-%m-%dT%H:%M:%SZ)
+          gh api "repos/$REPO/deployments?environment=github-pages&per_page=8" --jq '.[] | "\(.id) \(.sha) \(.created_at)"' |
+          while read -r id sha created; do
+            [ "$sha" = "$GITHUB_SHA" ] && continue
+            state=$(gh api "repos/$REPO/deployments/$id/statuses?per_page=1" --jq '.[0].state // "pending"')
+            case "$state" in in_progress|queued|pending)
+              if [[ "$created" < "$limit" ]]; then
+                gh api -X POST "repos/$REPO/pages/deployments/$sha/cancel" >/dev/null 2>&1 && echo "::notice::Publication bloquée annulée"
+              fi;;
+            esac
+          done
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
