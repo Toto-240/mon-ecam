@@ -27,15 +27,32 @@ function profSaid(fiches) {
 const dsKey = (e) => e.persoId || `${norm(e.matiere)}|${e.debut.slice(0, 10)}`;
 const dsOpen = new Set();
 
+/* DS marqués « terminés » : rangés à part, plus comptés dans le badge */
+function renderFinis(list) {
+  const box = $("#ds-finis");
+  box.hidden = !list.length;
+  $("#ds-finis-n").textContent = list.length;
+  $("#ds-finis-list").innerHTML = list.map((e) => `<li class="is-done">
+      <div class="due"><span class="t">${esc(e.matiere)}</span><span class="left">Terminé</span></div>
+      <div class="m">${esc(fmtDayLong(e.d0))}</div>
+      <div class="due-actions"><button type="button" class="btn small" data-ds-refaire="${esc(dsKey(e))}">Remettre dans les DS à venir</button></div>
+    </li>`).join("");
+  box.querySelectorAll("[data-ds-refaire]").forEach((b) => { b.onclick = () => window.setDsFini?.(b.dataset.dsRefaire, false); });
+}
+
 window.renderDS = function () {
-  const exams = upcomingExams();
+  const all = upcomingExams();
+  const fini = (e) => window.dsFini?.(dsKey(e));
+  const exams = all.filter((e) => !fini(e));
+  renderFinis(all.filter(fini));
   const soon = exams.filter((e) => e.d0 - NOW < 7 * 864e5).length;
   $("#ds-badge").hidden = !soon;
   $("#ds-badge").textContent = soon;
   fillDsForm();
   const box = $("#ds-list");
   if (!exams.length) {
-    box.innerHTML = `<p class="empty-state">Aucun DS dans ton planning des prochaines semaines. Un DS annoncé en cours ? Ajoute-le ci-dessus.</p>`;
+    box.innerHTML = `<p class="empty-state">${all.length ? "Plus de DS à venir : tout est terminé 👍"
+      : "Aucun DS dans ton planning des prochaines semaines. Un DS annoncé en cours ? Ajoute-le ci-dessus."}</p>`;
     return;
   }
   const allFiches = (DATA.fiches || []).filter((f) => f.kind === "cours");
@@ -94,10 +111,14 @@ window.renderDS = function () {
           : `Créer la révision et le QCM (${chosen.length} fiche${chosen.length > 1 ? "s" : ""})`}</button>
       </div>`
       : `<p class="muted small">Pas encore de fiche pour cette matière. Ajoute-en depuis le planning (bouton « + Ajouter une fiche » sous chaque cours) ou enregistre le prochain cours.</p>`}
-      ${e.persoId ? `<div class="row ds-perso"><button type="button" class="btn small danger" data-ds-del="${esc(e.persoId)}">${e.perso ? "Supprimer ce DS" : "Retirer tes notes"}</button></div>` : ""}
+      <div class="row ds-perso">
+        <button type="button" class="btn small fait-btn" data-ds-fini="${esc(dsKey(e))}">✓ DS terminé</button>
+        ${e.persoId ? `<button type="button" class="btn small danger" data-ds-del="${esc(e.persoId)}">${e.perso ? "Supprimer ce DS" : "Retirer tes notes"}</button>` : ""}
+      </div>
     </article>`;
   }).join("");
 
+  box.querySelectorAll("[data-ds-fini]").forEach((b) => { b.onclick = () => window.setDsFini?.(b.dataset.dsFini, true); });
   box.querySelectorAll("[data-ds-del]").forEach((b) => {
     b.onclick = () => {
       if (b.dataset.armed) { window.delPersoDS?.(b.dataset.dsDel); return; }
