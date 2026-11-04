@@ -413,6 +413,11 @@ def main():
                 write(out / "depots" / f"{meta['id']}.enc", depot.make(meta, audio))
             elif meta.get("kind") in ("devoir", "devoir_moodle"):
                 import devoir
+                if meta.get("enonce"):   # devoir ajouté dans À rendre : énoncé déjà rangé dans perso/enonces/
+                    eid = re.sub(r"[^A-Za-z0-9_-]", "", str(meta["enonce"]))
+                    emeta, audio = decrypt_upload((out / "perso" / "enonces" / f"{eid}.enc").read_bytes(), password)
+                    meta.setdefault("nom", emeta.get("nom"))
+                    meta.setdefault("type", emeta.get("type"))
                 write(out / "devoirs" / f"{meta['id']}.enc", devoir.make(client, generate, meta, audio))
             else:
                 fiche_cours(client, meta, audio, out)

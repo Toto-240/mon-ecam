@@ -52,7 +52,7 @@ window.faireDevoirMoodle = async function (cmid, titre, matiere, button) {
   showPane("devoirs");
   if (button) button.disabled = true;
   try {
-    await send({ id: newId(), kind: "devoir_moodle", cmid, titre, matiere }, new ArrayBuffer(0), "dv-upload");
+    await send({ id: newId(), kind: "devoir_moodle", cmid, titre, matiere, pour: `moodle:${cmid}` }, new ArrayBuffer(0), "dv-upload");
   } catch {}
   if (button) button.disabled = false;
 };
@@ -182,3 +182,62 @@ window.renderDevoirsIA = function () {
   fillDevoirForm();
   renderTravaux();
 };
+
+/* Devoir ajouté à la main dans À rendre : l'énoncé est déjà sur GitHub (perso/enonces/) */
+window.faireDevoirPerso = async function (dv, button) {
+  if (!dv) return;
+  showPane("devoirs");
+  if (button) button.disabled = true;
+  try {
+    const meta = { id: newId(), kind: "devoir", titre: dv.titre, matiere: dv.matiere, consigne: dv.consigne || "", pour: `perso:${dv.id}` };
+    if (dv.enonce) await send({ ...meta, enonce: dv.id, nom: dv.enonce.nom, type: dv.enonce.type }, new ArrayBuffer(0), "dv-upload");
+    else await send({ ...meta, nom: "consigne.txt", type: "text/plain" }, new TextEncoder().encode(dv.consigne || "").buffer, "dv-upload");
+  } catch {}
+  if (button) button.disabled = false;
+};
+
+window.openTravailById = (id) => {
+  showPane("devoirs");
+  openTravail(id, document.querySelector(`[data-travail="${CSS.escape(id)}"]`));
+};
+
+/* ---------- Ajouter un devoir à rendre ---------- */
+let advFile = null;
+function advPick(ev) {
+  const f = ev.target.files[0];
+  ev.target.value = "";
+  if (!f) return;
+  if (f.size > 20e6) { $("#adv-msg").textContent = "Énoncé trop gros (20 Mo maximum)."; return; }
+  advFile = new File([f], !f.name || f.name === "image.jpg" ? `photo-${Date.now()}.jpg` : f.name, { type: f.type });
+  $("#adv-file-name").textContent = advFile.name;
+}
+$("#adv-file").addEventListener("change", advPick);
+$("#adv-photo").addEventListener("change", advPick);
+
+$("#adv-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const v = (id) => $(id).value.trim();
+  const btn = $("#adv-send"), msg = $("#adv-msg");
+  const id = newId();
+  btn.disabled = true;
+  try {
+    let enonce = null;
+    if (advFile) {
+      msg.textContent = "Envoi de l'énoncé…";
+      await window.uploadEnonce(id, advFile);
+      enonce = { nom: advFile.name, type: advFile.type, taille: advFile.size };
+    }
+    window.addPersoDevoir({ id, titre: v("#adv-titre"), matiere: v("#adv-matiere"),
+      echeance: `${v("#adv-date")}T${v("#adv-heure") || "23:59"}:00`, consigne: v("#adv-consigne"), enonce,
+      cree: new Date().toISOString() });
+    ev.target.reset();
+    $("#adv-heure").value = "23:59";
+    advFile = null;
+    $("#adv-file-name").textContent = "";
+    msg.textContent = "";
+    $("#add-dv").open = false;
+  } catch (e) {
+    msg.textContent = `Échec : ${e.message}`;
+  }
+  btn.disabled = false;
+});

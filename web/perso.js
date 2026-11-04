@@ -7,7 +7,7 @@
 const PERSO_PATH = "/contents/perso/etat.enc";
 const PERSO_BASE = "ecam-perso-base";     // dernier état connu de GitHub
 const PERSO_PENDING = "ecam-perso-ops";   // changements pas encore envoyés
-const emptyPerso = () => ({ faits: {}, ds: [], dsSel: {}, dsFinis: {}, maj: "" });
+const emptyPerso = () => ({ faits: {}, ds: [], dsSel: {}, dsFinis: {}, devoirs: [], maj: "" });
 
 const persoStore = {
   get(k, def) { try { return JSON.parse(store.get(k)) ?? def; } catch { return def; } },
@@ -16,11 +16,15 @@ const persoStore = {
 
 /* Un changement = une petite opération, rejouée sur la version de GitHub au moment d'envoyer */
 function applyOp(s, op) {
-  s = { ...emptyPerso(), ...s, faits: { ...(s?.faits || {}) }, ds: [...(s?.ds || [])], dsSel: { ...(s?.dsSel || {}) }, dsFinis: { ...(s?.dsFinis || {}) } };
+  s = { ...emptyPerso(), ...s, faits: { ...(s?.faits || {}) }, ds: [...(s?.ds || [])], dsSel: { ...(s?.dsSel || {}) }, dsFinis: { ...(s?.dsFinis || {}) }, devoirs: [...(s?.devoirs || [])] };
   if (op.op === "fait") {
     if (op.val) s.faits[op.key] = op.val; else delete s.faits[op.key];
   } else if (op.op === "ds+") {
     s.ds = s.ds.filter((d) => d.id !== op.ds.id).concat(op.ds);
+  } else if (op.op === "dv+") {
+    s.devoirs = s.devoirs.filter((d) => d.id !== op.dv.id).concat(op.dv);
+  } else if (op.op === "dv-") {
+    s.devoirs = s.devoirs.filter((d) => d.id !== op.id);
   } else if (op.op === "dsfini") {
     if (op.val) s.dsFinis[op.key] = op.val; else delete s.dsFinis[op.key];
   } else if (op.op === "dssel") {
@@ -38,6 +42,7 @@ function prune(s) {
   s.faits = Object.fromEntries(Object.entries(s.faits).filter(([, v]) => v >= old));
   s.dsFinis = Object.fromEntries(Object.entries(s.dsFinis || {}).filter(([, v]) => v >= old));
   s.ds = s.ds.filter((d) => (d.date || "") >= dsOld);
+  s.devoirs = (s.devoirs || []).filter((d) => (d.echeance || "") >= dsOld);
   return s;
 }
 
@@ -155,3 +160,25 @@ window.dsExclus = (key) => PERSO.dsSel?.[key] || [];
 window.setDsExclus = (key, exclus) => persoChange({ op: "dssel", key, exclus });
 window.dsFini = (key) => !!PERSO.dsFinis?.[key];
 window.setDsFini = (key, on) => persoChange({ op: "dsfini", key, val: on ? new Date().toISOString() : null });
+
+/* Devoirs à rendre ajoutés à la main (énoncé chiffré dans perso/enonces/) */
+window.persoDevoirs = () => PERSO.devoirs || [];
+window.addPersoDevoir = (dv) => persoChange({ op: "dv+", dv });
+window.delPersoDevoir = async (id) => {
+  const dv = (PERSO.devoirs || []).find((d) => d.id === id);
+  persoChange({ op: "dv-", id });
+  if (dv?.enonce && hasToken()) {   // l'énoncé aussi (sans bloquer si ça échoue)
+    try {
+      const path = `/contents/perso/enonces/${encodeURIComponent(id)}.enc`;
+      const r = await gh(`${path}?ref=main&t=${Date.now()}`, { cache: "no-store" });
+      if (r.ok) await gh(path, { method: "DELETE", body: JSON.stringify({ message: "Suppression", sha: (await r.json()).sha, branch: "main" }) });
+    } catch {}
+  }
+};
+window.uploadEnonce = async (id, file) => {
+  if (!hasToken()) throw new Error("ajoute d'abord ton jeton GitHub (onglet Micro, Réglages)");
+  const blob = await encryptUpload({ id, nom: file.name, type: file.type }, await file.arrayBuffer());
+  const r = await gh(`/contents/perso/enonces/${encodeURIComponent(id)}.enc`, { method: "PUT",
+    body: JSON.stringify({ message: "Énoncé ajouté", branch: "main", content: await toBase64(blob) }) });
+  if (!r.ok) throw new Error(r.status === 401 ? "jeton GitHub refusé" : r.status === 422 ? "fichier trop gros" : `envoi refusé (${r.status})`);
+};

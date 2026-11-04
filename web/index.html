@@ -70,6 +70,31 @@
 
 <main id="pane-rendre" class="pane" hidden>
   <h2>À rendre</h2>
+  <details class="card add-ds" id="add-dv">
+    <summary class="btn primary">+ Ajouter un devoir à rendre</summary>
+    <form id="adv-form" autocomplete="off">
+      <label for="adv-titre">Titre</label>
+      <input id="adv-titre" class="field" required placeholder="Ex. : TP3 Réseaux, exercices 1 à 5">
+      <label for="adv-matiere">Matière</label>
+      <input id="adv-matiere" class="field" list="ds-matieres" placeholder="Ex. : Mathématiques">
+      <div class="ds-times">
+        <div><label for="adv-date">À rendre le</label><input id="adv-date" class="field" type="date" required></div>
+        <div><label for="adv-heure">Heure</label><input id="adv-heure" class="field" type="time" value="23:59"></div>
+      </div>
+      <label>Énoncé (facultatif)</label>
+      <div class="row tight">
+        <label class="btn small" for="adv-file">Fichier</label>
+        <label class="btn small" for="adv-photo">Prendre en photo</label>
+        <span id="adv-file-name" class="small"></span>
+      </div>
+      <input id="adv-file" type="file" accept=".docx,.pdf,.pptx,.txt,.md,image/*" hidden>
+      <input id="adv-photo" type="file" accept="image/*" capture="environment" hidden>
+      <label for="adv-consigne">Consigne (facultatif)</label>
+      <textarea id="adv-consigne" class="field" rows="3" placeholder="Ce que le prof a demandé, ou une précision pour l'IA"></textarea>
+      <div class="row"><button type="submit" class="btn primary" id="adv-send">Ajouter</button>
+        <span id="adv-msg" class="small muted" aria-live="polite"></span></div>
+    </form>
+  </details>
   <ul id="devoirs" class="list"></ul>
   <p class="perso-note small muted" hidden></p>
   <details id="devoirs-faits" class="faits" hidden>

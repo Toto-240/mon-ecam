@@ -219,7 +219,13 @@ function cleanCourse(name) {
 }
 
 function renderDevoirs() {
-  const all = (DATA.devoirs || []).map((d) => ({ ...d, due: new Date(d.echeance) })).sort((a, b) => a.due - b.due);
+  // devoirs Moodle + devoirs ajoutés à la main
+  const mine = (window.persoDevoirs?.() || []).map((d) => ({ titre: d.titre, cours: d.matiere || "", echeance: d.echeance,
+    url: `perso:${d.id}`, perso: d }));
+  const all = [...(DATA.devoirs || []), ...mine].map((d) => ({ ...d, due: new Date(d.echeance) }))
+    .filter((d) => !isNaN(d.due)).sort((a, b) => a.due - b.due);
+  const travailFor = (key) => [...(DATA.travaux || [])].filter((t) => t.pour === key)
+    .sort((a, b) => (b.cree || "").localeCompare(a.cree || ""))[0];
   const cmidOf = (d) => (String(d.url).match(/mod\/assign\/view\.php\?id=(\d+)/) || [])[1];
   // un devoir déposé sur Moodle (et envoyé si besoin) compte comme fait
   const fait = (d) => window.isFait?.(d) || window.depotDone?.(cmidOf(d));
@@ -234,14 +240,20 @@ function renderDevoirs() {
     const left = ms < 0 ? "En retard" : days <= 1 ? (inMinutes(d.due) || "Demain") : `${days} jours`;
     const cls = ms < 0 || d.en_retard ? "late" : days <= 3 ? "soon" : "";
     const cmid = (String(d.url).match(/mod\/assign\/view\.php\?id=(\d+)/) || [])[1];
-    return `<li>
-      <a href="${esc(d.url)}" target="_blank" rel="noopener">
-        <div class="due"><span class="t">${esc(d.titre)}</span><span class="left ${cls}">${esc(left)}</span></div>
-        <div class="m">${esc(cleanCourse(d.cours))}</div>
+    const p = d.perso;
+    const head = `<div class="due"><span class="t">${esc(d.titre)}</span><span class="left ${cls}">${esc(left)}</span></div>
+        <div class="m">${esc(cleanCourse(d.cours))}${p ? `${d.cours ? " · " : ""}ajouté par toi` : ""}</div>
         <div class="m">Pour le ${esc(d.due.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }))} à ${fmtTime(d.due)}${d.action ? ", " + esc(d.action.toLowerCase()) : ""}</div>
-      </a>
+        ${p?.enonce ? `<div class="m">Énoncé : ${esc(p.enonce.nom)}</div>` : ""}
+        ${p?.consigne ? `<div class="m">Consigne : ${esc(p.consigne)}</div>` : ""}`;
+    const t = travailFor(p ? `perso:${p.id}` : cmid ? `moodle:${cmid}` : "");
+    return `<li>
+      ${p ? `<div class="due-body">${head}</div>` : `<a href="${esc(d.url)}" target="_blank" rel="noopener">${head}</a>`}
+      ${t ? `<p class="depot-line ok">Fait par l'IA ✓ <button type="button" class="linkish" data-travail-open="${esc(t.id)}">Ouvrir (Word / PDF)</button></p>` : ""}
       <div class="due-actions">
         <button type="button" class="btn small fait-btn" data-fait="${i}">✓ Fait</button>
+        ${p && (p.enonce || p.consigne) ? `<button type="button" class="btn small" data-ia-perso="${esc(p.id)}">Faire avec l'IA</button>` : ""}
+        ${p ? `<button type="button" class="btn small danger" data-dv-del="${esc(p.id)}">Supprimer</button>` : ""}
         ${cmid ? `<button type="button" class="btn small" data-ia="${esc(cmid)}"
         data-titre="${esc(d.titre)}" data-matiere="${esc(cleanCourse(d.cours))}">Faire avec l'IA</button>
         <button type="button" class="btn small" data-depot="${esc(cmid)}" data-titre="${esc(d.titre)}"
@@ -260,6 +272,17 @@ function renderDevoirs() {
     </li>`).join("");
   document.querySelectorAll("#devoirs [data-ia]").forEach((b) => {
     b.onclick = () => window.faireDevoirMoodle?.(b.dataset.ia, b.dataset.titre, b.dataset.matiere, b);
+  });
+  document.querySelectorAll("#devoirs [data-ia-perso]").forEach((b) => {
+    b.onclick = () => window.faireDevoirPerso?.((window.persoDevoirs?.() || []).find((d) => d.id === b.dataset.iaPerso), b);
+  });
+  document.querySelectorAll("#devoirs [data-travail-open]").forEach((b) => { b.onclick = () => window.openTravailById?.(b.dataset.travailOpen); });
+  document.querySelectorAll("#devoirs [data-dv-del]").forEach((b) => {
+    b.onclick = () => {
+      if (b.dataset.armed) { window.delPersoDevoir?.(b.dataset.dvDel); return; }
+      b.dataset.armed = "1"; b.textContent = "Confirmer";
+      setTimeout(() => { delete b.dataset.armed; b.textContent = "Supprimer"; }, 4000);
+    };
   });
   document.querySelectorAll("#devoirs [data-depot]").forEach((b) => {
     b.onclick = () => window.openDepot?.(b.dataset.depot, b.dataset.titre, b.dataset.matiere);

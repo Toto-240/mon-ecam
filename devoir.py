@@ -433,4 +433,4 @@ def _result(meta, docx_bytes, md, model, mode):
             "fichier": f"{base} - fait.docx", "mise_en_page": mode, "md": md,
             "docx": base64.b64encode(docx_bytes).decode(),
             "pdf": base64.b64encode(pdf).decode() if pdf else None,
-            "modele": model, "cree": datetime.now().isoformat(timespec="seconds")}
+            "modele": model, "pour": meta.get("pour"), "cree": datetime.now().isoformat(timespec="seconds")}

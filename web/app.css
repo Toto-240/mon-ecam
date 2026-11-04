@@ -457,3 +457,7 @@ button.tile { border: 0; font: inherit; text-align: left; cursor: pointer; width
 .depot-line.fail { color: #C0392B; }
 .depot-line .muted { color: var(--muted); }
 .linkish { background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; }
+
+/* Devoirs ajoutés à la main */
+#add-dv { margin-bottom: 12px; }
+.due-body { display: block; }
