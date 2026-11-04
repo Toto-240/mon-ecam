@@ -24,7 +24,7 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true   # si une synchro traîne, la suivante la remplace
+  cancel-in-progress: false  # chacune son tour : une synchro annulée en pleine publication bloquait la suivante
 
 jobs:
   nuit:
