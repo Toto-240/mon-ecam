@@ -673,8 +673,8 @@ function resolvePending() {
   const revs = DATA.revisions || [];
   const list = pending.all().filter((p) => {
     // révision arrivée après la demande (même matière, pour le DS ou toute la matière)
-    if (p.kind === "revision") return !revs.some((r) => sameMatiere(r.matiere, p.matiere)
-      && r.cree && new Date(r.cree) > new Date(p.at) - 120e3);
+    if (p.kind === "revision") return !revs.some((r) => r.id === p.id
+      || (!r.choix && sameMatiere(r.matiere, p.matiere) && r.cree && new Date(r.cree) > new Date(p.at) - 120e3));
     return !fiches.has(p.id);
   });
   pending.save(list);
@@ -709,7 +709,10 @@ function renderFiches() {
     if (!by.has(f.matiere)) by.set(f.matiere, []);
     by.get(f.matiere).push(f);
   });
-  const revs = Object.fromEntries((DATA.revisions || []).filter((r) => !r.ds).map((r) => [r.matiere, r]));
+  const revs = Object.fromEntries((DATA.revisions || []).filter((r) => !r.ds && !r.choix).map((r) => [r.matiere, r]));
+  // révisions faites avec des fiches choisies (les plus récentes d'abord)
+  const choixRevs = (m) => (DATA.revisions || []).filter((r) => r.choix && sameMatiere(r.matiere, m))
+    .sort((a, b) => (b.cree || "").localeCompare(a.cree || ""));
   // révisions faites pour un DS (avec les fiches cochées), les plus récentes d'abord
   const dsRevs = (m) => (DATA.revisions || []).filter((r) => r.ds && sameMatiere(r.matiere, m))
     .sort((a, b) => (b.ds || "").localeCompare(a.ds || ""));
@@ -729,7 +732,7 @@ function renderFiches() {
     openSubjects.clear();
     box.innerHTML = `<div class="row add-fiche-row"><button type="button" class="btn small primary" id="add-fiche-libre">+ Ajouter une fiche</button></div>
       <ul class="tiles">${names.map((m) => {
-      const n = by.get(m).length, r = revs[m] || dsRevs(m)[0];
+      const n = by.get(m).length, r = revs[m] || choixRevs(m)[0] || dsRevs(m)[0];
       const info = [`${n} fiche${n > 1 ? "s" : ""}`, r ? "QCM prêt" : ""].filter(Boolean).join(" · ");
       return `<li><button type="button" class="tile ${tileColor(m)}" data-m="${esc(m)}">
         ${r ? `<span class="tile-badge" aria-hidden="true">QCM</span>` : ""}
@@ -757,20 +760,21 @@ function renderFiches() {
       <span class="tile-info">${fs.length} fiche${fs.length > 1 ? "s" : ""}${r ? ", révision prête" : ""}</span>
     </div>
     ${pick ? `<div class="carte-pick-bar">
-        <p><b>Carte mentale :</b> coche les fiches à mettre dedans <span class="muted">(${pick.size} sur ${fs.length})</span></p>
+        <p><b>Choisis tes fiches</b> pour une révision + QCM ou une carte mentale <span class="muted">(${pick.size} sur ${fs.length})</span></p>
         <div class="row tight">
           <button type="button" class="btn small" data-pick-all>Tout cocher</button>
           <button type="button" class="btn small" data-pick-none>Tout décocher</button>
         </div>
         <div class="row tight">
-          <button type="button" class="btn small primary" data-carte-go${pick.size ? "" : " disabled"}>${pick.size ? `Créer la carte mentale (${pick.size} fiche${pick.size > 1 ? "s" : ""})` : "Coche au moins une fiche"}</button>
+          <button type="button" class="btn small primary" data-rev-go${pick.size ? "" : " disabled"}>Révision + QCM (${pick.size})</button>
+          <button type="button" class="btn small primary" data-carte-go${pick.size ? "" : " disabled"}>Carte mentale (${pick.size})</button>
           <button type="button" class="btn small" data-pick-cancel>Annuler</button>
         </div>
         <p id="carte-msg" class="small muted" aria-live="polite"></p>
       </div>`
     : `<div class="row">
       <button type="button" class="btn small${r && !stale ? "" : " primary"}" data-rev="${esc(m)}">${r ? (stale ? "Mettre à jour la révision" : "Refaire la révision") : "Créer la fiche de révision et le QCM"}</button>
-      <button type="button" class="btn small" data-pick-start>Carte mentale…</button>
+      <button type="button" class="btn small" data-pick-start>Choisir des fiches…</button>
       <button type="button" class="btn small" data-add-libre>+ Ajouter une fiche</button></div>`}
     <ul class="list subject-list">
       ${r ? `<li class="rev"><button type="button" class="item" data-open-rev="${esc(m)}">
@@ -780,6 +784,10 @@ function renderFiches() {
       ${dsRevs(m).map((x) => `<li class="rev"><button type="button" class="item" data-open-rev-id="${esc(x.id)}">
         <div class="t">Révision pour le DS du ${esc(fmtDate(String(x.ds).slice(0, 10)))}</div>
         <div class="m">${x.qcm?.length || 0} question${(x.qcm?.length || 0) > 1 ? "s" : ""}, à partir des ${x.sources} fiche${x.sources > 1 ? "s" : ""} que tu as cochées</div>
+      </button></li>`).join("")}
+      ${choixRevs(m).map((x) => `<li class="rev"><button type="button" class="item" data-open-rev-id="${esc(x.id)}">
+        <div class="t">Révision sur ${x.sources} fiche${x.sources > 1 ? "s" : ""} choisie${x.sources > 1 ? "s" : ""}</div>
+        <div class="m">${x.qcm?.length || 0} question${(x.qcm?.length || 0) > 1 ? "s" : ""}${x.cree ? `, ${esc(fmtDate(x.cree.slice(0, 10)))}` : ""}</div>
       </button></li>`).join("")}
       ${cartes.map((c) => `<li class="rev carte-item"><button type="button" class="item" data-open-carte="${esc(c.id)}">
         <div class="t">Carte mentale${c.titre && c.titre !== m ? ` : ${esc(c.titre)}` : ""}</div>
@@ -804,6 +812,15 @@ function renderFiches() {
   box.querySelector("[data-pick-none]")?.addEventListener("click", () => { cartePick.set(m, new Set()); renderFiches(); });
   box.querySelectorAll("[data-pick]").forEach((c) => {
     c.onchange = () => { const set = cartePick.get(m); c.checked ? set.add(c.dataset.pick) : set.delete(c.dataset.pick); renderFiches(); };
+  });
+  box.querySelector("[data-rev-go]")?.addEventListener("click", async (ev) => {
+    const b = ev.currentTarget, ids = [...cartePick.get(m)];
+    b.disabled = true;
+    try {
+      await send({ id: newId(), kind: "revision", matiere: m, fiches: ids }, new ArrayBuffer(0));
+      cartePick.delete(m);
+      renderFiches();
+    } catch (e) { $("#carte-msg").textContent = `Échec : ${e.message}`; b.disabled = false; }
   });
   box.querySelector("[data-carte-go]")?.addEventListener("click", async (ev) => {
     const b = ev.currentTarget, ids = [...cartePick.get(m)];
@@ -933,7 +950,7 @@ function openFiche(id) {
 
 function openRevision(matiere, id) {
   const revs = DATA.revisions || [];
-  const r = id ? revs.find((x) => x.id === id) : revs.find((x) => x.matiere === matiere && !x.ds) || revs.find((x) => x.matiere === matiere);
+  const r = id ? revs.find((x) => x.id === id) : revs.find((x) => x.matiere === matiere && !x.ds && !x.choix) || revs.find((x) => x.matiere === matiere);
   if (!r) return;
   matiere = r.matiere;
   r.qcm = (Array.isArray(r.qcm) ? r.qcm : []).filter((q) => q && Array.isArray(q.choix) && q.choix.length > 1)
@@ -942,7 +959,7 @@ function openRevision(matiere, id) {
     <p>${i + 1}. ${esc(q.question)}</p>
     ${q.choix.map((c, j) => `<button type="button" data-c="${j}">${esc(c)}</button>`).join("")}
     <div class="why" hidden>${esc(q.explication || "")}</div></div>`).join("");
-  openReader(`Révision : ${matiere}`, `<p class="meta">${esc(matiere)}, à partir de ${r.sources} fiche${r.sources > 1 ? "s" : ""}${r.ds ? ` (pour le DS du ${esc(fmtDate(r.ds.slice(0, 10)))})` : ""}</p>${md(r.md)}
+  openReader(`Révision : ${matiere}`, `<p class="meta">${esc(matiere)}, à partir de ${r.sources} fiche${r.sources > 1 ? "s" : ""}${r.ds ? ` (pour le DS du ${esc(fmtDate(r.ds.slice(0, 10)))})` : r.choix ? " choisies" : ""}</p>${md(r.md)}
     ${qcm ? `<section class="qcm"><h2>QCM</h2><p id="score" class="score" aria-live="polite"></p>${qcm}
       <button type="button" class="btn" id="qcm-reset">Recommencer</button></section>` : ""}
     ${r._fichier ? deleteZone("Supprimer cette révision", "Seules la fiche de révision et son QCM sont supprimés, pas tes fiches de cours.") : ""}`);

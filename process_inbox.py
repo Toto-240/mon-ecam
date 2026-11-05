@@ -296,6 +296,11 @@ def fiche_revision(client, meta, out: Path, password: str):
     rev = {"id": meta["id"], "kind": "revision", "matiere": matiere, "md": data.get("fiche", "").strip(),
            "qcm": qcm, "sources": len(fiches), "modele": model,
            "cree": datetime.now().isoformat(timespec="seconds")}
+    if wanted and not meta.get("ds"):
+        # révision faite avec des fiches choisies dans l'onglet Révisions (s'ajoute à celle de la matière)
+        rev.update(fiches=[f["id"] for f in fiches], choix=True)
+        write(out / "revisions" / f"{meta['id']}.enc", rev)
+        return
     if wanted and meta.get("ds"):
         # révision propre à ce DS, faite avec les fiches cochées
         rev.update(ds=meta["ds"], fiches=[f["id"] for f in fiches])

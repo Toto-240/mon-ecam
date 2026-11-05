@@ -66,7 +66,7 @@ window.renderDS = function () {
     const chosen = fs.filter((f) => !exclus.has(f.id));
     // révision faite pour ce DS (avec ta sélection), sinon celle de la matière
     const r = revs.find((x) => x.ds === e.debut && sameMatiere(x.matiere, e.matiere))
-      || revs.find((x) => !x.ds && sameMatiere(x.matiere, e.matiere));
+      || revs.find((x) => !x.ds && !x.choix && sameMatiere(x.matiere, e.matiere));
     const sameSel = r?.fiches ? [...r.fiches].sort().join() === chosen.map((f) => f.id).sort().join() : false;
     const stale = r && (r.ds ? !sameSel : true);
     const said = profSaid(fs);
