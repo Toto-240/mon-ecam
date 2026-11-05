@@ -828,8 +828,7 @@ function renderFiches() {
         <p id="carte-msg" class="small muted" aria-live="polite"></p>
       </div>`
     : `<div class="row">
-      <button type="button" class="btn small${r && !stale ? "" : " primary"}" data-rev="${esc(m)}">${r ? (stale ? "Mettre à jour la révision" : "Refaire la révision") : "Créer la fiche de révision et le QCM"}</button>
-      <button type="button" class="btn small" data-pick-start>Choisir des fiches…</button>
+      <button type="button" class="btn small primary" data-pick-start>Prépa / carte mentale…</button>
       <button type="button" class="btn small" data-add-libre>+ Ajouter une fiche</button></div>`}
     <ul class="list subject-list">
       ${r ? `<li class="rev"><button type="button" class="item" data-open-rev="${esc(m)}">
