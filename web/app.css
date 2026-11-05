@@ -636,3 +636,13 @@ body[data-pane]:not([data-pane="planning"]) .memo-banner { display: none !import
 .rec-ctrl.stop .ico { background: #E5484D; border-radius: 3px; }
 .rec-ctrl:disabled { opacity: .6; }
 .rec-cancel { background: none; border: 0; color: rgba(255,255,255,.65); text-decoration: underline; margin-top: 12px; font: inherit; font-size: .85rem; cursor: pointer; }
+
+/* Prépa dans Révisions */
+.prepa-box { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 6px; }
+.prepa-h { margin: 4px 0 0; }
+.prepa-box .check { margin: 8px 0 0; }
+.prepa-date { width: auto; padding: 6px 8px; margin-top: 8px; }
+li.prepa-card { padding: 12px; }
+li.prepa-card > .t { font-weight: 700; }
+li.prepa-card > .m { color: var(--muted); font-size: .85rem; }
+li.prepa-card .ds-rev { margin-top: 8px; }

@@ -739,6 +739,13 @@ function renderPendingList(ul, list) {
 
 /* ---------- Fiches ---------- */
 const openSubjects = new Set();
+const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+function nextDsDate(m) {
+  const ds = (window.upcomingExams?.() || (typeof upcomingExams === "function" ? upcomingExams() : []))
+    .filter((e) => sameMatiere(e.matiere, m) && e.d0 > NOW).sort((a, b) => a.d0 - b.d0)[0];
+  return ds ? isoDay(ds.d0) : isoDay(new Date(NOW.getTime() + 7 * 864e5));
+}
+
 /* Choix des fiches pour une carte mentale : matière -> ensemble des fiches cochées */
 const cartePick = new Map();
 
@@ -799,15 +806,24 @@ function renderFiches() {
       <span class="tile-info">${fs.length} fiche${fs.length > 1 ? "s" : ""}${r ? ", révision prête" : ""}</span>
     </div>
     ${pick ? `<div class="carte-pick-bar">
-        <p><b>Choisis tes fiches</b> pour une révision + QCM ou une carte mentale <span class="muted">(${pick.size} sur ${fs.length})</span></p>
+        <p><b>Choisis tes fiches</b> <span class="muted">(${pick.size} sur ${fs.length})</span>, puis ce que tu veux en faire</p>
         <div class="row tight">
           <button type="button" class="btn small" data-pick-all>Tout cocher</button>
           <button type="button" class="btn small" data-pick-none>Tout décocher</button>
-        </div>
-        <div class="row tight">
-          <button type="button" class="btn small primary" data-rev-go${pick.size ? "" : " disabled"}>Révision + QCM (${pick.size})</button>
-          <button type="button" class="btn small primary" data-carte-go${pick.size ? "" : " disabled"}>Carte mentale (${pick.size})</button>
           <button type="button" class="btn small" data-pick-cancel>Annuler</button>
+        </div>
+        <div class="prepa-box">
+          <p class="prepa-h"><b>Prépa</b></p>
+          <label class="check"><input type="checkbox" data-prepa="fiche" checked> <span>Fiche de révision</span></label>
+          <div class="prepa-qcm"><label class="check"><input type="checkbox" data-prepa="qcm" checked> <span>QCM</span></label>
+            <label class="qcm-n">Questions <select data-prepa-n>${[10, 15, 20, 30, 40].map((v) => `<option${v === 20 ? " selected" : ""}>${v}</option>`).join("")}</select></label></div>
+          <label class="check"><input type="checkbox" data-prepa="blanc"> <span>DS blanc + corrigé</span></label>
+          <div class="prepa-qcm"><label class="check"><input type="checkbox" data-prepa="plan"> <span>Plan de révision jusqu'au</span></label>
+            <input type="date" class="field prepa-date" data-prepa-fin value="${esc(nextDsDate(m))}" min="${esc(isoDay(NOW))}"></div>
+          <div class="row tight">
+            <button type="button" class="btn small primary" data-rev-go${pick.size ? "" : " disabled"}>Lancer la prépa (${pick.size})</button>
+            <button type="button" class="btn small" data-carte-go${pick.size ? "" : " disabled"}>Carte mentale (${pick.size})</button>
+          </div>
         </div>
         <p id="carte-msg" class="small muted" aria-live="polite"></p>
       </div>`
@@ -824,10 +840,11 @@ function renderFiches() {
         <div class="t">Révision pour le DS du ${esc(fmtDate(String(x.ds).slice(0, 10)))}</div>
         <div class="m">${x.qcm?.length || 0} question${(x.qcm?.length || 0) > 1 ? "s" : ""}, à partir des ${x.sources} fiche${x.sources > 1 ? "s" : ""} que tu as cochées</div>
       </button></li>`).join("")}
-      ${choixRevs(m).map((x) => `<li class="rev"><button type="button" class="item" data-open-rev-id="${esc(x.id)}">
-        <div class="t">Révision sur ${x.sources} fiche${x.sources > 1 ? "s" : ""} choisie${x.sources > 1 ? "s" : ""}</div>
-        <div class="m">${x.qcm?.length || 0} question${(x.qcm?.length || 0) > 1 ? "s" : ""}${x.cree ? `, ${esc(fmtDate(x.cree.slice(0, 10)))}` : ""}</div>
-      </button></li>`).join("")}
+      ${choixRevs(m).map((x) => `<li class="prepa-card">
+        <div class="t">Prépa sur ${x.sources} fiche${x.sources > 1 ? "s" : ""} choisie${x.sources > 1 ? "s" : ""}</div>
+        <div class="m">${x.cree ? esc(fmtDate(x.cree.slice(0, 10))) : ""}</div>
+        ${window.prepaHtml?.(null, x, 0, true) || ""}
+      </li>`).join("")}
       ${cartes.map((c) => `<li class="rev carte-item"><button type="button" class="item" data-open-carte="${esc(c.id)}">
         <div class="t">Carte mentale${c.titre && c.titre !== m ? ` : ${esc(c.titre)}` : ""}</div>
         <div class="m">${c.sources} fiche${c.sources > 1 ? "s" : ""}${c.cree ? `, ${esc(fmtDate(c.cree.slice(0, 10)))}` : ""}</div>
@@ -852,11 +869,19 @@ function renderFiches() {
   box.querySelectorAll("[data-pick]").forEach((c) => {
     c.onchange = () => { const set = cartePick.get(m); c.checked ? set.add(c.dataset.pick) : set.delete(c.dataset.pick); renderFiches(); };
   });
+  window.wirePrepa?.(box, []);
+  box.querySelectorAll(".prepa-card [data-ds-rev]").forEach((b) => { b.onclick = () => openRevision(null, b.dataset.dsRev); });
   box.querySelector("[data-rev-go]")?.addEventListener("click", async (ev) => {
     const b = ev.currentTarget, ids = [...cartePick.get(m)];
+    const bar = box.querySelector(".prepa-box"), prepa = {};
+    bar.querySelectorAll("[data-prepa]").forEach((c) => { if (c.checked) prepa[c.dataset.prepa] = true; });
+    if (!Object.keys(prepa).length) { $("#carte-msg").textContent = "Coche au moins une partie de la prépa."; return; }
+    const jusqua = bar.querySelector("[data-prepa-fin]").value;
+    if (prepa.plan && (!jusqua || jusqua <= isoDay(NOW))) { $("#carte-msg").textContent = "Pour le plan, choisis une date après aujourd'hui."; return; }
     b.disabled = true;
     try {
-      await send({ id: newId(), kind: "revision", matiere: m, fiches: ids }, new ArrayBuffer(0));
+      await send({ id: newId(), kind: "revision", matiere: m, fiches: ids, prepa, qcm_n: +bar.querySelector("[data-prepa-n]").value,
+        jusqua: prepa.plan ? jusqua : undefined, aujourdhui: isoDay(new Date()) }, new ArrayBuffer(0));
       cartePick.delete(m);
       renderFiches();
     } catch (e) { $("#carte-msg").textContent = `Échec : ${e.message}`; b.disabled = false; }

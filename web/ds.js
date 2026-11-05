@@ -47,7 +47,7 @@ function prepaHtml(e, r, i, sameSel) {
   if (!r) return "";
   const items = [];
   if (r.md) items.push(`<li class="rev"><button type="button" class="item" data-ds-rev="${esc(r.id)}">
-      <div class="t">📄 Fiche de révision${r.ds ? "" : " (toute la matière)"}</div>
+      <div class="t">📄 Fiche de révision${r.ds || r.choix ? "" : " (toute la matière)"}</div>
       <div class="m">${r.sources} fiche${r.sources > 1 ? "s" : ""}${r.ds && !sameSel ? " · ta sélection a changé depuis" : ""}</div></button></li>`);
   if (r.qcm?.length) items.push(`<li class="rev"><button type="button" class="item" data-ds-qcm="${esc(r.id)}">
       <div class="t">✅ QCM</div><div class="m">${r.qcm.length} question${r.qcm.length > 1 ? "s" : ""}</div></button></li>`);
@@ -67,7 +67,7 @@ function planHtml(e, r) {
       <ul>${(j.taches || []).map((t) => `<li>${esc(t)}</li>`).join("")}</ul></li>`;
   }).join("");
   return `<details class="ds-plan"${prepaOpen.has("plan-" + r.id) ? " open" : ""} data-open-key="plan-${esc(r.id)}">
-    <summary>🗓️ Plan de révision jusqu'au DS (${r.plan.length} séance${r.plan.length > 1 ? "s" : ""})</summary>
+    <summary>🗓️ Plan de révision ${r.ds ? "jusqu'au DS" : r.jusqua ? `jusqu'au ${esc(fmtDayLong(new Date(r.jusqua + "T12:00:00")))}` : ""} (${r.plan.length} séance${r.plan.length > 1 ? "s" : ""})</summary>
     <ol class="plan-list">${days}</ol>
     <div class="row"><button type="button" class="btn small" data-plan-memo="${esc(r.id)}">Mettre le plan dans le pense-bête</button>
       <span class="small muted" data-plan-msg="${esc(r.id)}"></span></div>
@@ -394,3 +394,6 @@ $("#add-send").onclick = async () => {
   } catch {}
   btn.disabled = false;
 };
+
+window.prepaHtml = prepaHtml;
+window.wirePrepa = wirePrepa;

@@ -291,7 +291,7 @@ def fiche_revision(client, meta, out: Path, password: str):
     fiches.sort(key=lambda f: f.get("date") or "")
     texte = "\n\n---\n\n".join(f"Cours du {f.get('date')} :\n{f['md']}" for f in fiches)
     n_qcm = max(5, min(40, int(meta.get("qcm_n") or 10)))
-    if meta.get("ds") and wanted and meta.get("prepa"):
+    if wanted and meta.get("prepa"):
         return prepa_ds(client, meta, fiches, texte, n_qcm, out, password)
     raw, model = generate(client, PROMPT_REVISION.format(matiere=matiere, fiches=texte, n_qcm=n_qcm), json_mode=True)
     data = parse_json(raw)
@@ -325,7 +325,7 @@ exercices d'application, calculs ou analyse selon la matière), sans les répons
   "corrige": "<corrigé détaillé en Markdown, exercice par exercice, avec le barème et les points à ne pas oublier>"}}
 Varie les types de questions, couvre l'ensemble des cours, n'invente pas de notion absente des cours."""
 
-PROMPT_PLAN = """Prépare un plan de révision pour le DS de « {matiere} » du {date_ds}.
+PROMPT_PLAN = """Prépare un plan de révision de « {matiere} » pour être prêt le {date_ds} (DS ou échéance).
 Jours disponibles (aujourd'hui compris) : {jours}.
 Fiches à réviser, dans l'ordre des cours :
 {titres}
@@ -344,7 +344,9 @@ def prepa_ds(client, meta, fiches, texte, n_qcm, out: Path, password: str):
     """Prépa d'un DS : fiche de révision, QCM, DS blanc + corrigé, plan jusqu'au DS (au choix)."""
     from datetime import date, timedelta
     matiere, parts = meta.get("matiere"), meta.get("prepa") or {}
-    rid = f"ds-{slug(matiere)}-{str(meta['ds'])[:10]}"
+    # prépa d'un DS (un fichier par DS), ou prépa sur des fiches choisies dans Révisions (une par demande)
+    rid = f"ds-{slug(matiere)}-{str(meta['ds'])[:10]}" if meta.get("ds") else meta["id"]
+    fin = str(meta.get("ds") or meta.get("jusqua") or "")[:10]
     path = out / "revisions" / f"{rid}.enc"
     rev = {}
     if path.exists():   # on complète la prépa existante : seules les parties demandées sont refaites
@@ -352,8 +354,12 @@ def prepa_ds(client, meta, fiches, texte, n_qcm, out: Path, password: str):
             rev = decrypt_json(path.read_text(encoding="utf-8"), password)
         except Exception:
             rev = {}
-    rev.update(id=rid, kind="revision", matiere=matiere, ds=meta["ds"], fiches=[f["id"] for f in fiches],
+    rev.update(id=rid, kind="revision", matiere=matiere, fiches=[f["id"] for f in fiches],
                sources=len(fiches), cree=datetime.now().isoformat(timespec="seconds"))
+    if meta.get("ds"):
+        rev["ds"] = meta["ds"]
+    else:
+        rev.update(choix=True, jusqua=fin or None)
     modeles = []
     if parts.get("fiche") or parts.get("qcm"):
         raw, model = generate(client, PROMPT_REVISION.format(matiere=matiere, fiches=texte, n_qcm=n_qcm), json_mode=True)
@@ -371,13 +377,13 @@ def prepa_ds(client, meta, fiches, texte, n_qcm, out: Path, password: str):
         modeles.append(model)
         rev["blanc"] = {"sujet": str(data.get("sujet") or "").strip(), "corrige": str(data.get("corrige") or "").strip(),
                         "cree": datetime.now().isoformat(timespec="seconds")}
-    if parts.get("plan"):
+    if parts.get("plan") and fin:
         start = date.fromisoformat(str(meta.get("aujourdhui") or date.today().isoformat())[:10])
-        end = date.fromisoformat(str(meta["ds"])[:10])
+        end = date.fromisoformat(fin)
         jours = [(start + timedelta(days=i)).isoformat() for i in range(max(0, (end - start).days))][:45]
         if jours:
             titres = "\n".join(f"- {f.get('titre')} ({f.get('date') or 'sans date'})" for f in fiches)
-            raw, model = generate(client, PROMPT_PLAN.format(matiere=matiere, date_ds=str(meta["ds"])[:10],
+            raw, model = generate(client, PROMPT_PLAN.format(matiere=matiere, date_ds=fin,
                                   jours=", ".join(jours), titres=titres), json_mode=True)
             data = parse_json(raw)
             modeles.append(model)
