@@ -537,3 +537,6 @@ body[data-pane]:not([data-pane="planning"]) .memo-banner { display: none !import
 .carte-src { margin-top: 12px; font-size: .9rem; }
 .add-fiche-row { margin: 0 0 12px; }
 #add-libre { margin-bottom: 8px; }
+.rappels-box { border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; margin: 4px 0 14px; }
+.rappels-box h3 { margin: 0 0 4px; font-size: .95rem; }
+.rappels-box p { margin: 6px 0 0; }

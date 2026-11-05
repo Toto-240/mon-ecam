@@ -16,6 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 import changements
+import notif
 from crypto_util import decrypt_json, encrypt_json
 
 BASE = Path(__file__).parent
@@ -96,6 +97,8 @@ def main():
     if new:
         print(f"::notice::{len(new)} changement(s) d'emploi du temps")
         changements.notify(new)
+    if not os.environ.get("RAPIDE"):
+        notif.nouveautes(prev, data)   # nouvelles notes, nouveaux devoirs (téléphone, via ntfy)
 
     shutil.rmtree(SITE, ignore_errors=True)
     shutil.copytree(WEB, SITE)

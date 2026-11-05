@@ -66,6 +66,7 @@ function recompute() {
 function rerender() {
   if (!DATA) return;
   window.renderMemos?.();
+  window.planRappels?.();
   renderPlanning();
   renderDevoirs();
   window.renderDS?.();

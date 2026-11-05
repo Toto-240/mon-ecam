@@ -23,6 +23,7 @@ import unicodedata
 from datetime import datetime
 from pathlib import Path
 
+import notif
 from crypto_util import decrypt_json, decrypt_upload, encrypt_json
 
 # Ordre de préférence ; seuls ceux que Google propose encore sont utilisés.
@@ -485,6 +486,7 @@ def main():
             print("  ok")
             summary[-1] += " ok"
             done.extend(p.names)
+            notif.pret(meta)   # notification sur le téléphone (ntfy), si configurée
         except Exception as e:
             msg = str(e)[:300]
             print(f"  échec : {type(e).__name__}")
@@ -494,10 +496,10 @@ def main():
             write(out / "erreurs" / f"{meta['id']}.enc",
                   {"id": meta["id"], "kind": "erreur", "matiere": meta.get("matiere"), "message": msg, "cmid": meta.get("cmid"),
                    "quand": datetime.now().isoformat(timespec="seconds")})
-            if meta.get("kind") == "revision" and "Aucune fiche" in msg:
-                done.extend(p.names)  # inutile de réessayer
-            if meta.get("kind") == "depot":
-                done.extend(p.names)  # un dépôt Moodle n'est jamais refait tout seul : l'étudiant relance
+            final = (meta.get("kind") == "revision" and "Aucune fiche" in msg) or meta.get("kind") == "depot"
+            if final:
+                done.extend(p.names)  # inutile de réessayer / un dépôt Moodle n'est jamais refait tout seul
+                notif.pret(meta, ok=False, erreur=msg[:160])
     # un élément réussi efface l'erreur d'un essai précédent
     for name in done:
         stem = name.split(".")[0]

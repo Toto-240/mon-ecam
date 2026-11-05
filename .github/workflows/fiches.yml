@@ -60,6 +60,7 @@ jobs:
           APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           ECAM_USER: ${{ secrets.ECAM_USER }}
           ECAM_PASSWORD: ${{ secrets.ECAM_PASSWORD }}
         run: python process_inbox.py ../inbox .

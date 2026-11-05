@@ -332,6 +332,16 @@
         <p class="muted small">Vérifiés à chaque synchro, toutes les 20 minutes (pas la nuit de 0h à 7h30). Les 60 derniers jours.</p></div>
       <button type="button" id="notif-close" class="btn small">Fermer</button>
     </div>
+    <section id="rappels-box" class="rappels-box">
+      <h3>Notifications sur le téléphone</h3>
+      <div id="rappels-native">
+        <label class="check"><input type="checkbox" id="rappels-on">
+          <span><b>Rappels sur cet iPhone</b> : DS (la veille et le matin), devoirs à rendre (la veille et 3 h avant), pense-bête du jour.</span></label>
+        <p id="rappels-state" class="small muted"></p>
+      </div>
+      <p id="rappels-web" class="small muted">Les rappels de DS, devoirs et pense-bête s'activent dans l'appli iPhone.</p>
+      <p class="small muted">Changements d'emploi du temps, nouvelles notes, nouveaux devoirs et « c'est prêt » : avec l'appli gratuite <b>ntfy</b>, abonnée à ton sujet secret.</p>
+    </section>
     <ul id="notif-list" class="list notif-list"></ul>
   </div>
 </div>
@@ -364,5 +374,6 @@
 <script src="ds.js"></script>
 <script src="notifs.js"></script>
 <script src="memos.js"></script>
+<script src="rappels.js"></script>
 </body>
 </html>
