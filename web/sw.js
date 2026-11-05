@@ -1,5 +1,5 @@
 // Garde l'interface disponible hors connexion ; les données restent en cache dans l'appli.
-const CACHE = "mon-ecam-v38";
+const CACHE = "mon-ecam-v39";
 const FILES = ["./", "index.html", "app.css", "app.js", "revisions.js", "carte.js", "perso.js", "devoirs.js", "depot.js", "ds.js", "notifs.js", "memos.js", "rappels.js", "icon.svg", "manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {
