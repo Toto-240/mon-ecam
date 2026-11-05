@@ -515,3 +515,23 @@ body[data-pane]:not([data-pane="planning"]) .memo-banner { display: none !import
 .memo-sync-state.ok { color: var(--ok, #1a7f4b); }
 .memo-sync-state.wait { color: var(--muted); }
 .memo-sync-state.bad { color: #C0392B; font-weight: 600; }
+
+/* Cartes mentales */
+.carte-pick-bar { background: color-mix(in srgb, var(--ecam) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--ecam) 35%, var(--line));
+  border-radius: 14px; padding: 10px 12px; margin: 12px 0 4px; }
+.carte-pick-bar p { margin: 0 0 6px; font-size: .92rem; }
+.carte-pick-bar .row.tight { margin-top: 6px; }
+.subject-list.pick-list li.pick { display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
+.subject-list.pick-list li.pick .item { padding: 0; flex: 1; min-width: 0; }
+.carte-tools { justify-content: space-between; margin: 8px 0; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.seg-b { border: 0; background: var(--surface); padding: 6px 12px; font-size: .85rem; cursor: pointer; }
+.seg-b[aria-pressed="true"] { background: var(--ecam); color: #fff; }
+.zoom { display: inline-flex; gap: 4px; }
+.zoom[hidden] { display: none; }
+.carte-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--bg, transparent); padding: 6px;
+  max-height: 72vh; -webkit-overflow-scrolling: touch; }
+.carte-wrap svg { display: block; }
+.carte-plan h2 { margin-top: 4px; }
+.carte-plan h3 { margin: 16px 0 4px; }
+.carte-src { margin-top: 12px; font-size: .9rem; }

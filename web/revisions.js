@@ -296,7 +296,8 @@ async function send(meta, audio, ui = "upload") {
     msg.textContent = `Envoi (${(blob.size / 1e6).toFixed(1)} Mo${blob.size > PART ? `, en ${Math.ceil(blob.size / PART)} morceaux` : ""})…`;
     await putBlob(meta.id, blob, (p) => { bar.value = p; });
     pending.add({ id: meta.id, kind: meta.kind, matiere: meta.matiere, titre: meta.titre, date: meta.date, ds: meta.ds, cmid: meta.cmid, action: meta.action, at: new Date().toISOString() });
-    msg.textContent = meta.kind === "depot" ? "Envoyé. Le dépôt sur Moodle se fait dans 1 à 3 minutes, suis-le dans À rendre."
+    msg.textContent = meta.kind === "carte" ? "Demande envoyée. La carte mentale arrive dans quelques minutes."
+      : meta.kind === "depot" ? "Envoyé. Le dépôt sur Moodle se fait dans 1 à 3 minutes, suis-le dans À rendre."
       : meta.kind === "revision" ? "Demande envoyée. La fiche de révision arrive dans quelques minutes."
       : meta.kind?.startsWith("devoir") ? "Envoyé. Le devoir fait arrive dans quelques minutes, dans la liste ci-dessous."
       : meta.kind === "notes" ? "Envoyé. La fiche arrive dans quelques minutes (onglet Révisions et sur le planning)."
@@ -667,7 +668,7 @@ function watchPending() {
 }
 
 function resolvePending() {
-  const fiches = new Set([...(DATA.fiches || []), ...(DATA.travaux || []), ...(DATA.depots || [])].map((f) => f.id));
+  const fiches = new Set([...(DATA.fiches || []), ...(DATA.travaux || []), ...(DATA.depots || []), ...(DATA.cartes || [])].map((f) => f.id));
   const errs = Object.fromEntries((DATA.erreurs || []).map((e) => [e.id, e]));
   const revs = DATA.revisions || [];
   const list = pending.all().filter((p) => {
@@ -689,7 +690,7 @@ function renderPending() {
 function renderPendingList(ul, list) {
   ul.hidden = !list.length;
   ul.innerHTML = list.map((p) => `<li class="pending${p.err ? " fail" : ""}">
-    <div class="due"><span class="t">${esc(p.kind === "revision" ? "Révision : " + p.matiere : p.titre || p.matiere || "Devoir")}</span>
+    <div class="due"><span class="t">${esc(p.kind === "revision" ? "Révision : " + p.matiere : p.kind === "carte" ? "Carte mentale : " + p.matiere : p.titre || p.matiere || "Devoir")}</span>
     <button type="button" class="btn small" data-forget="${esc(p.id)}">Retirer</button></div>
     <div class="m">${p.err ? `Échec : ${esc(p.err.message)}. Nouvel essai automatique toutes les heures.`
       : `Envoyé à ${esc(fmtTime(new Date(p.at)))}, ${p.kind?.startsWith("devoir") ? "devoir" : "fiche"} en préparation (quelques minutes).`}</div>
@@ -699,6 +700,9 @@ function renderPendingList(ul, list) {
 
 /* ---------- Fiches ---------- */
 const openSubjects = new Set();
+/* Choix des fiches pour une carte mentale : matière -> ensemble des fiches cochées */
+const cartePick = new Map();
+
 function renderFiches() {
   const by = new Map();
   (DATA.fiches || []).filter((f) => f.kind === "cours").forEach((f) => {
@@ -739,6 +743,8 @@ function renderFiches() {
   const fs = by.get(m).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
   const r = revs[m];
   const stale = r && r.sources < fs.length;
+  const pick = cartePick.get(m);
+  const cartes = (DATA.cartes || []).filter((c) => sameMatiere(c.matiere, m)).sort((a, b) => (b.cree || "").localeCompare(a.cree || ""));
   $("#rev-intro").hidden = true;
   box.innerHTML = `
     <button type="button" class="back" id="rev-back">‹ Toutes les matières</button>
@@ -746,8 +752,21 @@ function renderFiches() {
       <span class="tile-name">${esc(m)}</span>
       <span class="tile-info">${fs.length} fiche${fs.length > 1 ? "s" : ""}${r ? ", révision prête" : ""}</span>
     </div>
-    <div class="row">
-      <button type="button" class="btn small${r && !stale ? "" : " primary"}" data-rev="${esc(m)}">${r ? (stale ? "Mettre à jour la révision" : "Refaire la révision") : "Créer la fiche de révision et le QCM"}</button></div>
+    ${pick ? `<div class="carte-pick-bar">
+        <p><b>Carte mentale :</b> coche les fiches à mettre dedans <span class="muted">(${pick.size} sur ${fs.length})</span></p>
+        <div class="row tight">
+          <button type="button" class="btn small" data-pick-all>Tout cocher</button>
+          <button type="button" class="btn small" data-pick-none>Tout décocher</button>
+        </div>
+        <div class="row tight">
+          <button type="button" class="btn small primary" data-carte-go${pick.size ? "" : " disabled"}>${pick.size ? `Créer la carte mentale (${pick.size} fiche${pick.size > 1 ? "s" : ""})` : "Coche au moins une fiche"}</button>
+          <button type="button" class="btn small" data-pick-cancel>Annuler</button>
+        </div>
+        <p id="carte-msg" class="small muted" aria-live="polite"></p>
+      </div>`
+    : `<div class="row">
+      <button type="button" class="btn small${r && !stale ? "" : " primary"}" data-rev="${esc(m)}">${r ? (stale ? "Mettre à jour la révision" : "Refaire la révision") : "Créer la fiche de révision et le QCM"}</button>
+      <button type="button" class="btn small" data-pick-start>Carte mentale…</button></div>`}
     <ul class="list subject-list">
       ${r ? `<li class="rev"><button type="button" class="item" data-open-rev="${esc(m)}">
         <div class="t">Fiche de révision et QCM</div>
@@ -757,7 +776,12 @@ function renderFiches() {
         <div class="t">Révision pour le DS du ${esc(fmtDate(String(x.ds).slice(0, 10)))}</div>
         <div class="m">${x.qcm?.length || 0} question${(x.qcm?.length || 0) > 1 ? "s" : ""}, à partir des ${x.sources} fiche${x.sources > 1 ? "s" : ""} que tu as cochées</div>
       </button></li>`).join("")}
-      ${fs.map((f) => `<li><button type="button" class="item" data-open="${esc(f.id)}">
+      ${cartes.map((c) => `<li class="rev carte-item"><button type="button" class="item" data-open-carte="${esc(c.id)}">
+        <div class="t">Carte mentale${c.titre && c.titre !== m ? ` : ${esc(c.titre)}` : ""}</div>
+        <div class="m">${c.sources} fiche${c.sources > 1 ? "s" : ""}${c.cree ? `, ${esc(fmtDate(c.cree.slice(0, 10)))}` : ""}</div>
+      </button></li>`).join("")}
+      ${fs.map((f) => `<li${pick ? ` class="pick${pick.has(f.id) ? "" : " off"}"` : ""}>${pick ? `<input type="checkbox" data-pick="${esc(f.id)}"${pick.has(f.id) ? " checked" : ""}
+        aria-label="Mettre ${esc(f.titre || m)} dans la carte mentale">` : ""}<button type="button" class="item" data-open="${esc(f.id)}">
         <div class="t">${esc(f.titre || m)}</div>
         <div class="m">${f.source === "moodle" ? `D'après le support Moodle${f.date ? ", " + esc(fmtDate(f.date)) : ""}`
           : f.source === "complete" ? `Support Moodle complété par le cours du ${esc(fmtDate(f.date))}`
@@ -765,7 +789,25 @@ function renderFiches() {
           : `${esc(fmtDate(f.date))}${f.duree_min ? `, ${f.duree_min} min d'enregistrement` : ""}`}</div>
       </button></li>`).join("")}
     </ul>`;
-  $("#rev-back").onclick = () => { openSubjects.clear(); renderFiches(); };
+  box.querySelector(".subject-list").classList.toggle("pick-list", !!pick);
+  $("#rev-back").onclick = () => { openSubjects.clear(); cartePick.delete(m); renderFiches(); };
+  box.querySelectorAll("[data-open-carte]").forEach((b) => { b.onclick = () => window.openCarte?.(b.dataset.openCarte); });
+  box.querySelector("[data-pick-start]")?.addEventListener("click", () => { cartePick.set(m, new Set(fs.map((f) => f.id))); renderFiches(); });
+  box.querySelector("[data-pick-cancel]")?.addEventListener("click", () => { cartePick.delete(m); renderFiches(); });
+  box.querySelector("[data-pick-all]")?.addEventListener("click", () => { cartePick.set(m, new Set(fs.map((f) => f.id))); renderFiches(); });
+  box.querySelector("[data-pick-none]")?.addEventListener("click", () => { cartePick.set(m, new Set()); renderFiches(); });
+  box.querySelectorAll("[data-pick]").forEach((c) => {
+    c.onchange = () => { const set = cartePick.get(m); c.checked ? set.add(c.dataset.pick) : set.delete(c.dataset.pick); renderFiches(); };
+  });
+  box.querySelector("[data-carte-go]")?.addEventListener("click", async (ev) => {
+    const b = ev.currentTarget, ids = [...cartePick.get(m)];
+    b.disabled = true;
+    try {
+      await send({ id: newId(), kind: "carte", matiere: m, titre: `Carte mentale : ${m}`, fiches: ids }, new ArrayBuffer(0));
+      cartePick.delete(m);
+      renderFiches();
+    } catch (e) { $("#carte-msg").textContent = `Échec : ${e.message}`; b.disabled = false; }
+  });
   box.querySelectorAll("[data-open]").forEach((b) => { b.onclick = () => openFiche(b.dataset.open); });
   box.querySelectorAll("[data-open-rev]").forEach((b) => { b.onclick = () => openRevision(b.dataset.openRev); });
   box.querySelectorAll("[data-open-rev-id]").forEach((b) => { b.onclick = () => openRevision(null, b.dataset.openRevId); });
@@ -813,7 +855,8 @@ const gone = {
 window.applyDeleted = function (fresh = true) {
   if (!DATA) return;
   const items = [...(DATA.fiches || []).map((f) => [`fiches/${f._fichier}`, f]),
-    ...(DATA.revisions || []).map((r) => [`revisions/${r._fichier}`, r])];
+    ...(DATA.revisions || []).map((r) => [`revisions/${r._fichier}`, r]),
+    ...(DATA.cartes || []).map((c) => [`cartes/${c._fichier}`, c])];
   const byPath = new Map(items);
   const made = (x) => new Date(x.maj || x.cree || 0);
   let list = gone.all();
@@ -825,6 +868,7 @@ window.applyDeleted = function (fresh = true) {
   const hide = new Set(list.filter((g) => !(byPath.get(g.path) && made(byPath.get(g.path)) > new Date(g.at))).map((g) => g.path));
   DATA.fiches = (DATA.fiches || []).filter((f) => !hide.has(`fiches/${f._fichier}`));
   DATA.revisions = (DATA.revisions || []).filter((r) => !hide.has(`revisions/${r._fichier}`));
+  DATA.cartes = (DATA.cartes || []).filter((c) => !hide.has(`cartes/${c._fichier}`));
 };
 
 function deleteZone(label, what) {

@@ -96,6 +96,22 @@ Réécris la fiche COMPLÈTE en Markdown, en gardant sa structure (# titre, **En
 Règles : n'invente rien, ignore les bavardages, garde les termes techniques exacts.
 Réponds uniquement avec la fiche."""
 
+PROMPT_CARTE = """Tu prépares une carte mentale pour réviser la matière « {matiere} »,
+à partir des fiches de cours ci-dessous (de la plus ancienne à la plus récente) :
+
+{fiches}
+
+Réponds UNIQUEMENT avec un objet JSON de cette forme :
+{{"titre": "<sujet central, 2 à 6 mots>",
+  "branches": [
+    {{"titre": "<grande notion>", "enfants": [
+      {{"titre": "<idée>", "enfants": [{{"titre": "<détail, exemple, formule ou définition courte>"}}]}}
+    ]}}
+  ]}}
+Règles : 4 à 8 branches ; 2 à 6 enfants par nœud ; au plus 3 niveaux sous le centre ;
+chaque titre fait au plus 10 mots (style télégraphique, pas de phrases) ; formules courtes en texte
+(ex. « U = R × I ») ; n'invente rien qui ne soit pas dans les fiches ; couvre toutes les fiches."""
+
 PROMPT_REVISION = """Tu prépares les révisions d'un étudiant pour la matière « {matiere} ».
 Voici ses fiches de cours, de la plus ancienne à la plus récente :
 
@@ -289,6 +305,44 @@ def fiche_revision(client, meta, out: Path, password: str):
     write(out / "revisions" / f"{slug(matiere)}.enc", rev)
 
 
+def _clean_node(n, depth=0):
+    """Nettoie l'arbre renvoyé par l'IA (titres courts, profondeur et largeur limitées)."""
+    if not isinstance(n, dict):
+        n = {"titre": str(n)}
+    out = {"titre": str(n.get("titre") or "").strip()[:120]}
+    kids = n.get("enfants") or n.get("branches") or []
+    if depth < 4 and isinstance(kids, list):
+        out["enfants"] = [_clean_node(k, depth + 1) for k in kids[:10] if k][:10]
+        out["enfants"] = [k for k in out["enfants"] if k["titre"]]
+    return out
+
+
+def carte_mentale(client, meta, out: Path, password: str):
+    wanted = set(meta.get("fiches") or [])
+    fiches = []
+    for p in sorted((out / "fiches").glob("*.enc")):
+        try:
+            f = decrypt_json(p.read_text(encoding="utf-8"), password)
+        except Exception:
+            continue
+        if f.get("kind") == "cours" and f.get("id") in wanted:
+            fiches.append(f)
+    if not fiches:
+        raise RuntimeError("Aucune des fiches choisies n'a été trouvée")
+    fiches.sort(key=lambda f: f.get("date") or "")
+    texte = "\n\n---\n\n".join(f"Fiche « {f.get('titre')} » :\n{f['md']}" for f in fiches)
+    raw, model = generate(client, PROMPT_CARTE.format(matiere=meta.get("matiere"), fiches=texte[:300000]), json_mode=True)
+    data = parse_json(raw)
+    racine = _clean_node({"titre": data.get("titre") or meta.get("matiere"), "enfants": data.get("branches") or []})
+    if not racine.get("enfants"):
+        raise RuntimeError("carte mentale vide, réessaie")
+    write(out / "cartes" / f"{meta['id']}.enc", {
+        "id": meta["id"], "kind": "carte", "matiere": meta.get("matiere"), "titre": racine["titre"],
+        "carte": racine, "fiches": [f["id"] for f in fiches], "sources": len(fiches),
+        "noms": [f.get("titre") for f in fiches], "modele": model,
+        "cree": datetime.now().isoformat(timespec="seconds")})
+
+
 PROMPT_NOTES = """Tu es un assistant pour un étudiant en Bachelor cybersécurité à l'ECAM LaSalle (Lyon).
 Voici ce que l'étudiant a gardé du cours de « {matiere} » du {date} : ses notes, des photos
 (tableau, cahier, diapos) et/ou des documents. Rédige une fiche de cours en français, en Markdown :
@@ -402,9 +456,11 @@ def main():
         summary.append(meta.get("kind") or "cours")
         try:
             client = client or gemini()
-            if meta.get("kind") not in ("revision", "notes", "depot"):
+            if meta.get("kind") not in ("revision", "notes", "depot", "carte"):
                 ensure_tools()   # enregistrements (ffmpeg) et devoirs (PDF)
-            if meta.get("kind") == "revision":
+            if meta.get("kind") == "carte":
+                carte_mentale(client, meta, out, password)
+            elif meta.get("kind") == "revision":
                 fiche_revision(client, meta, out, password)
             elif meta.get("kind") == "notes":
                 fiche_notes(client, meta, audio, out)
