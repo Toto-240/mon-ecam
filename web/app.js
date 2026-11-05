@@ -2,7 +2,9 @@
 
 const $ = (s) => document.querySelector(s);
 const params = new URLSearchParams(location.search);
-const NOW = params.get("now") ? new Date(params.get("now")) : new Date(); // ?now= pour tester
+// heure « maintenant », remise à jour à chaque affichage (l'appli peut rester ouverte des jours) ; ?now= pour tester
+let NOW = params.get("now") ? new Date(params.get("now")) : new Date();
+const tickNow = () => { if (!params.get("now")) NOW = new Date(); };
 
 const JOURS = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."];
 const fmtTime = (d) => d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
@@ -346,6 +348,7 @@ function renderCours() {
 
 /* ---------- Données ---------- */
 function renderAll() {
+  tickNow();
   window.persoInit?.();
   $("#today").textContent = fmtDayLong(NOW);
   const maj = DATA.maj ? new Date(DATA.maj) : null;
@@ -512,7 +515,17 @@ async function checkVersion() {
   } catch {}
 }
 checkVersion();
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkVersion(); });
+let lastShown = Date.now();
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  checkVersion();
+  // retour dans l'appli : tout est recalculé avec l'heure actuelle, et les données rechargées si besoin
+  if (DATA) renderAll();
+  if (Date.now() - lastShown > 10 * 60e3) load();
+  lastShown = Date.now();
+});
+// l'appli ouverte reste à l'heure (prochain cours, matière proposée…)
+setInterval(() => { if (DATA && document.visibilityState === "visible" && !params.get("now")) renderAll(); }, 5 * 60e3);
 
 fetch("config.json", { cache: "no-store" }).then((r) => r.json()).then((c) => {
   if (!c.repo) return;

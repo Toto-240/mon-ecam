@@ -136,20 +136,33 @@ function matieres() {
   return [...set].filter(Boolean).sort((a, b) => a.localeCompare(b, "fr"));
 }
 
+/* Matière d'après l'emploi du temps : le cours en ce moment, sinon celui qui commence dans
+   les 20 min, sinon celui qui vient de finir (moins de 3 h) */
 function guessMatiere() {
-  const now = NOW, evs = events().filter((e) => e.type !== "Événement");
+  const now = NOW, evs = events().filter((e) => e.type !== "Événement" && !e.perso);
   const cur = evs.find((e) => e.d0 <= now && now < e.d1);
   if (cur) return cur.matiere;
+  const soon = evs.find((e) => e.d0 > now && e.d0 - now <= 20 * 60e3);
+  if (soon) return soon.matiere;
   const ended = evs.filter((e) => e.d1 <= now && now - e.d1 < 3 * 3600e3).pop();
   return ended?.matiere || "";
 }
 
+/* Si tu as changé toi-même la matière, la date ou le cours, ton choix est gardé 2 h (le jour même) ;
+   sinon tout suit l'emploi du temps à chaque affichage */
+let recManual = 0;
+const recIsManual = () => recManual && Date.now() - recManual < 2 * 3600e3 && new Date(recManual).toDateString() === new Date().toDateString();
+["#f-matiere", "#f-date", "#f-creneau", "#f-support"].forEach((id) =>
+  document.querySelector(id)?.addEventListener("change", () => { recManual = Date.now(); }));
+
 function fillForm(force) {
   const sel = $("#f-matiere");
-  const keep = force || sel.value || guessMatiere();
+  const manual = recIsManual();
+  const keep = force || (manual ? sel.value : guessMatiere() || sel.value);
   sel.innerHTML = `<option value="">Choisis la matière</option>` +
     matieres().map((m) => `<option${m === keep ? " selected" : ""}>${esc(m)}</option>`).join("");
-  if (!$("#f-date").value) $("#f-date").value = todayIso();
+  if (!$("#f-date").value || !manual) $("#f-date").value = todayIso();
+  if (!manual) { $("#f-creneau").value = ""; $("#f-support").value = ""; }
   fillLinks(sel.value, $("#f-date").value);
 }
 
@@ -173,7 +186,8 @@ function fillLinks(matiere, date) {
   const slots = slotsFor(matiere, date);
   const cs = $("#f-creneau"), keepSlot = cs.value;
   // par défaut : le cours en ce moment (ou qui vient de finir), sinon le seul cours de la matière ce jour-là
-  const auto = slots.find((e) => e.d0 <= NOW && NOW < e.d1) || slots.filter((e) => e.d1 <= NOW && NOW - e.d1 < 3 * 3600e3).pop()
+  const auto = slots.find((e) => e.d0 <= NOW && NOW < e.d1) || slots.find((e) => e.d0 > NOW && e.d0 - NOW <= 20 * 60e3)
+    || slots.filter((e) => e.d1 <= NOW && NOW - e.d1 < 3 * 3600e3).pop()
     || (slots.filter((e) => sameMatiere(e.matiere, matiere)).length === 1 ? slots.find((e) => sameMatiere(e.matiere, matiere)) : null);
   const pick = slots.some((e) => e.debut === keepSlot) ? keepSlot : auto?.debut || "";
   cs.innerHTML = `<option value="">${slots.length ? "Aucun" : "Aucun cours ce jour-là"}</option>` + slots.map((e) =>
@@ -196,7 +210,9 @@ function updateRecHero() {
   const slot = events().find((e) => e.debut === $("#f-creneau").value);
   const sup = $("#f-support").selectedOptions[0];
   const live = slot && slot.d0 <= NOW && NOW < slot.d1;
-  $("#rec-hero-kicker").textContent = live ? "Cours en ce moment" : slot ? "Cours choisi" : "Prêt à enregistrer";
+  const mins = slot ? Math.round((slot.d0 - NOW) / 60e3) : 0;
+  $("#rec-hero-kicker").textContent = live ? "Cours en ce moment" : slot && mins > 0 && mins <= 20 ? `Commence dans ${mins} min`
+    : slot ? "Cours choisi" : "Prêt à enregistrer";
   $("#rec-hero-title").textContent = m || "Choisis la matière";
   $("#rec-hero-sub").textContent = slot
     ? `${slot.type} · ${fmtTime(slot.d0)}–${fmtTime(slot.d1)}${slot.salle ? ` · salle ${slot.salle}` : ""}${slot.prof ? ` · ${slot.prof}` : ""}`
