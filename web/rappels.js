@@ -95,22 +95,6 @@ window.planRappels = () => {
     return;
   }
   box.querySelector("#rappels-web").hidden = true;
-  // faux rappel 10 s plus tard : le temps de verrouiller l'écran pour voir
-  $("#rappels-test").onclick = async () => {
-    try {
-      let perm = await LNotif.checkPermissions();
-      if (perm.display !== "granted") perm = await LNotif.requestPermissions();
-      if (perm.display !== "granted") {
-        rappelsState("Notifications refusées : active-les dans Réglages > Notifications > Mon ECAM.");
-        return;
-      }
-      await LNotif.schedule({ notifications: [{ id: 1999, title: "DS demain : Mathématiques (test)",
-        body: "Ceci est un faux rappel Mon ECAM pour essayer. Tout fonctionne !", schedule: { at: new Date(Date.now() + 10e3) } }] });
-      rappelsState("Faux rappel dans 10 secondes : verrouille l'écran pour le voir.");
-    } catch (e) {
-      rappelsState(`Test impossible : ${e.message || e}`);
-    }
-  };
   const cb = $("#rappels-on");
   cb.checked = rappelsOn();
   cb.onchange = () => {
