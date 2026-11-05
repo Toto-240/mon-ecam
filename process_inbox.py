@@ -125,7 +125,7 @@ Réponds UNIQUEMENT avec un objet JSON de cette forme :
     {{"question": "...", "choix": ["...", "...", "...", "..."], "bonne": 0, "explication": "..."}}
   ]
 }}
-Le QCM contient 10 questions qui couvrent tous les cours, 4 choix chacune, "bonne" est l'index (0 à 3)
+Le QCM contient {n_qcm} questions qui couvrent tous les cours, 4 choix chacune, "bonne" est l'index (0 à 3)
 de la bonne réponse, et les mauvaises réponses doivent être plausibles. Tout en français."""
 
 
@@ -290,7 +290,10 @@ def fiche_revision(client, meta, out: Path, password: str):
         raise RuntimeError("Aucune fiche de cours pour cette matière" if not wanted else "Aucune des fiches choisies n'a été trouvée")
     fiches.sort(key=lambda f: f.get("date") or "")
     texte = "\n\n---\n\n".join(f"Cours du {f.get('date')} :\n{f['md']}" for f in fiches)
-    raw, model = generate(client, PROMPT_REVISION.format(matiere=matiere, fiches=texte), json_mode=True)
+    n_qcm = max(5, min(40, int(meta.get("qcm_n") or 10)))
+    if meta.get("ds") and wanted and meta.get("prepa"):
+        return prepa_ds(client, meta, fiches, texte, n_qcm, out, password)
+    raw, model = generate(client, PROMPT_REVISION.format(matiere=matiere, fiches=texte, n_qcm=n_qcm), json_mode=True)
     data = parse_json(raw)
     qcm = [q for q in data.get("qcm", []) if isinstance(q, dict) and len(q.get("choix", [])) >= 2
            and isinstance(q.get("bonne"), int) and 0 <= q["bonne"] < len(q["choix"])]
@@ -309,6 +312,86 @@ def fiche_revision(client, meta, out: Path, password: str):
         write(out / "revisions" / f"{rev['id']}.enc", rev)
         return
     write(out / "revisions" / f"{slug(matiere)}.enc", rev)
+
+
+PROMPT_BLANC = """Tu es professeur à l'ECAM LaSalle (Bachelor cybersécurité). Rédige un DS blanc de « {matiere} »
+d'environ {duree}, du niveau d'un vrai DS, à partir UNIQUEMENT des cours ci-dessous :
+
+{fiches}
+
+Réponds UNIQUEMENT avec un objet JSON :
+{{"sujet": "<énoncé en Markdown : # titre, durée, barème sur 20, exercices numérotés (questions de cours,
+exercices d'application, calculs ou analyse selon la matière), sans les réponses>",
+  "corrige": "<corrigé détaillé en Markdown, exercice par exercice, avec le barème et les points à ne pas oublier>"}}
+Varie les types de questions, couvre l'ensemble des cours, n'invente pas de notion absente des cours."""
+
+PROMPT_PLAN = """Prépare un plan de révision pour le DS de « {matiere} » du {date_ds}.
+Jours disponibles (aujourd'hui compris) : {jours}.
+Fiches à réviser, dans l'ordre des cours :
+{titres}
+
+Réponds UNIQUEMENT avec un objet JSON :
+{{"jours": [{{"date": "AAAA-MM-JJ", "titre": "<objectif du jour, 3 à 8 mots>",
+  "taches": ["<tâche concrète : relire telle fiche, refaire tel type d'exercice, faire le QCM, faire le DS blanc…>"],
+  "minutes": <durée conseillée>}}]}}
+Règles : uniquement des dates de la liste ; répartis les fiches de façon équilibrée (pas tout la veille) ;
+prévois au moins une séance avec le QCM, une avec le DS blanc en conditions réelles puis sa correction,
+et la veille une révision légère des points clés. 2 à 4 tâches par jour, 30 à 90 minutes.
+Si peu de jours, regroupe ; s'il y en a beaucoup, laisse des jours libres (ne les mets pas)."""
+
+
+def prepa_ds(client, meta, fiches, texte, n_qcm, out: Path, password: str):
+    """Prépa d'un DS : fiche de révision, QCM, DS blanc + corrigé, plan jusqu'au DS (au choix)."""
+    from datetime import date, timedelta
+    matiere, parts = meta.get("matiere"), meta.get("prepa") or {}
+    rid = f"ds-{slug(matiere)}-{str(meta['ds'])[:10]}"
+    path = out / "revisions" / f"{rid}.enc"
+    rev = {}
+    if path.exists():   # on complète la prépa existante : seules les parties demandées sont refaites
+        try:
+            rev = decrypt_json(path.read_text(encoding="utf-8"), password)
+        except Exception:
+            rev = {}
+    rev.update(id=rid, kind="revision", matiere=matiere, ds=meta["ds"], fiches=[f["id"] for f in fiches],
+               sources=len(fiches), cree=datetime.now().isoformat(timespec="seconds"))
+    modeles = []
+    if parts.get("fiche") or parts.get("qcm"):
+        raw, model = generate(client, PROMPT_REVISION.format(matiere=matiere, fiches=texte, n_qcm=n_qcm), json_mode=True)
+        data = parse_json(raw)
+        modeles.append(model)
+        if parts.get("fiche"):
+            rev["md"] = data.get("fiche", "").strip()
+        if parts.get("qcm"):
+            rev["qcm"] = [q for q in data.get("qcm", []) if isinstance(q, dict) and len(q.get("choix", [])) >= 2
+                          and isinstance(q.get("bonne"), int) and 0 <= q["bonne"] < len(q["choix"])]
+    if parts.get("blanc"):
+        raw, model = generate(client, PROMPT_BLANC.format(matiere=matiere, fiches=texte[:300000],
+                              duree=meta.get("duree") or "1 h 30"), json_mode=True, strong=True)
+        data = parse_json(raw)
+        modeles.append(model)
+        rev["blanc"] = {"sujet": str(data.get("sujet") or "").strip(), "corrige": str(data.get("corrige") or "").strip(),
+                        "cree": datetime.now().isoformat(timespec="seconds")}
+    if parts.get("plan"):
+        start = date.fromisoformat(str(meta.get("aujourdhui") or date.today().isoformat())[:10])
+        end = date.fromisoformat(str(meta["ds"])[:10])
+        jours = [(start + timedelta(days=i)).isoformat() for i in range(max(0, (end - start).days))][:45]
+        if jours:
+            titres = "\n".join(f"- {f.get('titre')} ({f.get('date') or 'sans date'})" for f in fiches)
+            raw, model = generate(client, PROMPT_PLAN.format(matiere=matiere, date_ds=str(meta["ds"])[:10],
+                                  jours=", ".join(jours), titres=titres), json_mode=True)
+            data = parse_json(raw)
+            modeles.append(model)
+            ok = set(jours)
+            plan = [{"date": j.get("date"), "titre": str(j.get("titre") or "")[:80],
+                     "taches": [str(t)[:200] for t in (j.get("taches") or [])][:6], "minutes": j.get("minutes")}
+                    for j in data.get("jours") or [] if isinstance(j, dict) and j.get("date") in ok]
+            rev["plan"] = sorted(plan, key=lambda j: j["date"])
+        else:
+            rev["plan"] = []
+    rev["modele"] = ", ".join(sorted(set(modeles))) or rev.get("modele")
+    rev.setdefault("qcm", [])
+    rev.setdefault("md", "")
+    write(path, rev)
 
 
 def _clean_node(n, depth=0):

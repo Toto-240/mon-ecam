@@ -15,6 +15,7 @@ on:
         default: false
   push:
     branches: [main]
+    paths-ignore: ["cloud/**"]   # un fichier ajouté au Cloud ne change rien à publier
 
 permissions:
   contents: read

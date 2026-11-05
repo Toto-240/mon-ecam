@@ -40,6 +40,106 @@ function renderFinis(list) {
   box.querySelectorAll("[data-ds-refaire]").forEach((b) => { b.onclick = () => window.setDsFini?.(b.dataset.dsRefaire, false); });
 }
 
+/* ---------- Prépa DS : fiche, QCM, DS blanc + corrigé, plan de révision ---------- */
+const prepaOpen = new Set();
+
+function prepaHtml(e, r, i, sameSel) {
+  if (!r) return "";
+  const items = [];
+  if (r.md) items.push(`<li class="rev"><button type="button" class="item" data-ds-rev="${esc(r.id)}">
+      <div class="t">📄 Fiche de révision${r.ds ? "" : " (toute la matière)"}</div>
+      <div class="m">${r.sources} fiche${r.sources > 1 ? "s" : ""}${r.ds && !sameSel ? " · ta sélection a changé depuis" : ""}</div></button></li>`);
+  if (r.qcm?.length) items.push(`<li class="rev"><button type="button" class="item" data-ds-qcm="${esc(r.id)}">
+      <div class="t">✅ QCM</div><div class="m">${r.qcm.length} question${r.qcm.length > 1 ? "s" : ""}</div></button></li>`);
+  if (r.blanc?.sujet) items.push(`<li class="rev"><button type="button" class="item" data-ds-blanc="${esc(r.id)}">
+      <div class="t">📝 DS blanc + corrigé</div><div class="m">Fais-le en conditions réelles, puis ouvre le corrigé</div></button></li>`);
+  const plan = r.plan?.length ? planHtml(e, r) : "";
+  return (items.length ? `<ul class="list ds-rev">${items.join("")}</ul>` : "") + plan;
+}
+
+function planHtml(e, r) {
+  const today = dayIso(NOW);
+  const days = r.plan.map((j) => {
+    const d = new Date(`${j.date}T12:00:00`), past = j.date < today;
+    return `<li class="plan-day${j.date === today ? " today" : ""}${past ? " past" : ""}">
+      <div class="plan-date">${esc(j.date === today ? "Aujourd'hui" : fmtDayLong(d))}${j.minutes ? ` · ${esc(j.minutes)} min` : ""}</div>
+      <div class="t">${esc(j.titre || "")}</div>
+      <ul>${(j.taches || []).map((t) => `<li>${esc(t)}</li>`).join("")}</ul></li>`;
+  }).join("");
+  return `<details class="ds-plan"${prepaOpen.has("plan-" + r.id) ? " open" : ""} data-open-key="plan-${esc(r.id)}">
+    <summary>🗓️ Plan de révision jusqu'au DS (${r.plan.length} séance${r.plan.length > 1 ? "s" : ""})</summary>
+    <ol class="plan-list">${days}</ol>
+    <div class="row"><button type="button" class="btn small" data-plan-memo="${esc(r.id)}">Mettre le plan dans le pense-bête</button>
+      <span class="small muted" data-plan-msg="${esc(r.id)}"></span></div>
+  </details>`;
+}
+
+function prepaForm(e, i, n, r) {
+  const has = (k) => k === "fiche" ? !!r?.md && !!r?.ds : k === "qcm" ? !!r?.qcm?.length && !!r?.ds : k === "blanc" ? !!r?.blanc : !!r?.plan;
+  const opt = (k, label) => `<label class="check"><input type="checkbox" data-prepa="${k}"${has(k) ? "" : " checked"}> <span>${label}${has(k) ? ' <em class="muted">(déjà fait, coche pour refaire)</em>' : ""}</span></label>`;
+  const ds = new Date(e.d0);
+  return `<details class="ds-prepa"${prepaOpen.has("form-" + i) || !r?.ds ? " open" : ""} data-open-key="form-${i}">
+    <summary><b>Prépa DS</b> <span class="muted">avec les ${n} fiche${n > 1 ? "s" : ""} cochée${n > 1 ? "s" : ""}</span></summary>
+    ${opt("fiche", "Fiche de révision")}
+    <div class="prepa-qcm">${opt("qcm", "QCM")}
+      <label class="qcm-n">Questions <select data-prepa-n>${[10, 15, 20, 30, 40].map((v) => `<option${v === 20 ? " selected" : ""}>${v}</option>`).join("")}</select></label></div>
+    ${opt("blanc", "DS blanc + corrigé")}
+    ${opt("plan", `Plan de révision jusqu'au ${esc(fmtDayLong(ds))}`)}
+    <div class="row"><button type="button" class="btn small primary" data-ds-make="${i}"${n ? "" : " disabled"}>${n ? "Lancer la prépa" : "Coche au moins une fiche"}</button></div>
+  </details>`;
+}
+
+function wirePrepa(box, exams) {
+  box.querySelectorAll("details[data-open-key]").forEach((d) => {
+    d.addEventListener("toggle", () => { d.open ? prepaOpen.add(d.dataset.openKey) : prepaOpen.delete(d.dataset.openKey); });
+  });
+  box.querySelectorAll("[data-ds-qcm]").forEach((b) => { b.onclick = () => openRevision(null, b.dataset.dsQcm, "qcm"); });
+  box.querySelectorAll("[data-ds-blanc]").forEach((b) => { b.onclick = () => openBlanc(b.dataset.dsBlanc); });
+  box.querySelectorAll("[data-plan-memo]").forEach((b) => {
+    b.onclick = () => {
+      const r = (DATA.revisions || []).find((x) => x.id === b.dataset.planMemo);
+      if (!r?.plan) return;
+      const today = dayIso(NOW), have = new Set((window.persoMemos?.() || []).map((m) => m.id));
+      let n = 0;
+      for (const j of r.plan) {
+        const id = `plan-${r.id}-${j.date}`;
+        if (j.date < today || have.has(id)) continue;
+        window.saveMemo({ id, texte: `Révision ${r.matiere} : ${j.titre}${j.taches?.length ? "\n" + j.taches.join(" · ") : ""}`,
+          pour: j.date, fait: null, cree: new Date().toISOString() });
+        n++;
+      }
+      box.querySelector(`[data-plan-msg="${CSS.escape(r.id)}"]`).textContent = n ? `${n} séance${n > 1 ? "s" : ""} ajoutée${n > 1 ? "s" : ""} au pense-bête.` : "Déjà dans le pense-bête.";
+    };
+  });
+  box.querySelectorAll("[data-ds-make]").forEach((b) => {
+    b.onclick = async () => {
+      const e = exams[+b.dataset.dsMake];
+      const form = b.closest("details");
+      const prepa = {};
+      form.querySelectorAll("[data-prepa]").forEach((c) => { if (c.checked) prepa[c.dataset.prepa] = true; });
+      if (!Object.keys(prepa).length) { b.textContent = "Coche au moins une partie"; return; }
+      const m = (DATA.fiches || []).find((f) => norm(f.matiere) === norm(e.matiere))?.matiere || e.matiere;
+      b.disabled = true;
+      b.textContent = "Demande envoyée, prépa en cours…";
+      try {
+        await send({ id: newId(), kind: "revision", matiere: m, ds: e.debut, fiches: e.chosen, prepa,
+          qcm_n: +form.querySelector("[data-prepa-n]").value, aujourdhui: dayIso(new Date()) }, new ArrayBuffer(0), "add");
+      } catch { b.disabled = false; b.textContent = "Réessayer"; }
+    };
+  });
+}
+
+/* DS blanc : le sujet, puis le corrigé sur demande */
+function openBlanc(id) {
+  const r = (DATA.revisions || []).find((x) => x.id === id);
+  if (!r?.blanc) return;
+  openReader(`DS blanc : ${r.matiere}`, `<p class="meta">À faire sans tes fiches, en temps limité. Le corrigé est en bas.</p>
+    ${md(r.blanc.sujet)}
+    <div class="row"><button type="button" class="btn primary" id="blanc-show">Voir le corrigé</button></div>
+    <section id="blanc-corrige" class="blanc-corrige" hidden>${md(r.blanc.corrige)}</section>`);
+  $("#blanc-show").onclick = () => { $("#blanc-corrige").hidden = false; $("#blanc-show").hidden = true; $("#blanc-corrige").scrollIntoView({ behavior: "smooth" }); };
+}
+
 window.renderDS = function () {
   const all = upcomingExams();
   const fini = (e) => window.dsFini?.(dsKey(e));
@@ -84,9 +184,7 @@ window.renderDS = function () {
       ${e.persoNotes ? `<h4>Tes notes</h4><p class="ds-notes">${esc(e.persoNotes)}</p>` : ""}
       ${said.length ? `<h4>Ce que le prof a dit</h4><ul class="said">${said.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>` : ""}
       ${fs.length ? `
-      ${r ? `<ul class="list ds-rev"><li class="rev"><button type="button" class="item" data-ds-rev="${esc(r.id)}">
-          <div class="t">Fiche de révision et QCM${r.ds ? "" : " (toute la matière)"}</div>
-          <div class="m">${r.qcm?.length || 0} question${(r.qcm?.length || 0) > 1 ? "s" : ""}, ${r.sources} fiche${r.sources > 1 ? "s" : ""}${r.ds && !sameSel ? " · ta sélection a changé depuis" : ""}</div></button></li></ul>` : ""}
+      ${prepaHtml(e, r, i, sameSel)}
       <details class="ds-pick"${dsOpen.has(key) ? " open" : ""} data-key="${esc(key)}">
         <summary><b>Fiches à réviser</b> <span class="muted">${chosen.length} sur ${fs.length}</span></summary>
         <p class="muted small">Décoche les fiches que tu n'as pas à apprendre pour ce DS. La révision et le QCM seront faits avec celles cochées.</p>
@@ -104,12 +202,7 @@ window.renderDS = function () {
           </li>`).join("")}
         </ul>
       </details>
-      <div class="row">
-        <button type="button" class="btn small${r && !stale ? "" : " primary"}" data-ds-make="${i}"${chosen.length ? "" : " disabled"}>${
-          !chosen.length ? "Coche au moins une fiche"
-          : r?.ds ? (sameSel ? "Refaire la révision et le QCM" : `Mettre à jour avec les ${chosen.length} fiches cochées`)
-          : `Créer la révision et le QCM (${chosen.length} fiche${chosen.length > 1 ? "s" : ""})`}</button>
-      </div>`
+      ${prepaForm(e, i, chosen.length, r)}`
       : `<p class="muted small">Pas encore de fiche pour cette matière. Ajoute-en depuis le planning (bouton « + Ajouter une fiche » sous chaque cours) ou enregistre le prochain cours.</p>`}
       <div class="row ds-perso">
         <button type="button" class="btn small fait-btn" data-ds-fini="${esc(dsKey(e))}">✓ DS terminé</button>
@@ -149,16 +242,7 @@ window.renderDS = function () {
     b.onclick = () => { const e = exams[+b.dataset.selAll]; setSel(e, (DATA.fiches || []).map((f) => f.id)); };
   });
   box.querySelectorAll("[data-sel-none]").forEach((b) => { b.onclick = () => setSel(exams[+b.dataset.selNone], []); });
-  box.querySelectorAll("[data-ds-make]").forEach((b) => {
-    b.onclick = async () => {
-      const e = exams[+b.dataset.dsMake];
-      const m = (DATA.fiches || []).find((f) => norm(f.matiere) === norm(e.matiere))?.matiere || e.matiere;
-      b.disabled = true;
-      b.textContent = "Demande envoyée, révision en préparation…";
-      try { await send({ id: newId(), kind: "revision", matiere: m, ds: e.debut, fiches: e.chosen }, new ArrayBuffer(0), "add"); }
-      catch { b.disabled = false; b.textContent = "Réessayer"; }
-    };
-  });
+  wirePrepa(box, exams);
 };
 
 /* ---------- Ajouter un DS annoncé à l'oral ---------- */

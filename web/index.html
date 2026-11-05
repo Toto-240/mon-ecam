@@ -114,6 +114,26 @@
   <ul id="notes" class="list"></ul>
 </main>
 
+<main id="pane-cloud" class="pane" hidden>
+  <h2>Cloud</h2>
+  <p class="muted small">Tes fichiers (Word, PDF, images…), chiffrés sur ton GitHub : les mêmes sur ton PC et ton téléphone.</p>
+  <div class="card cloud-up">
+    <label for="cloud-dossier">Dossier</label>
+    <input id="cloud-dossier" class="field" list="cloud-dossiers" placeholder="Divers (ou une matière)">
+    <datalist id="cloud-dossiers"></datalist>
+    <div class="row tight">
+      <label class="btn primary" for="cloud-file">+ Ajouter des fichiers</label>
+      <label class="btn" for="cloud-photo">Prendre en photo</label>
+    </div>
+    <input id="cloud-file" type="file" multiple hidden>
+    <input id="cloud-photo" type="file" accept="image/*" capture="environment" hidden>
+    <p id="cloud-msg" class="small muted" aria-live="polite"></p>
+    <progress id="cloud-bar" max="1" value="0" hidden></progress>
+  </div>
+  <input id="cloud-filtre" class="field" type="search" placeholder="Chercher un fichier" aria-label="Chercher un fichier">
+  <div id="cloud-list"></div>
+</main>
+
 <main id="pane-cours" class="pane" hidden>
   <h2>Cours Moodle</h2>
   <input id="filtre" class="field" type="search" placeholder="Chercher un cours" aria-label="Chercher un cours">
@@ -238,6 +258,9 @@
   </button>
   <button type="button" data-pane="notes">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Notes</span>
+  </button>
+  <button type="button" data-pane="cloud">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.1 9.2 4.5 4.5 0 0 0 7 18z"/></svg><span>Cloud</span>
   </button>
   <button type="button" data-pane="cours">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5M8 7h7"/></svg><span>Cours</span>
@@ -375,5 +398,6 @@
 <script src="notifs.js"></script>
 <script src="memos.js"></script>
 <script src="rappels.js"></script>
+<script src="cloud.js"></script>
 </body>
 </html>

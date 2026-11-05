@@ -7,7 +7,7 @@
 const PERSO_PATH = "/contents/perso/etat.enc";
 const PERSO_BASE = "ecam-perso-base";     // dernier état connu de GitHub
 const PERSO_PENDING = "ecam-perso-ops";   // changements pas encore envoyés
-const emptyPerso = () => ({ faits: {}, ds: [], dsSel: {}, dsFinis: {}, devoirs: [], memos: [], maj: "" });
+const emptyPerso = () => ({ faits: {}, ds: [], dsSel: {}, dsFinis: {}, devoirs: [], memos: [], cloud: [], maj: "" });
 
 const persoStore = {
   get(k, def) { try { return JSON.parse(store.get(k)) ?? def; } catch { return def; } },
@@ -16,11 +16,16 @@ const persoStore = {
 
 /* Un changement = une petite opération, rejouée sur la version de GitHub au moment d'envoyer */
 function applyOp(s, op) {
-  s = { ...emptyPerso(), ...s, faits: { ...(s?.faits || {}) }, ds: [...(s?.ds || [])], dsSel: { ...(s?.dsSel || {}) }, dsFinis: { ...(s?.dsFinis || {}) }, devoirs: [...(s?.devoirs || [])], memos: [...(s?.memos || [])] };
+  s = { ...emptyPerso(), ...s, faits: { ...(s?.faits || {}) }, ds: [...(s?.ds || [])], dsSel: { ...(s?.dsSel || {}) }, dsFinis: { ...(s?.dsFinis || {}) }, devoirs: [...(s?.devoirs || [])], memos: [...(s?.memos || [])], cloud: [...(s?.cloud || [])] };
   if (op.op === "fait") {
     if (op.val) s.faits[op.key] = op.val; else delete s.faits[op.key];
   } else if (op.op === "ds+") {
     s.ds = s.ds.filter((d) => d.id !== op.ds.id).concat(op.ds);
+  } else if (op.op === "cloud+") {
+    const i = s.cloud.findIndex((f) => f.id === op.file.id);
+    if (i >= 0) s.cloud[i] = op.file; else s.cloud.push(op.file);
+  } else if (op.op === "cloud-") {
+    s.cloud = s.cloud.filter((f) => f.id !== op.id);
   } else if (op.op === "memo+") {
     const i = s.memos.findIndex((m) => m.id === op.memo.id);
     if (i >= 0) s.memos[i] = op.memo; else s.memos.push(op.memo);
@@ -66,6 +71,7 @@ function recompute() {
 function rerender() {
   if (!DATA) return;
   window.renderMemos?.();
+  window.renderCloud?.();
   window.planRappels?.();
   renderPlanning();
   renderDevoirs();
@@ -219,3 +225,8 @@ window.delMemo = (id) => persoChange({ op: "memo-", id });
 
 window.persoSyncNow = () => { lastPull = Date.now(); return persoSync(); };
 window.persoShowState = () => persoNote(store.get("ecam-perso-err") ? `Pas encore synchronisé : ${store.get("ecam-perso-err")}.` : undefined);
+
+/* Cloud : liste des fichiers (les fichiers eux-mêmes sont dans cloud/ sur GitHub) */
+window.persoCloud = () => PERSO.cloud || [];
+window.saveCloud = (file) => persoChange({ op: "cloud+", file });
+window.delCloud = (id) => persoChange({ op: "cloud-", id });

@@ -948,7 +948,7 @@ function openFiche(id) {
   if (f._fichier) wireDelete(`fiches/${f._fichier}`, "Supprimer cette fiche");
 }
 
-function openRevision(matiere, id) {
+function openRevision(matiere, id, focus) {
   const revs = DATA.revisions || [];
   const r = id ? revs.find((x) => x.id === id) : revs.find((x) => x.matiere === matiere && !x.ds && !x.choix) || revs.find((x) => x.matiere === matiere);
   if (!r) return;
@@ -959,11 +959,13 @@ function openRevision(matiere, id) {
     <p>${i + 1}. ${esc(q.question)}</p>
     ${q.choix.map((c, j) => `<button type="button" data-c="${j}">${esc(c)}</button>`).join("")}
     <div class="why" hidden>${esc(q.explication || "")}</div></div>`).join("");
-  openReader(`Révision : ${matiere}`, `<p class="meta">${esc(matiere)}, à partir de ${r.sources} fiche${r.sources > 1 ? "s" : ""}${r.ds ? ` (pour le DS du ${esc(fmtDate(r.ds.slice(0, 10)))})` : r.choix ? " choisies" : ""}</p>${md(r.md)}
+  // depuis la prépa DS : le QCM seul ; sinon la fiche puis le QCM
+  const onlyQcm = focus === "qcm";
+  openReader(onlyQcm ? `QCM : ${matiere}` : `Révision : ${matiere}`, `<p class="meta">${esc(matiere)}, à partir de ${r.sources} fiche${r.sources > 1 ? "s" : ""}${r.ds ? ` (pour le DS du ${esc(fmtDate(r.ds.slice(0, 10)))})` : r.choix ? " choisies" : ""}</p>${onlyQcm ? "" : md(r.md)}
     ${qcm ? `<section class="qcm"><h2>QCM</h2><p id="score" class="score" aria-live="polite"></p>${qcm}
       <button type="button" class="btn" id="qcm-reset">Recommencer</button></section>` : ""}
-    ${r._fichier ? deleteZone("Supprimer cette révision", "Seules la fiche de révision et son QCM sont supprimés, pas tes fiches de cours.") : ""}`);
-  if (r._fichier) wireDelete(`revisions/${r._fichier}`, "Supprimer cette révision");
+    ${r._fichier && !onlyQcm ? deleteZone(r.ds ? "Supprimer toute la prépa de ce DS" : "Supprimer cette révision", r.ds ? "Fiche, QCM, DS blanc et plan de ce DS sont supprimés, pas tes fiches de cours." : "Seules la fiche de révision et son QCM sont supprimés, pas tes fiches de cours.") : ""}`);
+  if (r._fichier && !onlyQcm) wireDelete(`revisions/${r._fichier}`, r.ds ? "Supprimer toute la prépa de ce DS" : "Supprimer cette révision");
   const body = $("#reader-body");
   let good = 0, done = 0;
   const total = r.qcm.length;
