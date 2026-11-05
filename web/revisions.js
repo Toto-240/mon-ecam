@@ -716,7 +716,9 @@ function renderFiches() {
   const box = $("#matieres");
   $("#rev-intro").hidden = false;
   if (!by.size) {
-    box.innerHTML = `<p class="empty-state">Pas encore de fiche. Enregistre ou importe un cours : sa fiche apparaîtra ici, rangée par matière.</p>`;
+    box.innerHTML = `<div class="row add-fiche-row"><button type="button" class="btn small primary" id="add-fiche-libre">+ Ajouter une fiche</button></div>
+      <p class="empty-state">Pas encore de fiche. Enregistre ou importe un cours : sa fiche apparaîtra ici, rangée par matière.</p>`;
+    $("#add-fiche-libre").onclick = () => window.openAddSheetLibre?.("");
     return;
   }
   const names = [...by.keys()].sort((a, b) => a.localeCompare(b, "fr"));
@@ -725,7 +727,8 @@ function renderFiches() {
   /* Toutes les matières : une tuile de couleur chacune */
   if (!current) {
     openSubjects.clear();
-    box.innerHTML = `<ul class="tiles">${names.map((m) => {
+    box.innerHTML = `<div class="row add-fiche-row"><button type="button" class="btn small primary" id="add-fiche-libre">+ Ajouter une fiche</button></div>
+      <ul class="tiles">${names.map((m) => {
       const n = by.get(m).length, r = revs[m] || dsRevs(m)[0];
       const info = [`${n} fiche${n > 1 ? "s" : ""}`, r ? "QCM prêt" : ""].filter(Boolean).join(" · ");
       return `<li><button type="button" class="tile ${tileColor(m)}" data-m="${esc(m)}">
@@ -735,6 +738,7 @@ function renderFiches() {
     box.querySelectorAll("[data-m]").forEach((b) => {
       b.onclick = () => { openSubjects.add(b.dataset.m); renderFiches(); scrollTo({ top: 0 }); };
     });
+    $("#add-fiche-libre").onclick = () => window.openAddSheetLibre?.("");
     return;
   }
 
@@ -766,7 +770,8 @@ function renderFiches() {
       </div>`
     : `<div class="row">
       <button type="button" class="btn small${r && !stale ? "" : " primary"}" data-rev="${esc(m)}">${r ? (stale ? "Mettre à jour la révision" : "Refaire la révision") : "Créer la fiche de révision et le QCM"}</button>
-      <button type="button" class="btn small" data-pick-start>Carte mentale…</button></div>`}
+      <button type="button" class="btn small" data-pick-start>Carte mentale…</button>
+      <button type="button" class="btn small" data-add-libre>+ Ajouter une fiche</button></div>`}
     <ul class="list subject-list">
       ${r ? `<li class="rev"><button type="button" class="item" data-open-rev="${esc(m)}">
         <div class="t">Fiche de révision et QCM</div>
@@ -792,6 +797,7 @@ function renderFiches() {
   box.querySelector(".subject-list").classList.toggle("pick-list", !!pick);
   $("#rev-back").onclick = () => { openSubjects.clear(); cartePick.delete(m); renderFiches(); };
   box.querySelectorAll("[data-open-carte]").forEach((b) => { b.onclick = () => window.openCarte?.(b.dataset.openCarte); });
+  box.querySelector("[data-add-libre]")?.addEventListener("click", () => window.openAddSheetLibre?.(m));
   box.querySelector("[data-pick-start]")?.addEventListener("click", () => { cartePick.set(m, new Set(fs.map((f) => f.id))); renderFiches(); });
   box.querySelector("[data-pick-cancel]")?.addEventListener("click", () => { cartePick.delete(m); renderFiches(); });
   box.querySelector("[data-pick-all]")?.addEventListener("click", () => { cartePick.set(m, new Set(fs.map((f) => f.id))); renderFiches(); });

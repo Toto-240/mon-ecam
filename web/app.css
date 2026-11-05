@@ -535,3 +535,5 @@ body[data-pane]:not([data-pane="planning"]) .memo-banner { display: none !import
 .carte-plan h2 { margin-top: 4px; }
 .carte-plan h3 { margin: 16px 0 4px; }
 .carte-src { margin-top: 12px; font-size: .9rem; }
+.add-fiche-row { margin: 0 0 12px; }
+#add-libre { margin-bottom: 8px; }

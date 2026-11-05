@@ -186,8 +186,39 @@ $("#ds-form").addEventListener("submit", (ev) => {
 /* ---------- Ajouter une fiche à un cours ---------- */
 let addCtx = null, addFiles = [];
 
+/* Depuis l'onglet Révisions : une fiche sans cours précis du planning (matière et date au choix) */
+window.openAddSheetLibre = function (matiere) {
+  addCtx = { libre: true, matiere: matiere || "", date: dayIso(NOW), heure: "", now: false };
+  $("#add-libre").hidden = false;
+  $("#add-matiere").value = matiere || "";
+  $("#add-date").value = addCtx.date;
+  $("#add-support").value = "";
+  fillSupports($("#add-support"), matiere || "");
+  addFiles = [];
+  $("#add-what").textContent = "Photos, documents, notes ou enregistrement : la fiche est rangée dans la matière choisie.";
+  $("#add-rec").hidden = false;
+  $("#add-text").value = "";
+  $("#add-msg").textContent = "";
+  $("#add-bar").hidden = true;
+  renderAddFiles();
+  $("#add-sheet").hidden = false;
+  document.body.style.overflow = "hidden";
+};
+const dayIso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+$("#add-matiere").addEventListener("change", () => fillSupports($("#add-support"), $("#add-matiere").value.trim()));
+
+/* Matière, date… de la fiche à créer (null si la matière manque) */
+function addInfo() {
+  if (!addCtx) return null;
+  if (!addCtx.libre) return addCtx;
+  const matiere = $("#add-matiere").value.trim();
+  if (!matiere) { $("#add-msg").textContent = "Choisis d'abord la matière."; $("#add-matiere").focus(); return null; }
+  return { ...addCtx, matiere, date: $("#add-date").value || dayIso(NOW) };
+}
+
 window.openAddSheet = function (e) {
   if (!e) return;
+  $("#add-libre").hidden = true;
   addCtx = { matiere: e.matiere, date: e.debut.slice(0, 10), heure: e.debut.slice(11, 16), creneau: e.debut, now: e.d0 <= NOW && NOW < e.d1 };
   $("#add-support").value = "";
   fillSupports($("#add-support"), e.matiere);
@@ -230,7 +261,9 @@ $("#add-photo").addEventListener("change", addPicked);
 $("#add-doc").addEventListener("change", addPicked);
 
 $("#add-rec").onclick = () => {
-  const m = addCtx.matiere, ctx = addCtx, sup = $("#add-support").value;
+  const ctx = addInfo();
+  if (!ctx) return;
+  const m = ctx.matiere, sup = $("#add-support").value;
   closeAdd();
   showPane("enregistrer");
   $("#f-date").value = ctx.date;
@@ -244,16 +277,19 @@ $("#add-rec").onclick = () => {
 $("#add-audio").addEventListener("change", async (ev) => {
   const f = ev.target.files[0];
   ev.target.value = "";
-  if (!f || !addCtx) return;
+  const c = addInfo();
+  if (!f || !c) return;
   $("#add-bar").hidden = false;
   try {
-    await send({ id: newId(), kind: "cours", matiere: addCtx.matiere, date: addCtx.date, heure: addCtx.heure,
-      creneau: addCtx.creneau, ...($("#add-support").value && { support: $("#add-support").value }),
+    await send({ id: newId(), kind: "cours", matiere: c.matiere, date: c.date, heure: c.heure,
+      creneau: c.creneau, ...($("#add-support").value && { support: $("#add-support").value }),
       nom: f.name, type: f.type }, await f.arrayBuffer(), "add");
   } catch {}
 });
 
 $("#add-send").onclick = async () => {
+  const c = addInfo();
+  if (!c) return;
   const texte = $("#add-text").value.trim();
   if (!addFiles.length && !texte) {
     $("#add-msg").textContent = "Ajoute une photo, un fichier ou tes notes.";
@@ -268,8 +304,8 @@ $("#add-send").onclick = async () => {
     // les fichiers sont collés à la suite ; leurs tailles permettent de les séparer côté GitHub
     const parts = await Promise.all(addFiles.map((f) => f.arrayBuffer()));
     const all = await new Blob(parts).arrayBuffer();
-    await send({ id: newId(), kind: "notes", matiere: addCtx.matiere, date: addCtx.date, heure: addCtx.heure, texte,
-      creneau: addCtx.creneau, ...($("#add-support").value && { support: $("#add-support").value }),
+    await send({ id: newId(), kind: "notes", matiere: c.matiere, date: c.date, heure: c.heure, texte,
+      creneau: c.creneau, ...($("#add-support").value && { support: $("#add-support").value }),
       files: addFiles.map((f) => ({ name: f.name, type: f.type, size: f.size })) }, all, "add");
   } catch {}
   btn.disabled = false;
