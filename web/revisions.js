@@ -179,6 +179,7 @@ function fillLinks(matiere, date) {
   cs.innerHTML = `<option value="">${slots.length ? "Aucun" : "Aucun cours ce jour-là"}</option>` + slots.map((e) =>
     `<option value="${esc(e.debut)}"${e.debut === pick ? " selected" : ""}>${esc(`${fmtTime(e.d0)}–${fmtTime(e.d1)} ${e.type} ${e.matiere}${e.salle ? ", " + e.salle : ""}`)}</option>`).join("");
   fillSupports($("#f-support"), matiere);
+  updateRecHero();
 }
 
 function fillSupports(sel, matiere) {
@@ -188,6 +189,26 @@ function fillSupports(sel, matiere) {
     list.map((f) => `<option value="${esc(f.id)}"${f.id === keep ? " selected" : ""}>${esc((f.doc || f.titre || "Support").slice(0, 70))}${f.source === "complete" ? " (déjà complété)" : ""}</option>`).join("");
   sel.disabled = !list.length;
 }
+
+/* En-tête de l'onglet Micro : le cours qui sera enregistré, et le résumé des réglages */
+function updateRecHero() {
+  const m = $("#f-matiere").value;
+  const slot = events().find((e) => e.debut === $("#f-creneau").value);
+  const sup = $("#f-support").selectedOptions[0];
+  const live = slot && slot.d0 <= NOW && NOW < slot.d1;
+  $("#rec-hero-kicker").textContent = live ? "Cours en ce moment" : slot ? "Cours choisi" : "Prêt à enregistrer";
+  $("#rec-hero-title").textContent = m || "Choisis la matière";
+  $("#rec-hero-sub").textContent = slot
+    ? `${slot.type} · ${fmtTime(slot.d0)}–${fmtTime(slot.d1)}${slot.salle ? ` · salle ${slot.salle}` : ""}${slot.prof ? ` · ${slot.prof}` : ""}`
+    : m ? "Pas de cours du planning choisi" : "Ouvre les réglages ci-dessous pour la choisir";
+  const d = $("#f-date").value ? new Date(`${$("#f-date").value}T12:00:00`) : null;
+  $("#rec-opts-sum").textContent = [m || "matière à choisir", d ? fmtDayLong(d) : "",
+    $("#f-support").value && sup ? `complète « ${sup.textContent.trim()} »` : "fiche à part"].filter(Boolean).join(" · ");
+  $("#new-form").classList.toggle("is-live", !!live);
+  if (!m) $("#rec-opts").open = true;
+}
+["#f-matiere", "#f-date", "#f-creneau", "#f-support"].forEach((id) =>
+  $(id).addEventListener("change", () => setTimeout(updateRecHero, 0)));
 
 /* Ce qu'on joint à l'envoi */
 function linkMeta() {
@@ -381,7 +402,8 @@ function fmtDuration(s) {
 function showLive(r) {
   rec = r;
   $("#rec-live").hidden = false; $("#new-form").hidden = true; $("#rec-dot").hidden = false;
-  $("#rec-what").textContent = r.matiere;
+  const slot = r.creneau && events().find((e) => e.debut === r.creneau);
+  $("#rec-what").textContent = slot ? `${r.matiere} · ${slot.type} ${fmtTime(slot.d0)}–${fmtTime(slot.d1)}` : r.matiere;
   $("#rec-hint").textContent = r.native
     ? "Tu peux verrouiller l'iPhone : l'enregistrement continue. À la fin du cours, rouvre l'appli et appuie sur Terminer."
     : "Garde l'appli ouverte et l'écran allumé (tu peux baisser la luminosité). À la fin du cours, appuie sur Terminer.";
@@ -400,8 +422,9 @@ function showPaused(r) {
   $("#rec-state").textContent = p ? "Enregistrement en pause" : "Enregistrement en cours";
   $("#rec-live-dot").classList.toggle("on", !p);
   $("#rec-live-dot").classList.toggle("paused", p);
-  $("#rec-pause").textContent = p ? "Reprendre" : "Pause";
-  $("#rec-pause").classList.toggle("primary", p);
+  $("#rec-pause .lbl").textContent = p ? "Reprendre" : "Pause";
+  $("#rec-pause").classList.toggle("resume", p);
+  $("#rec-live").classList.toggle("paused", p);
   $("#rec-dot").hidden = p;
 }
 

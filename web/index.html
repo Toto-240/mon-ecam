@@ -145,32 +145,48 @@
 
   <div id="rec-live" class="rec-live" hidden>
     <div class="rec-head"><span id="rec-live-dot" class="rec-dot on"></span> <span id="rec-state">Enregistrement en cours</span></div>
+    <div class="rec-orb" aria-hidden="true"><span class="ring r1"></span><span class="ring r2"></span><span class="ring r3"></span>
+      <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div>
     <div id="rec-time" class="rec-time">0:00</div>
     <div id="rec-what" class="rec-what"></div>
-    <p id="rec-hint" class="muted small"></p>
-    <div class="row">
-      <button id="rec-pause" type="button" class="btn">Pause</button>
-      <button id="rec-stop" type="button" class="btn primary">Terminer et créer la fiche</button>
-      <button id="rec-cancel" type="button" class="btn">Annuler</button>
+    <p id="rec-hint" class="small rec-hint"></p>
+    <div class="rec-ctrls">
+      <button id="rec-pause" type="button" class="rec-ctrl pause"><span class="ico" aria-hidden="true"></span><span class="lbl">Pause</span></button>
+      <button id="rec-stop" type="button" class="rec-ctrl stop"><span class="ico" aria-hidden="true"></span><span class="lbl">Terminer et créer la fiche</span></button>
     </div>
+    <button id="rec-cancel" type="button" class="rec-cancel">Annuler l'enregistrement</button>
   </div>
 
-  <form id="new-form" class="card">
-    <label for="f-matiere">Matière</label>
-    <select id="f-matiere" class="field" required></select>
-    <label for="f-date">Date du cours</label>
-    <input id="f-date" class="field" type="date" required>
-    <label for="f-creneau">Cours du planning</label>
-    <select id="f-creneau" class="field"></select>
-    <label for="f-support">Support Moodle à compléter</label>
-    <select id="f-support" class="field"></select>
-    <p class="muted small link-hint">Avec un support, sa fiche est complétée par ce que le prof dit à l'oral : une seule fiche au final.</p>
-    <div class="row">
-      <button id="rec-start" type="button" class="btn primary">Enregistrer le cours</button>
-      <label class="btn" for="f-audio">Importer un enregistrement</label>
+  <form id="new-form" class="rec-idle">
+    <div class="rec-hero">
+      <p id="rec-hero-kicker" class="rec-kicker">Prêt à enregistrer</p>
+      <h3 id="rec-hero-title" class="rec-hero-title">Choisis la matière</h3>
+      <p id="rec-hero-sub" class="rec-hero-sub"></p>
+      <button id="rec-start" type="button" class="rec-big" aria-label="Enregistrer le cours">
+        <span class="rec-big-dot" aria-hidden="true"></span>
+      </button>
+      <p class="rec-big-lbl">Enregistrer</p>
+      <label class="btn rec-import" for="f-audio">Importer un enregistrement</label>
       <input id="f-audio" type="file" accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.webm" hidden>
     </div>
-    <p id="form-hint" class="muted small">Pour un cours entier, le plus fiable est l'app <b>Dictaphone</b> de l'iPhone : elle continue même écran verrouillé. À la fin, ouvre l'enregistrement, touche <b>…</b> puis <b>Enregistrer dans Fichiers</b>, et importe-le ici.</p>
+
+    <details id="rec-opts" class="card rec-opts">
+      <summary><span class="t">Réglages de l'enregistrement</span><span id="rec-opts-sum" class="m"></span></summary>
+      <label for="f-matiere">Matière</label>
+      <select id="f-matiere" class="field" required></select>
+      <label for="f-date">Date du cours</label>
+      <input id="f-date" class="field" type="date" required>
+      <label for="f-creneau">Cours du planning</label>
+      <select id="f-creneau" class="field"></select>
+      <label for="f-support">Support Moodle à compléter</label>
+      <select id="f-support" class="field"></select>
+      <p class="muted small link-hint">Avec un support, sa fiche est complétée par ce que le prof dit à l'oral : une seule fiche au final.</p>
+    </details>
+
+    <details class="card rec-tip">
+      <summary>Astuce pour un cours entier</summary>
+      <p id="form-hint" class="muted small">L'enregistrement continue écran verrouillé. Tu peux aussi utiliser l'app <b>Dictaphone</b> de l'iPhone : à la fin, ouvre l'enregistrement, touche <b>…</b> puis <b>Enregistrer dans Fichiers</b>, et importe-le ici.</p>
+    </details>
   </form>
 
   <div id="upload" class="card" hidden>
@@ -259,11 +275,11 @@
   <button type="button" data-pane="notes">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Notes</span>
   </button>
-  <button type="button" data-pane="cloud">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.1 9.2 4.5 4.5 0 0 0 7 18z"/></svg><span>Cloud</span>
-  </button>
   <button type="button" data-pane="cours">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5M8 7h7"/></svg><span>Cours</span>
+  </button>
+  <button type="button" data-pane="cloud">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.1 9.2 4.5 4.5 0 0 0 7 18z"/></svg><span>Cloud</span>
   </button>
 </nav>
 

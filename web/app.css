@@ -581,3 +581,58 @@ body[data-pane]:not([data-pane="planning"]) .memo-banner { display: none !import
 .cloud-img { max-width: 100%; border-radius: 12px; margin-top: 12px; }
 .cloud-pdf { width: 100%; height: 75vh; border: 1px solid var(--line); border-radius: 12px; margin-top: 12px; }
 @media (max-width: 400px) { .panes button { font-size: .56rem; letter-spacing: -0.02em; } .panes button svg { width: 20px; height: 20px; } }
+
+/* ---------- Onglet Micro ---------- */
+.rec-idle { display: block; }
+.rec-hero { text-align: center; background: var(--surface); border: 1px solid var(--line); border-radius: 22px;
+  padding: 22px 18px 18px; margin-bottom: 12px; }
+.rec-idle.is-live .rec-hero { border-color: #E5484D; box-shadow: 0 10px 30px -18px #E5484D; }
+.rec-kicker { margin: 0; font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.rec-idle.is-live .rec-kicker { color: #E5484D; }
+.rec-hero-title { margin: 6px 0 2px; font-size: 1.35rem; line-height: 1.2; }
+.rec-hero-sub { margin: 0; color: var(--muted); font-size: .9rem; min-height: 1.2em; }
+.rec-big { margin: 22px auto 6px; width: 112px; height: 112px; border-radius: 50%; border: 6px solid color-mix(in srgb, #E5484D 22%, transparent);
+  background: #E5484D; display: grid; place-items: center; cursor: pointer; box-shadow: 0 12px 28px -12px #E5484D;
+  transition: transform .15s ease; }
+.rec-big:active { transform: scale(.95); }
+.rec-big:focus-visible { outline: 3px solid var(--ecam); outline-offset: 4px; }
+.rec-big-dot { width: 34px; height: 34px; border-radius: 50%; background: #fff; }
+.rec-big-lbl { margin: 0 0 14px; font-weight: 700; }
+.rec-import { display: inline-flex; }
+.rec-opts > summary, .rec-tip > summary { cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
+.rec-opts > summary .t { font-weight: 700; }
+.rec-opts > summary .m { color: var(--muted); font-size: .85rem; }
+.rec-opts label { display: block; font-weight: 600; font-size: .9rem; margin: 12px 0 4px; }
+.rec-tip { margin-top: 10px; }
+.rec-tip > summary { font-weight: 600; font-size: .92rem; }
+
+/* écran pendant l'enregistrement */
+.rec-live { text-align: center; background: radial-gradient(circle at 50% 20%, #5A1A2C, #2A0E17 70%); padding: 18px 18px 14px; border-radius: 24px; }
+.rec-live .rec-head { justify-content: center; }
+.rec-orb { position: relative; width: 120px; height: 120px; margin: 16px auto 4px; display: grid; place-items: center; }
+.rec-orb svg { width: 40px; height: 40px; fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; position: relative; z-index: 1; }
+.rec-orb::before { content: ""; position: absolute; inset: 22px; border-radius: 50%; background: #E5484D; }
+.rec-orb .ring { position: absolute; inset: 22px; border-radius: 50%; border: 2px solid rgba(229, 72, 77, .7); }
+@media (prefers-reduced-motion: no-preference) {
+  .rec-orb .ring { animation: rec-ring 2.4s ease-out infinite; }
+  .rec-orb .r2 { animation-delay: .8s; }
+  .rec-orb .r3 { animation-delay: 1.6s; }
+}
+@keyframes rec-ring { from { transform: scale(1); opacity: .9; } to { transform: scale(1.9); opacity: 0; } }
+.rec-live.paused .rec-orb .ring { animation: none; opacity: 0; }
+.rec-live.paused .rec-orb::before { background: #F5B94A; }
+.rec-live .rec-time { margin: 4px 0; font-variant-numeric: tabular-nums; }
+.rec-live .rec-what { opacity: .92; }
+.rec-hint { color: rgba(255,255,255,.7); margin: 10px auto 0; max-width: 34ch; }
+.rec-ctrls { display: flex; justify-content: center; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+.rec-ctrl { display: inline-flex; align-items: center; gap: 10px; border-radius: 999px; padding: 12px 20px; font: inherit; font-weight: 700;
+  cursor: pointer; border: 0; }
+.rec-ctrl.pause { background: rgba(255,255,255,.14); color: #fff; }
+.rec-ctrl.pause.resume { background: #F5B94A; color: #2A0E17; }
+.rec-ctrl.stop { background: #fff; color: #2A0E17; }
+.rec-ctrl .ico { width: 14px; height: 14px; display: inline-block; }
+.rec-ctrl.pause .ico { box-sizing: content-box; border-left: 4px solid currentColor; border-right: 4px solid currentColor; width: 4px; }
+.rec-ctrl.pause.resume .ico { box-sizing: content-box; border: 0; width: 0; height: 0; border-left: 12px solid currentColor; border-top: 7px solid transparent; border-bottom: 7px solid transparent; }
+.rec-ctrl.stop .ico { background: #E5484D; border-radius: 3px; }
+.rec-ctrl:disabled { opacity: .6; }
+.rec-cancel { background: none; border: 0; color: rgba(255,255,255,.65); text-decoration: underline; margin-top: 12px; font: inherit; font-size: .85rem; cursor: pointer; }
