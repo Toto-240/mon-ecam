@@ -345,7 +345,7 @@
 <div id="memo-sheet" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="memo-title">
   <div class="sheet-card">
     <div class="sheet-head">
-      <div><h2 id="memo-title">Pense-bête</h2>
+      <div><h2 id="memo-title">Pense-bête et rappels</h2>
         <p class="muted small">Tes petites notes : à réviser, à refaire, à apporter… Synchronisé entre tes appareils.</p></div>
       <button type="button" id="memo-close" class="btn small">Fermer</button>
     </div>
@@ -356,6 +356,16 @@
         <button type="button" class="chip" data-when="dem" aria-pressed="true">Demain</button>
         <button type="button" class="chip" data-when="none">Sans date</button>
         <input type="date" id="memo-date" class="chip-date" aria-label="Choisir une date">
+      </div>
+      <div class="memo-alarm">
+        <span class="memo-alarm-lbl">⏰ Me le rappeler</span>
+        <div class="memo-when" role="group" aria-label="Rappel">
+          <button type="button" class="chip" data-alarm="none" aria-pressed="true">Non</button>
+          <button type="button" class="chip" data-alarm="1h">Dans 1 h</button>
+          <button type="button" class="chip" data-alarm="soir">Ce soir 19 h</button>
+          <button type="button" class="chip" data-alarm="matin">Demain 8 h</button>
+          <input type="time" id="memo-heure" class="chip-date" aria-label="Heure du rappel">
+        </div>
       </div>
       <div class="row"><button type="submit" class="btn primary">Ajouter</button></div>
     </form>
@@ -375,7 +385,7 @@
       <h3>Notifications sur le téléphone</h3>
       <div id="rappels-native">
         <label class="check"><input type="checkbox" id="rappels-on">
-          <span><b>Rappels sur cet iPhone</b> : DS (la veille et le matin), devoirs à rendre (la veille et 3 h avant), pense-bête du jour.</span></label>
+          <span><b>Rappels sur cet iPhone</b> : DS (la veille et le matin), devoirs à rendre (la veille et 3 h avant), pense-bête du jour (7h30) et rappels à l’heure choisie.</span></label>
         <p id="rappels-state" class="small muted"></p>
       </div>
       <p id="rappels-web" class="small muted">Les rappels de DS, devoirs et pense-bête s'activent dans l'appli iPhone.</p>

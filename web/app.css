@@ -646,3 +646,7 @@ li.prepa-card { padding: 12px; }
 li.prepa-card > .t { font-weight: 700; }
 li.prepa-card > .m { color: var(--muted); font-size: .85rem; }
 li.prepa-card .ds-rev { margin-top: 8px; }
+.memo-alarm { margin-top: 10px; }
+.memo-alarm-lbl { font-size: .85rem; font-weight: 700; }
+.memo-alarm .memo-when { margin-top: 6px; }
+.memo-tag.alarm { background: #4157BE; margin-left: 4px; }

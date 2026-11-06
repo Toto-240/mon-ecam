@@ -15,7 +15,7 @@ function rappelsList() {
   const real = new Date();   // vraie heure (pas le ?now= de test)
   const out = [];
   const add = (when, title, body) => {
-    if (when > new Date(real.getTime() + 60e3) && when - real < 15 * 864e5) out.push({ when, title, body });
+    if (when > new Date(real.getTime() + 20e3) && when - real < 15 * 864e5) out.push({ when, title, body });
   };
 
   // DS à venir (pas marqués « terminé ») : la veille à 19h et le matin même à 7h
@@ -41,7 +41,10 @@ function rappelsList() {
   // pense-bête : un rappel le jour J à 7h30 avec les notes du jour
   const byDay = {};
   for (const m of window.persoMemos?.() || []) {
-    if (!m.fait && m.pour) (byDay[m.pour] ||= []).push(m.texte.split("\n")[0]);
+    if (m.fait || !m.pour) continue;
+    // rappel à une heure précise : sa propre notification
+    if (m.heure) { add(new Date(`${m.pour}T${m.heure}:00`), "⏰ Rappel", m.texte.split("\n").slice(0, 3).join(" · ")); continue; }
+    (byDay[m.pour] ||= []).push(m.texte.split("\n")[0]);
   }
   for (const [day, items] of Object.entries(byDay)) {
     add(new Date(`${day}T07:30:00`), items.length === 1 ? "Pense-bête" : `Pense-bête : ${items.length} choses aujourd'hui`,
