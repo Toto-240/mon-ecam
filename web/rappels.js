@@ -38,6 +38,11 @@ function rappelsList() {
     if (due.getHours() >= 10) add(new Date(due.getTime() - 3 * 3600e3), `À rendre dans 3 h : ${d.titre}`, `Avant ${hhmm(due)}.`);
   }
 
+  // rappels à une heure précise
+  for (const r of window.persoRappels?.() || []) {
+    if (!r.fait && r.quand) add(new Date(`${r.quand}:00`), "⏰ Rappel", r.texte);
+  }
+
   // pense-bête : un rappel le jour J à 7h30 avec les notes du jour
   const byDay = {};
   for (const m of window.persoMemos?.() || []) {

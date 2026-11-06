@@ -15,37 +15,11 @@ function memoDate() {
 
 function setWhen(w) {
   memoWhen = w;
-  document.querySelectorAll(".memo-when .chip[data-when]").forEach((c) => c.setAttribute("aria-pressed", c.dataset.when === w));
+  document.querySelectorAll("#memo-form .chip[data-when]").forEach((c) => c.setAttribute("aria-pressed", c.dataset.when === w));
   $("#memo-date").classList.toggle("on", w === "date");
 }
-document.querySelectorAll(".memo-when .chip[data-when]").forEach((c) => { c.onclick = () => setWhen(c.dataset.when); });
+document.querySelectorAll("#memo-form .chip[data-when]").forEach((c) => { c.onclick = () => setWhen(c.dataset.when); });
 $("#memo-date").addEventListener("change", () => setWhen($("#memo-date").value ? "date" : "none"));
-
-/* Rappel à une heure précise : notification sur l'iPhone (rappels.js) */
-let memoAlarm = "none";
-function setAlarm(a) {
-  memoAlarm = a;
-  document.querySelectorAll(".memo-alarm .chip").forEach((c) => c.setAttribute("aria-pressed", c.dataset.alarm === a));
-  $("#memo-heure").classList.toggle("on", a === "heure");
-  if (a !== "heure") $("#memo-heure").value = "";
-}
-document.querySelectorAll(".memo-alarm .chip").forEach((c) => { c.onclick = () => setAlarm(c.dataset.alarm); });
-$("#memo-heure").addEventListener("change", () => setAlarm($("#memo-heure").value ? "heure" : "none"));
-
-/* Date et heure du rappel choisies -> { pour, heure } (ou null sans rappel) */
-function memoAlarmAt() {
-  const now = new Date(), hh = (d) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-  if (memoAlarm === "1h") { const d = new Date(now.getTime() + 3600e3); return { pour: iso(d), heure: hh(d) }; }
-  if (memoAlarm === "soir") { const d = now.getHours() >= 19 ? addDays(startOfDay(now), 1) : now; return { pour: iso(d), heure: "19:00" }; }
-  if (memoAlarm === "matin") return { pour: iso(addDays(startOfDay(now), 1)), heure: "08:00" };
-  if (memoAlarm === "heure" && $("#memo-heure").value) {
-    const h = $("#memo-heure").value;
-    let day = memoDate() || iso(now);
-    if (day === iso(now) && h <= hh(now)) day = iso(addDays(startOfDay(now), 1));   // heure passée : demain
-    return { pour: day, heure: h };
-  }
-  return null;
-}
 
 /* Libellé et groupe d'une note selon sa date */
 function memoGroup(m) {
@@ -160,11 +134,8 @@ $("#memo-form").addEventListener("submit", (ev) => {
   ev.preventDefault();
   const texte = $("#memo-text").value.trim();
   if (!texte) return;
-  const alarm = memoAlarmAt();
-  window.saveMemo({ id: newId(), texte, pour: alarm ? alarm.pour : memoDate(), heure: alarm?.heure || null,
-    fait: null, cree: new Date().toISOString() });
+  window.saveMemo({ id: newId(), texte, pour: memoDate(), fait: null, cree: new Date().toISOString() });
   $("#memo-text").value = "";
-  setAlarm("none");
   $("#memo-text").focus();
 });
 // Entrée pour ajouter (Maj+Entrée : nouvelle ligne)

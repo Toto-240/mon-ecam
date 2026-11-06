@@ -27,11 +27,15 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l3 3v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
       <span id="memo-badge" class="badge" hidden></span>
     </button>
+    <button id="alarm-btn" class="bell" type="button" aria-label="Rappels">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="7"/><path d="M12 9v4l2.5 2M5 4 2.5 6.5M19 4l2.5 2.5"/></svg>
+      <span id="alarm-badge" class="badge" hidden></span>
+    </button>
     <button id="bell" class="bell" type="button" aria-label="Changements d'emploi du temps">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>
       <span id="bell-badge" class="badge" hidden></span>
     </button>
-    <button id="sync" class="sync" type="button">Recharger</button>
+    <button id="sync" class="sync" type="button" aria-label="Recharger"><svg class="sync-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5"/></svg><span class="sync-lbl">Recharger</span></button>
   </div>
 </header>
 <button type="button" id="memo-banner" class="memo-banner" hidden></button>
@@ -345,7 +349,7 @@
 <div id="memo-sheet" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="memo-title">
   <div class="sheet-card">
     <div class="sheet-head">
-      <div><h2 id="memo-title">Pense-bête et rappels</h2>
+      <div><h2 id="memo-title">Pense-bête</h2>
         <p class="muted small">Tes petites notes : à réviser, à refaire, à apporter… Synchronisé entre tes appareils.</p></div>
       <button type="button" id="memo-close" class="btn small">Fermer</button>
     </div>
@@ -357,20 +361,36 @@
         <button type="button" class="chip" data-when="none">Sans date</button>
         <input type="date" id="memo-date" class="chip-date" aria-label="Choisir une date">
       </div>
-      <div class="memo-alarm">
-        <span class="memo-alarm-lbl">⏰ Me le rappeler</span>
-        <div class="memo-when" role="group" aria-label="Rappel">
-          <button type="button" class="chip" data-alarm="none" aria-pressed="true">Non</button>
-          <button type="button" class="chip" data-alarm="1h">Dans 1 h</button>
-          <button type="button" class="chip" data-alarm="soir">Ce soir 19 h</button>
-          <button type="button" class="chip" data-alarm="matin">Demain 8 h</button>
-          <input type="time" id="memo-heure" class="chip-date" aria-label="Heure du rappel">
-        </div>
-      </div>
       <div class="row"><button type="submit" class="btn primary">Ajouter</button></div>
     </form>
     <p id="memo-sync-state" class="small memo-sync-state"></p>
     <div id="memo-list"></div>
+  </div>
+</div>
+
+<div id="alarm-sheet" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="alarm-title">
+  <div class="sheet-card">
+    <div class="sheet-head">
+      <div><h2 id="alarm-title">Rappels</h2>
+        <p class="muted small">Une notification sur ton iPhone à l'heure choisie, même écran verrouillé.</p></div>
+      <button type="button" id="alarm-close" class="btn small">Fermer</button>
+    </div>
+    <form id="alarm-form" autocomplete="off">
+      <input id="alarm-text" class="field" placeholder="Ex. : appeler le secrétariat, prendre le badge…" aria-label="Texte du rappel">
+      <div class="memo-when" role="group" aria-label="Quand">
+        <button type="button" class="chip" data-quick="1h">Dans 1 h</button>
+        <button type="button" class="chip" data-quick="soir">Ce soir 19 h</button>
+        <button type="button" class="chip" data-quick="matin">Demain 8 h</button>
+      </div>
+      <div class="ds-times alarm-when">
+        <div><label for="alarm-date">Jour</label><input id="alarm-date" class="field" type="date"></div>
+        <div><label for="alarm-time">Heure</label><input id="alarm-time" class="field" type="time"></div>
+      </div>
+      <div class="row"><button type="submit" class="btn primary">Ajouter le rappel</button>
+        <span id="alarm-msg" class="small muted" aria-live="polite"></span></div>
+    </form>
+    <p id="alarm-native" class="small muted" hidden>Les notifications sonnent sur l'iPhone, dans l'appli Mon ECAM (ouvre-la une fois après avoir ajouté un rappel depuis le PC).</p>
+    <div id="alarm-list"></div>
   </div>
 </div>
 
@@ -385,7 +405,7 @@
       <h3>Notifications sur le téléphone</h3>
       <div id="rappels-native">
         <label class="check"><input type="checkbox" id="rappels-on">
-          <span><b>Rappels sur cet iPhone</b> : DS (la veille et le matin), devoirs à rendre (la veille et 3 h avant), pense-bête du jour (7h30) et rappels à l’heure choisie.</span></label>
+          <span><b>Rappels sur cet iPhone</b> : DS (la veille et le matin), devoirs à rendre (la veille et 3 h avant), pense-bête du jour (7h30) et tes rappels à l’heure choisie.</span></label>
         <p id="rappels-state" class="small muted"></p>
       </div>
       <p id="rappels-web" class="small muted">Les rappels de DS, devoirs et pense-bête s'activent dans l'appli iPhone.</p>
@@ -423,6 +443,7 @@
 <script src="ds.js"></script>
 <script src="notifs.js"></script>
 <script src="memos.js"></script>
+<script src="alarmes.js"></script>
 <script src="rappels.js"></script>
 <script src="cloud.js"></script>
 </body>

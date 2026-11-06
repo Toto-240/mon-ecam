@@ -7,7 +7,7 @@
 const PERSO_PATH = "/contents/perso/etat.enc";
 const PERSO_BASE = "ecam-perso-base";     // dernier état connu de GitHub
 const PERSO_PENDING = "ecam-perso-ops";   // changements pas encore envoyés
-const emptyPerso = () => ({ faits: {}, ds: [], dsSel: {}, dsFinis: {}, devoirs: [], memos: [], cloud: [], maj: "" });
+const emptyPerso = () => ({ faits: {}, ds: [], dsSel: {}, dsFinis: {}, devoirs: [], memos: [], cloud: [], rappels: [], maj: "" });
 
 const persoStore = {
   get(k, def) { try { return JSON.parse(store.get(k)) ?? def; } catch { return def; } },
@@ -16,11 +16,16 @@ const persoStore = {
 
 /* Un changement = une petite opération, rejouée sur la version de GitHub au moment d'envoyer */
 function applyOp(s, op) {
-  s = { ...emptyPerso(), ...s, faits: { ...(s?.faits || {}) }, ds: [...(s?.ds || [])], dsSel: { ...(s?.dsSel || {}) }, dsFinis: { ...(s?.dsFinis || {}) }, devoirs: [...(s?.devoirs || [])], memos: [...(s?.memos || [])], cloud: [...(s?.cloud || [])] };
+  s = { ...emptyPerso(), ...s, faits: { ...(s?.faits || {}) }, ds: [...(s?.ds || [])], dsSel: { ...(s?.dsSel || {}) }, dsFinis: { ...(s?.dsFinis || {}) }, devoirs: [...(s?.devoirs || [])], memos: [...(s?.memos || [])], cloud: [...(s?.cloud || [])], rappels: [...(s?.rappels || [])] };
   if (op.op === "fait") {
     if (op.val) s.faits[op.key] = op.val; else delete s.faits[op.key];
   } else if (op.op === "ds+") {
     s.ds = s.ds.filter((d) => d.id !== op.ds.id).concat(op.ds);
+  } else if (op.op === "rap+") {
+    const i = s.rappels.findIndex((r) => r.id === op.r.id);
+    if (i >= 0) s.rappels[i] = op.r; else s.rappels.push(op.r);
+  } else if (op.op === "rap-") {
+    s.rappels = s.rappels.filter((r) => r.id !== op.id);
   } else if (op.op === "cloud+") {
     const i = s.cloud.findIndex((f) => f.id === op.file.id);
     if (i >= 0) s.cloud[i] = op.file; else s.cloud.push(op.file);
@@ -54,6 +59,7 @@ function prune(s) {
   s.ds = s.ds.filter((d) => (d.date || "") >= dsOld);
   s.devoirs = (s.devoirs || []).filter((d) => (d.echeance || "") >= dsOld);
   s.memos = (s.memos || []).filter((m) => !m.fait || m.fait >= dsOld);   // faits gardés 2 mois
+  s.rappels = (s.rappels || []).filter((r) => (r.quand || "") >= dsOld);    // passés depuis 2 mois : oubliés
   return s;
 }
 
@@ -71,6 +77,7 @@ function recompute() {
 function rerender() {
   if (!DATA) return;
   window.renderMemos?.();
+  window.renderAlarmes?.();
   window.renderCloud?.();
   window.planRappels?.();
   renderPlanning();
@@ -230,3 +237,8 @@ window.persoShowState = () => persoNote(store.get("ecam-perso-err") ? `Pas encor
 window.persoCloud = () => PERSO.cloud || [];
 window.saveCloud = (file) => persoChange({ op: "cloud+", file });
 window.delCloud = (id) => persoChange({ op: "cloud-", id });
+
+/* Rappels à une heure précise */
+window.persoRappels = () => PERSO.rappels || [];
+window.saveRappel = (r) => persoChange({ op: "rap+", r });
+window.delRappel = (id) => persoChange({ op: "rap-", id });

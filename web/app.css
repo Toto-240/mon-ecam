@@ -650,3 +650,19 @@ li.prepa-card .ds-rev { margin-top: 8px; }
 .memo-alarm-lbl { font-size: .85rem; font-weight: 700; }
 .memo-alarm .memo-when { margin-top: 6px; }
 .memo-tag.alarm { background: #4157BE; margin-left: 4px; }
+/* Rappels */
+.alarm-when { margin-top: 8px; }
+.alarm-when label { display: block; font-weight: 600; font-size: .85rem; margin-bottom: 4px; }
+#alarm-text { margin-bottom: 8px; }
+.alarm-item .alarm-ico { font-size: 1.1rem; line-height: 1.3; }
+#alarm-form .chip[aria-pressed="true"] { background: var(--ecam); border-color: var(--ecam); color: #fff; }
+
+/* Bouton Recharger : icône seule sur petit écran (place pour la date) */
+.sync-ico { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: none; }
+@media (max-width: 480px) {
+  #sync { width: 44px; height: 44px; padding: 0; border-radius: 50%; display: grid; place-items: center; }
+  #sync .sync-ico { display: block; }
+  #sync .sync-lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  #sync[aria-busy="true"] .sync-ico { animation: spin 1s linear infinite; }
+}
+@keyframes spin { to { transform: rotate(360deg); } }

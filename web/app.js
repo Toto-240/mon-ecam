@@ -364,6 +364,7 @@ function renderAll() {
   window.renderDS?.();
   window.renderNotifs?.();
   window.renderMemos?.();
+  window.renderAlarmes?.();
   window.renderCloud?.();
   window.planRappels?.();
 }
@@ -433,7 +434,7 @@ async function load() {
 function setSyncButton(busy) {
   const b = $("#sync");
   b.setAttribute("aria-busy", !!busy);
-  b.textContent = busy ? "Chargement…" : "Recharger";
+  b.querySelector(".sync-lbl").textContent = busy ? "Chargement…" : "Recharger";
   b.disabled = !!busy;
 }
 
@@ -459,7 +460,7 @@ async function requestSync() {
     return;
   }
   setSyncButton(true);
-  $("#sync").textContent = "Synchro…";
+  $("#sync .sync-lbl").textContent = "Synchro…";
   const before = DATA?.maj;
   try {
     // lance la synchro (droit « Actions » du jeton) ; sinon dépose une demande dans le dépôt (droit « Contenu »)
