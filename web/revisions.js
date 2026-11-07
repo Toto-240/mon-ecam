@@ -746,6 +746,36 @@ function nextDsDate(m) {
   return ds ? isoDay(ds.d0) : isoDay(new Date(NOW.getTime() + 7 * 864e5));
 }
 
+/* ---------- Scores de QCM ---------- */
+const scoresFor = (m) => (window.persoScores?.() || []).filter((x) => sameMatiere(x.matiere, m))
+  .sort((a, b) => (a.quand || "").localeCompare(b.quand || ""));
+
+function progressHtml(m) {
+  const sc = scoresFor(m);
+  if (!sc.length) return "";
+  const pct = (x) => Math.round(100 * x.good / x.total);
+  const last = sc.slice(-10);
+  const moy = Math.round(sc.reduce((a, x) => a + pct(x), 0) / sc.length);
+  const recent = sc.slice(-3), older = sc.slice(-6, -3);
+  const avg = (l) => l.reduce((a, x) => a + pct(x), 0) / l.length;
+  const trend = older.length ? Math.round(avg(recent) - avg(older)) : 0;
+  // questions ratées le plus souvent (et pas réussies depuis)
+  const count = {};
+  for (const x of sc) for (const q of x.rates || []) count[q] = (count[q] || 0) + 1;
+  const top = Object.entries(count).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const color = (p) => p >= 75 ? "#3A9A4C" : p >= 50 ? "#C27410" : "#D93F3F";
+  return `<details class="card progress-card">
+    <summary><span class="t">📈 Tes QCM</span>
+      <span class="m">${sc.length} fait${sc.length > 1 ? "s" : ""} · moyenne ${moy} %${trend ? ` · ${trend > 0 ? "▲" : "▼"} ${Math.abs(trend)} pts` : ""}</span></summary>
+    <div class="bars" role="img" aria-label="Tes ${last.length} derniers scores">
+      ${last.map((x) => `<div class="bar" title="${esc(fmtDate(x.quand.slice(0, 10)))} : ${x.good}/${x.total}">
+        <span style="height:${Math.max(6, pct(x))}%;background:${color(pct(x))}"></span><em>${pct(x)}</em></div>`).join("")}
+    </div>
+    <p class="small muted">Tes ${last.length} derniers QCM, du plus ancien au plus récent (en %).</p>
+    ${top.length ? `<h4>Questions que tu rates le plus</h4><ul class="missed">${top.map(([q, n]) => `<li>${esc(q)} <span class="muted">(${n}×)</span></li>`).join("")}</ul>` : ""}
+  </details>`;
+}
+
 /* Choix des fiches pour une carte mentale : matière -> ensemble des fiches cochées */
 const cartePick = new Map();
 
@@ -830,6 +860,7 @@ function renderFiches() {
     : `<div class="row">
       <button type="button" class="btn small primary" data-pick-start>Choisir des fiches…</button>
       <button type="button" class="btn small" data-add-libre>+ Ajouter une fiche</button></div>`}
+    ${progressHtml(m)}
     <ul class="list subject-list">
       ${r ? `<li class="rev"><button type="button" class="item" data-open-rev="${esc(m)}">
         <div class="t">Fiche de révision et QCM</div>
@@ -1031,7 +1062,7 @@ function openRevision(matiere, id, focus) {
   if (r._fichier && !onlyQcm) wireDelete(`revisions/${r._fichier}`, r.ds ? "Supprimer toute la prépa de ce DS" : "Supprimer cette révision");
   const body = $("#reader-body");
   let good = 0, done = 0;
-  const total = r.qcm.length;
+  const total = r.qcm.length, missed = [];
   body.querySelectorAll(".q").forEach((qEl) => {
     const q = r.qcm[+qEl.dataset.q];
     qEl.querySelectorAll("button").forEach((b) => {
@@ -1042,7 +1073,17 @@ function openRevision(matiere, id, focus) {
         if (pick === q.bonne) good++; else b.classList.add("bad");
         qEl.querySelector(`[data-c="${q.bonne}"]`).classList.add("good");
         qEl.querySelector(".why").hidden = false;
+        if (pick !== q.bonne) missed.push(q.question);
         $("#score").textContent = done === total ? `Score : ${good}/${total}` : `${good} bonne(s) réponse(s) sur ${done}`;
+        if (done === total) {
+          // score gardé (synchronisé) pour suivre ta progression dans Révisions
+          const prev = scoresFor(r.matiere).filter((x) => x.rev === r.id);
+          window.saveScore?.({ id: newId(), rev: r.id, matiere: r.matiere, quand: new Date().toISOString(), good, total,
+            rates: missed.slice(0, 15).map((t) => String(t).slice(0, 200)) });
+          const best = Math.max(0, ...prev.map((x) => x.good / x.total));
+          const pct = Math.round(100 * good / total);
+          $("#score").textContent = `Score : ${good}/${total} (${pct} %)${prev.length ? (good / total > best ? " · nouveau record ! 🎉" : ` · ton meilleur : ${Math.round(100 * best)} %`) : ""}`;
+        }
       };
     });
   });

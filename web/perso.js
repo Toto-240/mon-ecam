@@ -7,7 +7,7 @@
 const PERSO_PATH = "/contents/perso/etat.enc";
 const PERSO_BASE = "ecam-perso-base";     // dernier état connu de GitHub
 const PERSO_PENDING = "ecam-perso-ops";   // changements pas encore envoyés
-const emptyPerso = () => ({ faits: {}, ds: [], dsSel: {}, dsFinis: {}, devoirs: [], memos: [], cloud: [], rappels: [], maj: "" });
+const emptyPerso = () => ({ faits: {}, ds: [], dsSel: {}, dsFinis: {}, devoirs: [], memos: [], cloud: [], rappels: [], scores: [], maj: "" });
 
 const persoStore = {
   get(k, def) { try { return JSON.parse(store.get(k)) ?? def; } catch { return def; } },
@@ -16,11 +16,13 @@ const persoStore = {
 
 /* Un changement = une petite opération, rejouée sur la version de GitHub au moment d'envoyer */
 function applyOp(s, op) {
-  s = { ...emptyPerso(), ...s, faits: { ...(s?.faits || {}) }, ds: [...(s?.ds || [])], dsSel: { ...(s?.dsSel || {}) }, dsFinis: { ...(s?.dsFinis || {}) }, devoirs: [...(s?.devoirs || [])], memos: [...(s?.memos || [])], cloud: [...(s?.cloud || [])], rappels: [...(s?.rappels || [])] };
+  s = { ...emptyPerso(), ...s, faits: { ...(s?.faits || {}) }, ds: [...(s?.ds || [])], dsSel: { ...(s?.dsSel || {}) }, dsFinis: { ...(s?.dsFinis || {}) }, devoirs: [...(s?.devoirs || [])], memos: [...(s?.memos || [])], cloud: [...(s?.cloud || [])], rappels: [...(s?.rappels || [])], scores: [...(s?.scores || [])] };
   if (op.op === "fait") {
     if (op.val) s.faits[op.key] = op.val; else delete s.faits[op.key];
   } else if (op.op === "ds+") {
     s.ds = s.ds.filter((d) => d.id !== op.ds.id).concat(op.ds);
+  } else if (op.op === "score+") {
+    s.scores = s.scores.filter((x) => x.id !== op.score.id).concat(op.score).slice(-400);
   } else if (op.op === "rap+") {
     const i = s.rappels.findIndex((r) => r.id === op.r.id);
     if (i >= 0) s.rappels[i] = op.r; else s.rappels.push(op.r);
@@ -78,6 +80,7 @@ function rerender() {
   if (!DATA) return;
   window.renderMemos?.();
   window.renderAlarmes?.();
+  window.renderEnCours?.();
   window.renderCloud?.();
   window.planRappels?.();
   renderPlanning();
@@ -242,3 +245,7 @@ window.delCloud = (id) => persoChange({ op: "cloud-", id });
 window.persoRappels = () => PERSO.rappels || [];
 window.saveRappel = (r) => persoChange({ op: "rap+", r });
 window.delRappel = (id) => persoChange({ op: "rap-", id });
+
+/* Scores de QCM */
+window.persoScores = () => PERSO.scores || [];
+window.saveScore = (score) => persoChange({ op: "score+", score });

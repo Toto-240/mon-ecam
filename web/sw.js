@@ -1,6 +1,6 @@
 // Garde l'interface disponible hors connexion ; les données restent en cache dans l'appli.
-const CACHE = "mon-ecam-v50";
-const FILES = ["./", "index.html", "app.css", "app.js", "revisions.js", "carte.js", "perso.js", "devoirs.js", "depot.js", "ds.js", "notifs.js", "memos.js", "alarmes.js", "rappels.js", "cloud.js", "icon.svg", "manifest.webmanifest"];
+const CACHE = "mon-ecam-v52";
+const FILES = ["./", "index.html", "app.css", "app.js", "revisions.js", "carte.js", "perso.js", "devoirs.js", "depot.js", "ds.js", "notifs.js", "memos.js", "alarmes.js", "cal.js", "encours.js", "rappels.js", "cloud.js", "icon.svg", "manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)));
@@ -16,7 +16,7 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   // seulement les fichiers de l'appli : jamais GitHub, Moodle ni les polices
   if (url.origin !== location.origin || e.request.method !== "GET"
-      || url.pathname.endsWith("data.enc") || url.pathname.endsWith("config.json") || url.pathname.endsWith("version.json")) return;
+      || url.pathname.endsWith("data.enc") || url.pathname.endsWith("config.json") || url.pathname.endsWith("version.json") || url.pathname.includes("/cal/")) return;
   e.respondWith(
     fetch(e.request)
       .then((r) => {

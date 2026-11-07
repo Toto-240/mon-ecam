@@ -365,6 +365,7 @@ function renderAll() {
   window.renderNotifs?.();
   window.renderMemos?.();
   window.renderAlarmes?.();
+  window.renderEnCours?.();
   window.renderCloud?.();
   window.planRappels?.();
 }

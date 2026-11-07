@@ -15,6 +15,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+import calendrier
 import changements
 import notif
 from crypto_util import decrypt_json, encrypt_json
@@ -117,6 +118,13 @@ def main():
     (SITE / "index.html").write_text(index, encoding="utf-8")
     (SITE / "version.json").write_text(json.dumps({"v": version}), encoding="utf-8")
     repo = os.environ.get("GITHUB_REPOSITORY", "")
+    # calendrier pour l'iPhone, à une adresse secrète (calculée aussi par l'appli)
+    try:
+        app_url = f"https://{repo.split('/')[0].lower()}.github.io/{repo.split('/')[1]}/" if "/" in repo else ""
+        (SITE / "cal").mkdir(exist_ok=True)
+        (SITE / "cal" / f"{calendrier.secret_name(password)}.ics").write_text(calendrier.build(data, app_url), encoding="utf-8")
+    except Exception as e:
+        print(f"Calendrier non créé ({type(e).__name__})")
     (SITE / "config.json").write_text(json.dumps({"repo": repo}), encoding="utf-8")
     print(f"Site prêt : {len(data['planning'])} créneaux, {len(data['devoirs'])} devoirs, "
           f"{len(data['notes'])} notes, {len(data['cours'])} cours, {len(data['fiches'])} fiches (chiffrés)")
