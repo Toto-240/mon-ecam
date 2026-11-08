@@ -5,7 +5,7 @@ const ICO = { annule: "✕", deplace: "↷", salle: "⌂", prof: "P", ajoute: "+
 const TITLE = { annule: "Cours annulé", deplace: "Cours déplacé", salle: "Changement de salle",
   prof: "Changement d'enseignant", ajoute: "Nouveau cours" };
 
-function whenText(c) {
+function changeText(c) {
   const av = c.avant || {}, ap = c.apres || {};
   const at = (iso) => (iso ? `${fmtDayLong(new Date(iso))} à ${fmtTime(new Date(iso))}` : "?");
   switch (c.type) {
@@ -28,7 +28,7 @@ window.renderNotifs = function () {
   $("#notif-list").innerHTML = list.length ? list.map((c) => `<li class="${c.quand > seen ? "new" : ""}">
       <span class="ico ico-${esc(c.type)}" aria-hidden="true">${ICO[c.type] || "•"}</span>
       <div class="t">${esc(TITLE[c.type] || "Changement")} : ${esc(c.matiere || c.titre || "")}</div>
-      <div class="m">${esc(whenText(c))}</div>
+      <div class="m">${esc(changeText(c))}</div>
       <div class="when">Repéré ${esc(relDay(new Date(c.quand)))} à ${esc(fmtTime(new Date(c.quand)))}</div>
     </li>`).join("")
     : `<li class="m">Aucun changement pour l'instant. Dès qu'un cours est annulé, ajouté, déplacé ou change de salle, il apparaîtra ici.</li>`;
