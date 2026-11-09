@@ -1,23 +1,20 @@
-import requests, re, json
+import json
+from playwright.sync_api import sync_playwright
 U = "https://padlet.com/ludovicrenzi1/techniques-de-communication-et-culture-generale-semestre-1-l-5xmj7pnnapr3vi7o"
-H = "5xmj7pnnapr3vi7o"
-s = requests.Session(); s.headers["User-Agent"] = "Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/124 Safari/537.36"
-r = s.get(U); print("page", r.status_code, len(r.text))
-t = r.text
-print("api refs:", sorted(set(re.findall(r'/api/\d+/[a-z_/]+', t)))[:40])
-for k in ["wall_id", "wallId", "\"id\":", "hashid", "rss", "feed"]:
-    for m in list(re.finditer(re.escape(k), t))[:3]:
-        print(k, "=>", t[max(0,m.start()-80):m.start()+120].replace("\n"," "))
-ids = re.findall(r'"wall"\s*:\s*\{\s*"id"\s*:\s*(\d+)', t) + re.findall(r'wall_id["\s:=]+(\d+)', t)
-print("ids", ids[:5])
-cands = [f"https://padlet.com/api/5/wishes?wall_hashid={H}", f"https://padlet.com/api/10/wishes?wall_hashid={H}",
-         f"https://padlet.com/api/5/walls/{H}", f"https://padlet.com/padlets/{H}/exports/feed.xml",
-         f"https://padlet.com/api/9/wall_sections?wall_hashid={H}", f"https://padlet.com/api/5/wall_sections?wall_hashid={H}"]
-for i in ids[:1]:
-    cands += [f"https://padlet.com/api/5/wishes?wall_id={i}", f"https://padlet.com/api/10/wishes?wall_id={i}",
-              f"https://padlet.com/api/5/wall_sections?wall_id={i}", f"https://padlet.com/api/9/wall_sections?wall_id={i}",
-              f"https://padlet.com/padlets/{i}/exports/feed.xml"]
-for c in cands:
-    try:
-        x = s.get(c, headers={"Accept": "application/json"}); print("\nGET", c, x.status_code, x.headers.get("content-type"), len(x.text)); print(x.text[:700])
-    except Exception as e: print(c, e)
+seen = []
+with sync_playwright() as p:
+    b = p.chromium.launch()
+    c = b.new_context(user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36", locale="fr-FR")
+    pg = c.new_page()
+    def on(r):
+        if "/api/" in r.url:
+            try: body = r.text()
+            except Exception: body = ""
+            seen.append((r.url, r.status, body))
+    pg.on("response", on)
+    pg.goto(U, wait_until="networkidle", timeout=90000); pg.wait_for_timeout(5000)
+    print("title:", pg.title())
+    print("text:", pg.inner_text("body")[:1500])
+    b.close()
+for u, s, body in seen:
+    print("\nAPI", s, u, len(body)); print(body[:1200])
