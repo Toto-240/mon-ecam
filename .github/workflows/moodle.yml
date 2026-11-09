@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ["moodle_fiches.py", ".github/workflows/moodle.yml"]
+    paths: ["moodle_fiches.py", "padlet_fiches.py", ".github/workflows/moodle.yml"]
 
 permissions:
   contents: write
@@ -54,6 +54,16 @@ jobs:
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           MAX_DOCS: ${{ vars.MOODLE_MAX_DOCS || '20' }}
         run: python moodle_fiches.py
+
+      - name: Fiches Padlet (lundi et jeudi)
+        if: always()
+        env:
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          PADLET_FORCE: ${{ github.event_name != 'schedule' && '1' || '' }}
+        run: python padlet_fiches.py
 
       - name: Ranger les fiches
         if: always()

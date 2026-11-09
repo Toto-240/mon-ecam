@@ -898,7 +898,7 @@ function renderFiches() {
       ${fs.map((f) => `<li${pick ? ` class="pick${pick.has(f.id) ? "" : " off"}"` : ""}>${pick ? `<input type="checkbox" data-pick="${esc(f.id)}"${pick.has(f.id) ? " checked" : ""}
         aria-label="Mettre ${esc(f.titre || m)} dans la carte mentale">` : ""}<button type="button" class="item" data-open="${esc(f.id)}">
         <div class="t">${esc(f.titre || m)}</div>
-        <div class="m">${f.source === "moodle" ? `D'après le support Moodle${f.date ? ", " + esc(fmtDate(f.date)) : ""}`
+        <div class="m">${f.source === "moodle" ? `D'après ${f.origine === "padlet" ? "le Padlet" : "le support Moodle"}${f.date ? ", " + esc(fmtDate(f.date)) : ""}`
           : f.source === "complete" ? `Support Moodle complété par le cours du ${esc(fmtDate(f.date))}`
           : f.source === "notes" ? `${esc(fmtDate(f.date))}, d'après tes notes et photos`
           : `${esc(fmtDate(f.date))}${f.duree_min ? `, ${f.duree_min} min d'enregistrement` : ""}`}</div>
