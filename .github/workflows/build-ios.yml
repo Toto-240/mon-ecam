@@ -34,6 +34,12 @@ jobs:
           PLIST=ios/App/App/Info.plist
           /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Mon ECAM enregistre tes cours pour en faire des fiches.'" "$PLIST" \
             || /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'Mon ECAM enregistre tes cours pour en faire des fiches.'" "$PLIST"
+          for kv in "NSCameraUsageDescription|Mon ECAM prend en photo le tableau et tes documents pour en faire des fiches." \
+                    "NSPhotoLibraryUsageDescription|Mon ECAM ajoute tes photos de cours aux fiches." \
+                    "NSPhotoLibraryAddUsageDescription|Mon ECAM enregistre tes fichiers dans Photos quand tu le demandes."; do
+            k="${kv%%|*}"; v="${kv#*|}"
+            /usr/libexec/PlistBuddy -c "Add :$k string '$v'" "$PLIST" || /usr/libexec/PlistBuddy -c "Set :$k '$v'" "$PLIST"
+          done
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$PLIST" || true
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string audio" "$PLIST" || true
 
