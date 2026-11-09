@@ -1,20 +1,15 @@
-import json
-from playwright.sync_api import sync_playwright
-U = "https://padlet.com/ludovicrenzi1/techniques-de-communication-et-culture-generale-semestre-1-l-5xmj7pnnapr3vi7o"
-seen = []
-with sync_playwright() as p:
-    b = p.chromium.launch()
-    c = b.new_context(user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36", locale="fr-FR")
-    pg = c.new_page()
-    def on(r):
-        if "/api/" in r.url:
-            try: body = r.text()
-            except Exception: body = ""
-            seen.append((r.url, r.status, body))
-    pg.on("response", on)
-    pg.goto(U, wait_until="networkidle", timeout=90000); pg.wait_for_timeout(5000)
-    print("title:", pg.title())
-    print("text:", pg.inner_text("body")[:1500])
-    b.close()
-for u, s, body in seen:
-    print("\nAPI", s, u, len(body)); print(body[:1200])
+import requests, json
+s = requests.Session(); s.headers["User-Agent"] = "Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/130 Safari/537.36"
+s.headers["Accept"] = "application/json"
+sec = s.get("https://padlet.com/api/5/wall_sections?wall_id=201830617", timeout=30); print("sections", sec.status_code)
+titles = {int(x["id"]): x["attributes"]["title"] for x in sec.json()["data"]}
+print(list(titles.values()))
+r = s.get("https://padlet.com/api/10/wishes?wall_hashid=board_wY7WyVlwZRRMn52P&page_start=", timeout=30); print("wishes", r.status_code)
+j = r.json(); print("top keys", list(j.keys()), "links", j.get("links"), "meta", j.get("meta"))
+d = j["data"]; print("n", len(d))
+print("attr keys", sorted(d[0]["attributes"].keys()))
+print("wish_content keys", sorted((d[0]["attributes"].get("wish_content") or {}).keys()))
+for w in d:
+    a = w["attributes"]; wc = a.get("wish_content") or {}
+    print("--", titles.get(a.get("wall_section_id")), "|", a.get("subject"), "|", a.get("created_at"), "| body", len(a.get("body") or ""))
+    print("   att:", a.get("attachment"), "| wc:", json.dumps({k: v for k, v in wc.items() if k not in ("body","subject")}, ensure_ascii=False)[:500])

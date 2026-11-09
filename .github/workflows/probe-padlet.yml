@@ -5,5 +5,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: pip install playwright requests && python -m playwright install --with-deps chromium
+      - run: pip install requests
       - run: python probe_padlet.py
