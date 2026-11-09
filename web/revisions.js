@@ -428,7 +428,21 @@ function showLive(r) {
   const tick = () => { $("#rec-time").textContent = fmtDuration(Math.floor(recElapsed(r) / 1000)); };
   tick();
   r.timer = setInterval(tick, 500);
+  if (r.native) r.watch = setInterval(() => checkLive(r), 10000);
   showPaused(r);
+}
+
+/* Vérifie que le micro de l'iPhone capte vraiment (sinon l'appli le relance). */
+async function checkLive(r) {
+  if (rec !== r || !r.since || document.visibilityState !== "visible") return;
+  const st = await Dicta.status().catch(() => null);
+  if (!st || st.live !== false || rec !== r || !r.since) return;
+  try {
+    await Dicta.resume();
+    $("#rec-hint").textContent = "Le micro s'était arrêté : il a été relancé.";
+  } catch (e) {
+    $("#rec-hint").textContent = `⚠️ Le micro ne capte plus. Appuie sur Pause puis Reprendre. (${e.message || e})`;
+  }
 }
 
 const recElapsed = (r) => Math.max(0, (r.acc || 0) + (r.since ? Date.now() - r.since : 0));
@@ -475,6 +489,7 @@ $("#rec-pause").onclick = async () => {
 
 function hideLive() {
   if (rec?.timer) clearInterval(rec.timer);
+  if (rec?.watch) clearInterval(rec.watch);
   rec = null;
   $("#rec-live").hidden = true; $("#new-form").hidden = false; $("#rec-dot").hidden = true;
   $("#rec-time").textContent = "0:00";
@@ -529,6 +544,7 @@ async function stopRecording() {
   r.duree = recElapsed(r);
   r.acc = r.duree; r.since = null;
   if (r.native) {
+    $("#rec-state").textContent = "Finalisation de l'enregistrement…";
     try { r.size = (await Dicta.stop()).size; } catch { r.size = 0; }
     hideLive();
     return r;
