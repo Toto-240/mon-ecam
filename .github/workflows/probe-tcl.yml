@@ -5,7 +5,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: python probe_tcl.py
+      - run: pip install requests && python probe_tcl.py
         env:
           GL_USER: ${{ secrets.GRANDLYON_LOGIN }}
           GL_PASS: ${{ secrets.GRANDLYON_PASSWORD }}
