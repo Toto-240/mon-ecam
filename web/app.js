@@ -399,6 +399,7 @@ function renderAll() {
   window.renderMemos?.();
   window.renderAlarmes?.();
   window.renderEnCours?.();
+  window.renderTrajet?.();
   window.renderCloud?.();
   window.planRappels?.();
 }
@@ -580,6 +581,7 @@ function showPane(name) {
   document.querySelectorAll(".pane").forEach((p) => { p.hidden = p.id !== "pane-" + name; });
   store.set("ecam-pane", name);
   document.body.dataset.pane = name;   // ex. : le bandeau du pense-bête n'apparaît que dans le Planning
+  if (name === "trajet") window.renderTrajet?.();
   scrollTo(0, 0);
 }
 document.querySelectorAll(".panes button").forEach((b) => { b.onclick = () => showPane(b.dataset.pane); });

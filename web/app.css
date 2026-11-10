@@ -724,3 +724,36 @@ li.prepa-card .ds-rev { margin-top: 8px; }
 .rec-queue li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); }
 .rec-queue li:first-child { border-top: 0; }
 .rec-queue .danger { border-color: #C0392B; color: #C0392B; }
+
+/* Onglet Trajet */
+#trajet .seg { display: flex; width: 100%; margin: 0 0 10px; }
+#trajet .seg button { flex: 1; border: 0; background: var(--surface); color: var(--ink); padding: 9px 6px; font: inherit; font-size: .9rem; cursor: pointer; }
+#trajet .seg button + button { border-left: 1px solid var(--line); }
+#trajet .seg button[aria-pressed="true"] { background: var(--ecam); color: #fff; font-weight: 600; }
+#trajet .trajet-day button { font-size: .82rem; padding: 7px 6px; }
+.tconseil { margin: 6px 0 14px; }
+.tconseil.warn { color: #C0392B; font-weight: 600; }
+.tbig { font-size: 1.15rem; margin: 2px 0 6px; }
+.tlist { margin: 0; }
+.trow { display: grid; grid-template-columns: 4.6em 1fr; grid-template-areas: "leave route" "leave arr"; gap: 2px 10px; padding: 10px 0; }
+.trow.best { background: color-mix(in srgb, var(--ecam) 8%, transparent); border-radius: 10px; padding: 10px 8px; }
+.tleave { grid-area: leave; display: flex; flex-direction: column; }
+.tleave b { font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+.tleave span { font-size: .75rem; color: var(--muted); }
+.troute { grid-area: route; font-size: .9rem; font-variant-numeric: tabular-nums; line-height: 1.7; }
+.tarr { grid-area: arr; font-size: .85rem; color: var(--muted); }
+.tarr b { color: var(--ink); }
+.tl, .tl.tl-d, .tl.tl-f, .tl.tl-bus { color: #fff !important; }
+.tl { display: inline-block; min-width: 2.1em; text-align: center; border-radius: 6px; padding: 0 5px; font-weight: 700; font-size: .8rem; color: #fff; }
+.tl.tl-bus { background: #E2001A; }
+.tl.tl-d { background: #2CA02C; }
+.tl.tl-f { background: #7A7A7A; }
+.tlast { margin-top: 16px; }
+.tlast-full { margin: 4px 0 8px; }
+.tlast-list { list-style: none; margin: 0; padding: 0; }
+.tlast-list li { display: flex; justify-content: space-between; padding: 6px 0; border-top: 1px solid var(--line); font-size: .92rem; }
+.tcfg { margin-top: 14px; }
+.tcfg summary { cursor: pointer; font-weight: 600; }
+.tcfg-grid { display: grid; gap: 8px; margin: 10px 0; }
+.tcfg-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: .9rem; }
+.tcfg-item input { width: 4em; font: inherit; font-size: 16px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: inherit; text-align: center; }

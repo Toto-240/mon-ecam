@@ -43,6 +43,9 @@ function rappelsList() {
     if (!r.fait && r.quand) add(new Date(`${r.quand}:00`), "⏰ Rappel", r.texte);
   }
 
+  // trajet : « pars dans 5 min » les jours de cours (onglet Trajet)
+  for (const t of window.trajetAlertes?.() || []) add(t.when, t.title, t.body);
+
   // pense-bête : un rappel le jour J à 7h30 avec les notes du jour
   const byDay = {};
   for (const m of window.persoMemos?.() || []) {
