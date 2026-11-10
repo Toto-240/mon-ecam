@@ -1,0 +1,47 @@
+name: Horaires TCL
+
+# Horaires théoriques TCL du trajet (onglet « Trajet ») : une fois par jour, avant la première synchro.
+on:
+  schedule:
+    - cron: "11 4 * * *"   # 5h11 (hiver) / 6h11 (été), heure de Paris
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["tcl.py", ".github/workflows/tcl.yml"]
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: tcl
+  cancel-in-progress: false
+
+jobs:
+  tcl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TZ: Europe/Paris
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -q requests "cryptography>=42"
+      - name: Préparer les horaires
+        env:
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+          GRANDLYON_LOGIN: ${{ secrets.GRANDLYON_LOGIN }}
+          GRANDLYON_PASSWORD: ${{ secrets.GRANDLYON_PASSWORD }}
+        run: python tcl.py
+      - name: Enregistrer
+        run: |
+          git config user.name "Mon ECAM"
+          git config user.email "mon-ecam@users.noreply.github.com"
+          bash save_main.sh "Horaires TCL" tcl.enc
+      - name: Publier dans l'appli
+        if: github.event_name != 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run sync.yml -R "${{ github.repository }}" -f rapide=true || true

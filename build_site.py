@@ -101,6 +101,13 @@ def main():
     if not os.environ.get("RAPIDE"):
         notif.nouveautes(prev, data)   # nouvelles notes, nouveaux devoirs (téléphone, via ntfy)
 
+    # horaires TCL du trajet (tcl.py, chiffrés)
+    if (BASE / "tcl.enc").exists():
+        try:
+            data["tcl"] = decrypt_json((BASE / "tcl.enc").read_text(encoding="utf-8"), password)
+        except Exception:
+            print("tcl.enc illisible, ignoré")
+
     shutil.rmtree(SITE, ignore_errors=True)
     shutil.copytree(WEB, SITE)
     (SITE / "data.enc").write_text(encrypt_json(data, password), encoding="utf-8")
