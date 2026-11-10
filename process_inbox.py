@@ -27,27 +27,39 @@ import notif
 from crypto_util import decrypt_json, decrypt_upload, encrypt_json
 
 # Ordre de préférence ; seuls ceux que Google propose encore sont utilisés.
-PREFERRED = [m for m in (os.environ.get("GEMINI_MODEL"), "gemini-flash-latest", "gemini-3-flash-preview",
-                         "gemini-2.5-flash", "gemini-3.1-flash-lite", "gemini-flash-lite-latest") if m]
+# Google renouvelle souvent ses modèles (les anciens noms disparaissent) : on prend les plus récents
+# parmi ceux que le compte voit vraiment, avec cette liste seulement en dernier recours.
+FALLBACK = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite",
+            "gemini-3.1-flash-lite"]
 _models = None
-
-
-# Modèles plus forts, essayés d'abord pour les devoirs (quota gratuit plus petit : sinon les modèles habituels)
-STRONG = ["gemini-pro-latest", "gemini-3-pro-preview", "gemini-2.5-pro"]
 _names = None
 
 
+def _version(name):
+    m = re.match(r"gemini-(\d+(?:\.\d+)?)", name)
+    return float(m.group(1)) if m else 0.0
+
+
+def _pick(names, pattern):
+    return sorted((n for n in names if re.fullmatch(pattern, n)), key=_version, reverse=True)
+
+
 def models(client, strong=False):
+    """Modèles à essayer, du meilleur au plus sûr : GEMINI_MODEL (variable du dépôt) s'il est défini,
+    puis les « flash » les plus récents, puis les « flash-lite » (quota gratuit plus large)."""
     global _models, _names
     if _models is None:
         try:
             _names = {m.name.split("/")[-1] for m in client.models.list()}
-            _models = [m for m in PREFERRED if m in _names] or PREFERRED
         except Exception:
-            _names, _models = set(), PREFERRED
-        print(f"  modèles disponibles : {len(_models)}")
-    if strong:
-        return [m for m in STRONG if m in (_names or set())] + _models
+            _names = set()
+        flash = _pick(_names, r"gemini-\d+(?:\.\d+)?-flash")[:3]
+        lite = _pick(_names, r"gemini-\d+(?:\.\d+)?-flash-lite")[:2]
+        _models = [m for m in [os.environ.get("GEMINI_MODEL")] if m] + flash + lite
+        _models = list(dict.fromkeys(_models)) or FALLBACK
+        print(f"  modèles : {', '.join(_models)}")
+    if strong:   # devoirs, DS blanc : un « pro » s'il y en a un (quota gratuit plus petit, sinon les habituels)
+        return _pick(_names or set(), r"gemini-\d+(?:\.\d+)?-pro(?:-preview)?")[:2] + _models
     return _models
 
 PROMPT_COURS = """Tu es un assistant pour un étudiant en Bachelor cybersécurité à l'ECAM LaSalle (Lyon).
