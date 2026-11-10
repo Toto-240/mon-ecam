@@ -7,7 +7,7 @@
 const PERSO_PATH = "/contents/perso/etat.enc";
 const PERSO_BASE = "ecam-perso-base";     // dernier état connu de GitHub
 const PERSO_PENDING = "ecam-perso-ops";   // changements pas encore envoyés
-const emptyPerso = () => ({ faits: {}, ds: [], dsSel: {}, dsFinis: {}, devoirs: [], memos: [], cloud: [], rappels: [], scores: [], activites: {}, maj: "" });
+const emptyPerso = () => ({ faits: {}, ds: [], dsSel: {}, dsFinis: {}, devoirs: [], memos: [], cloud: [], rappels: [], scores: [], activites: {}, dsVus: {}, maj: "" });
 
 const persoStore = {
   get(k, def) { try { return JSON.parse(store.get(k)) ?? def; } catch { return def; } },
@@ -16,11 +16,13 @@ const persoStore = {
 
 /* Un changement = une petite opération, rejouée sur la version de GitHub au moment d'envoyer */
 function applyOp(s, op) {
-  s = { ...emptyPerso(), ...s, faits: { ...(s?.faits || {}) }, ds: [...(s?.ds || [])], dsSel: { ...(s?.dsSel || {}) }, dsFinis: { ...(s?.dsFinis || {}) }, devoirs: [...(s?.devoirs || [])], memos: [...(s?.memos || [])], cloud: [...(s?.cloud || [])], rappels: [...(s?.rappels || [])], scores: [...(s?.scores || [])], activites: { ...(s?.activites || {}) } };
+  s = { ...emptyPerso(), ...s, faits: { ...(s?.faits || {}) }, ds: [...(s?.ds || [])], dsSel: { ...(s?.dsSel || {}) }, dsFinis: { ...(s?.dsFinis || {}) }, devoirs: [...(s?.devoirs || [])], memos: [...(s?.memos || [])], cloud: [...(s?.cloud || [])], rappels: [...(s?.rappels || [])], scores: [...(s?.scores || [])], activites: { ...(s?.activites || {}) }, dsVus: { ...(s?.dsVus || {}) } };
   if (op.op === "fait") {
     if (op.val) s.faits[op.key] = op.val; else delete s.faits[op.key];
   } else if (op.op === "ds+") {
     s.ds = s.ds.filter((d) => d.id !== op.ds.id).concat(op.ds);
+  } else if (op.op === "dsvu") {
+    s.dsVus[op.key] = op.quand || new Date().toISOString();
   } else if (op.op === "act") {
     if (op.texte) s.activites[op.key] = { texte: op.texte, maj: op.quand || new Date().toISOString() };
     else delete s.activites[op.key];
@@ -248,6 +250,10 @@ window.delCloud = (id) => persoChange({ op: "cloud-", id });
 window.persoRappels = () => PERSO.rappels || [];
 window.saveRappel = (r) => persoChange({ op: "rap+", r });
 window.delRappel = (id) => persoChange({ op: "rap-", id });
+
+/* DS repérés automatiquement dans les notes / photos / enregistrements : déjà traités ? */
+window.dsVu = (key) => !!(PERSO.dsVus || {})[key];
+window.setDsVu = (key) => persoChange({ op: "dsvu", key });
 
 /* Ce qu'on a fait en cours (quelques mots par cours du planning) */
 window.actKey = (e) => `${e.debut}|${e.matiere}`;

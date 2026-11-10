@@ -1,0 +1,40 @@
+name: Rattrapage des DS annoncés
+
+on: workflow_dispatch
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: fiches
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TZ: Europe/Paris
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -q -r requirements.txt google-genai
+      - name: Relire les fiches récentes
+        env:
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python scan_ds.py
+      - name: Enregistrer
+        run: |
+          git config user.name "Mon ECAM"
+          git config user.email "mon-ecam@users.noreply.github.com"
+          bash save_main.sh "DS repérés dans les fiches" ds_detectes
+      - name: Publier
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run sync.yml -R "${{ github.repository }}" -f rapide=true || true

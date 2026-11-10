@@ -73,6 +73,7 @@ def main():
         "erreurs": read_enc_dir("erreurs", password),
         "depots": read_enc_dir("depots", password),
         "cartes": read_enc_dir("cartes", password),
+        "dsDetectes": read_enc_dir("ds_detectes", password),
         # devoirs faits : seulement la liste ici, le fichier se charge à l'ouverture
         "perso": read_perso(password),
         "travaux": [{k: d.get(k) for k in ("id", "titre", "matiere", "fichier", "mise_en_page", "cree", "pour")}

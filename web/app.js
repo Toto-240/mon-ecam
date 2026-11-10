@@ -44,7 +44,7 @@ function events() {
     if (off) { off.persoNotes = p.notes; off.persoId = p.id; continue; }
     const debut = `${p.date}T${p.debut || "08:00"}:00`;
     const fin = `${p.date}T${p.fin || (p.debut ? addHour(p.debut) : "23:59")}:00`;
-    evs.push({ perso: true, persoId: p.id, persoNotes: p.notes, sansHeure: !p.debut, type: "DS",
+    evs.push({ perso: true, auto: !!p.auto, persoId: p.id, persoNotes: p.notes, sansHeure: !p.debut, type: "DS",
       matiere: p.matiere, titre: `DS ${p.matiere}`, debut, fin, salle: p.salle || "", prof: "",
       d0: new Date(debut), d1: new Date(fin) });
   }

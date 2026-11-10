@@ -848,7 +848,8 @@ function watchPending() {
 }
 
 function resolvePending() {
-  const fiches = new Set([...(DATA.fiches || []), ...(DATA.travaux || []), ...(DATA.depots || []), ...(DATA.cartes || [])].map((f) => f.id));
+  const fiches = new Set([...(DATA.fiches || []), ...(DATA.travaux || []), ...(DATA.depots || []), ...(DATA.cartes || []),
+    ...(DATA.dsDetectes || [])].map((f) => f.id));   // annonce de DS seule : pas de fiche, le DS est ajouté
   const errs = Object.fromEntries((DATA.erreurs || []).map((e) => [e.id, e]));
   const revs = DATA.revisions || [];
   const list = pending.all().filter((p) => {

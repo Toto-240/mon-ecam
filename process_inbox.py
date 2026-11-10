@@ -485,7 +485,75 @@ def notes_parts(meta, data):
     return parts
 
 
+PROMPT_DS = """Tu aides un étudiant de l'ECAM LaSalle (Lyon) à ne rater aucune évaluation.
+Voici ce qu'il a pris en cours de {matiere} le {jour} {date} (photos du tableau, notes, documents ou fiche du cours).
+
+Repère UNIQUEMENT les annonces d'évaluations notées : DS, devoir surveillé, contrôle, partiel, examen, interrogation,
+QCM noté, oral noté, soutenance. Un exercice, un QCM d'entraînement ou un TD ne comptent pas.
+Pour chaque évaluation annoncée, donne :
+- "matiere" : la matière (par défaut « {matiere} »)
+- "date" : la date au format AAAA-MM-JJ si elle est donnée ou déductible (« jeudi prochain », « dans 2 semaines »,
+  « le 12/12 »…) à partir de la date du cours ({date}, un {jour}) ; sinon null. Année scolaire 2026-2027.
+- "debut" et "fin" : heures HH:MM si elles sont données, sinon null
+- "salle" : si elle est donnée, sinon null
+- "format" : QCM, écrit, oral, TP noté… (court), ou null
+- "programme" : liste courte de ce sur quoi ça porte (chapitres, notions), [] si rien n'est dit
+- "consignes" : ce qui est autorisé ou à apporter (calculatrice, documents…), ou null
+Indique aussi "annonce_seulement" : true si le contenu ne sert QU'À annoncer l'évaluation (pas de vrai contenu de cours
+à mettre en fiche), false s'il y a aussi du cours.
+Réponds en JSON : {{"annonce_seulement": bool, "ds": [ ... ]}} ; s'il n'y a aucune annonce : {{"annonce_seulement": false, "ds": []}}."""
+
+JOURS_FR = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
+
+
+def detect_ds(client, meta, parts):
+    """Annonces de DS dans ce qu'a envoyé l'étudiant -> (annonce seulement ?, liste des DS)."""
+    ref = meta.get("date") or datetime.now().date().isoformat()
+    try:
+        jour = JOURS_FR[datetime.fromisoformat(ref[:10]).weekday()]
+    except ValueError:
+        jour = ""
+    prompt = PROMPT_DS.format(matiere=meta.get("matiere") or "cours", date=ref[:10], jour=jour)
+    raw, _ = generate(client, list(parts) + [prompt], json_mode=True)
+    j = parse_json(raw)
+    out = []
+    for d in j.get("ds") or []:
+        if not isinstance(d, dict):
+            continue
+        date = d.get("date") if re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(d.get("date") or "")) else None
+        hm = lambda v: v if re.fullmatch(r"\d{2}:\d{2}", str(v or "")) else None
+        out.append({"matiere": str(d.get("matiere") or meta.get("matiere") or "")[:120], "date": date,
+                    "debut": hm(d.get("debut")), "fin": hm(d.get("fin")), "salle": str(d.get("salle") or "")[:40] or None,
+                    "format": str(d.get("format") or "")[:40] or None,
+                    "programme": [str(x)[:200] for x in (d.get("programme") or []) if x][:15],
+                    "consignes": str(d.get("consignes") or "")[:300] or None})
+    return bool(j.get("annonce_seulement")) and bool(out), out
+
+
+def save_ds(meta, ds, out: Path):
+    """DS repérés : l'appli les ajoute toute seule dans l'onglet DS."""
+    write(out / "ds_detectes" / f"{meta['id']}.enc", {
+        "id": meta["id"], "matiere": meta.get("matiere"), "date_cours": meta.get("date"), "ds": ds,
+        "cree": datetime.now().isoformat(timespec="seconds")})
+    for d in ds:
+        quand = datetime.fromisoformat(d["date"]).strftime("%d/%m") if d.get("date") else "date à préciser"
+        notif.send("📝 DS ajouté", f"{d['matiere']} · {quand}{' · ' + d['format'] if d.get('format') else ''}",
+                   tags=["memo"], priority=4)
+    print(f"  {len(ds)} DS repéré(s)")
+
+
 def fiche_notes(client, meta, data, out: Path):
+    parts = notes_parts(meta, data)
+    try:
+        seul, ds = detect_ds(client, meta, parts)
+    except Exception as e:
+        print(f"  repérage des DS impossible ({type(e).__name__})")
+        seul, ds = False, []
+    if ds:
+        save_ds(meta, ds, out)
+    if seul:
+        print("  annonce de DS seulement : pas de fiche")
+        return "ds"
     support = load_support(meta, out)
     if support:
         return completer(client, support, meta, notes_parts(meta, data), "les notes et photos (ou documents)", out)
@@ -558,7 +626,8 @@ def main():
             elif meta.get("kind") == "revision":
                 fiche_revision(client, meta, out, password)
             elif meta.get("kind") == "notes":
-                fiche_notes(client, meta, audio, out)
+                if fiche_notes(client, meta, audio, out) == "ds":
+                    meta["_ds_seul"] = True
             elif meta.get("kind") == "depot":
                 import depot
                 write(out / "depots" / f"{meta['id']}.enc", depot.make(meta, audio))
@@ -572,10 +641,19 @@ def main():
                 write(out / "devoirs" / f"{meta['id']}.enc", devoir.make(client, generate, meta, audio))
             else:
                 fiche_cours(client, meta, audio, out)
+                # un DS annoncé à l'oral pendant le cours : repéré dans la fiche
+                try:
+                    md = decrypt_json((out / "fiches" / f"{meta['id']}.enc").read_text(encoding="utf-8"), password).get("md", "")
+                    ds = detect_ds(client, meta, [f"Fiche du cours (d'après l'enregistrement) :\n{md}"])[1]
+                    if ds:
+                        save_ds(meta, ds, out)
+                except Exception as e:
+                    print(f"  repérage des DS impossible ({type(e).__name__})")
             print("  ok")
             summary[-1] += " ok"
             done.extend(p.names)
-            notif.pret(meta)   # notification sur le téléphone (ntfy), si configurée
+            if not meta.get("_ds_seul"):
+                notif.pret(meta)   # notification sur le téléphone (ntfy), si configurée
         except Exception as e:
             msg = str(e)[:300]
             print(f"  échec : {type(e).__name__}")

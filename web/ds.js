@@ -140,7 +140,51 @@ function openBlanc(id) {
   $("#blanc-show").onclick = () => { $("#blanc-corrige").hidden = false; $("#blanc-show").hidden = true; $("#blanc-corrige").scrollIntoView({ behavior: "smooth" }); };
 }
 
+/* ---------- DS repérés automatiquement (photos, notes, enregistrements) ---------- */
+function dsDetectNotes(d, det) {
+  return [d.format, d.programme?.length ? `Programme : ${d.programme.join(", ")}` : "", d.consignes ? `Consignes : ${d.consignes}` : "",
+    `(repéré dans tes notes${det.date_cours ? ` du ${fmtDate(det.date_cours)}` : ""})`].filter(Boolean).join("\n");
+}
+function dsDetectMatiere(d, det) {
+  return det.matiere && (!d.matiere || sameMatiere(d.matiere, det.matiere)) ? det.matiere : d.matiere;
+}
+function autoAddDetected() {
+  const aPreciser = [];
+  for (const det of DATA.dsDetectes || []) {
+    (det.ds || []).forEach((d, i) => {
+      const key = `${det.id}-${i}`;
+      if (window.dsVu?.(key)) return;
+      if (!d.date) { aPreciser.push({ key, d, det }); return; }
+      window.setDsVu?.(key);   // d'abord : l'ajout redessine l'onglet
+      window.addPersoDS?.({ id: key, matiere: dsDetectMatiere(d, det), date: d.date, debut: d.debut || "",
+        fin: d.debut ? d.fin || "" : "", salle: d.salle || "", notes: dsDetectNotes(d, det), auto: true, cree: new Date().toISOString() });
+    });
+  }
+  const box = $("#ds-detect");
+  box.innerHTML = aPreciser.map(({ key, d, det }) => `<div class="card ds-detect">
+      <b>📝 DS repéré dans tes notes : ${esc(dsDetectMatiere(d, det))}</b>
+      <p class="small">${esc(dsDetectNotes(d, det)).replace(/\n/g, "<br>")}</p>
+      <p class="muted small">La date n'était pas indiquée : choisis-la pour l'ajouter.</p>
+      <div class="row"><button type="button" class="btn primary small" data-det-fill="${esc(key)}">Choisir la date</button>
+      <button type="button" class="btn small" data-det-skip="${esc(key)}">Ignorer</button></div></div>`).join("");
+  box.querySelectorAll("[data-det-skip]").forEach((b) => { b.onclick = () => window.setDsVu(b.dataset.detSkip); });
+  box.querySelectorAll("[data-det-fill]").forEach((b) => {
+    b.onclick = () => {
+      const it = aPreciser.find((x) => x.key === b.dataset.detFill);
+      $("#ds-matiere").value = dsDetectMatiere(it.d, it.det);
+      $("#ds-debut").value = it.d.debut || "";
+      $("#ds-fin").value = it.d.fin || "";
+      $("#ds-salle").value = it.d.salle || "";
+      $("#ds-notes").value = dsDetectNotes(it.d, it.det);
+      $("#add-ds").open = true;
+      $("#ds-date").focus();
+      window.setDsVu(it.key);
+    };
+  });
+}
+
 window.renderDS = function () {
+  autoAddDetected();
   const all = upcomingExams();
   const fini = (e) => window.dsFini?.(dsKey(e));
   const exams = all.filter((e) => !fini(e));
@@ -177,7 +221,7 @@ window.renderDS = function () {
           <h3>${esc(e.matiere)}</h3>
           <div class="ds-when">${esc(fmtDayLong(e.d0))}, ${e.sansHeure ? "heure à préciser" : `${fmtTime(e.d0)}–${fmtTime(e.d1)}`}${e.salle ? `, salle ${esc(e.salle)}` : ""}</div>
           ${e.prof ? `<div class="ds-when">${esc(e.prof)}</div>` : ""}
-          ${e.perso ? `<div class="chg chg-oral">Annoncé à l'oral, pas encore dans le planning</div>` : ""}
+          ${e.perso ? `<div class="chg chg-oral">${e.auto ? "Repéré dans tes notes" : "Annoncé à l'oral"}, pas encore dans le planning</div>` : ""}
         </div>
         <div class="ds-count"><b>${days <= 0 ? "Auj." : days}</b><span>${days <= 0 ? "" : days === 1 ? "jour" : "jours"}</span></div>
       </div>
