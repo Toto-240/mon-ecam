@@ -15,6 +15,8 @@ public class DictaPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "read", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "discard", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "park", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "queued", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "share", returnType: CAPPluginReturnPromise),
     ]
 
@@ -242,18 +244,58 @@ public class DictaPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     /// Lit le fichier par morceaux (base64) pour l'envoyer depuis la page.
-    @objc func read(_ call: CAPPluginCall) {
-        if !active && !segURLs().isEmpty {
-            DispatchQueue.main.async { self.merge { self.readFile(call) } }
-            return
-        }
-        readFile(call)
+    /* File d'attente : les enregistrements pas encore envoyés sont mis de côté dans Documents/attente/<id>.m4a
+       (un nouvel enregistrement n'écrase plus l'ancien). */
+    private var queueDir: URL { docs.appendingPathComponent("attente", isDirectory: true) }
+    private func queuedURL(_ id: String) -> URL? {
+        let clean = id.filter { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }
+        return clean.isEmpty ? nil : queueDir.appendingPathComponent("\(clean).m4a")
     }
 
-    private func readFile(_ call: CAPPluginCall) {
+    /// Met de côté l'enregistrement terminé (non envoyé) sous son identifiant.
+    @objc func park(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard !self.active else { call.reject("Un enregistrement est en cours"); return }
+            guard let dest = self.queuedURL(call.getString("id") ?? "") else { call.reject("Identifiant manquant"); return }
+            self.merge {
+                let fm = FileManager.default
+                guard fm.fileExists(atPath: self.fileURL.path) else { call.resolve(["size": 0]); return }
+                try? fm.createDirectory(at: self.queueDir, withIntermediateDirectories: true)
+                try? fm.removeItem(at: dest)
+                do {
+                    try fm.moveItem(at: self.fileURL, to: dest)
+                    call.resolve(["size": self.size(dest)])
+                } catch {
+                    call.reject("Impossible de mettre l'enregistrement de côté : \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    /// Liste des enregistrements mis de côté : [{ id, size }].
+    @objc func queued(_ call: CAPPluginCall) {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: queueDir.path)) ?? []
+        let items = names.filter { $0.hasSuffix(".m4a") }.sorted().map { name -> [String: Any] in
+            ["id": String(name.dropLast(4)), "size": size(queueDir.appendingPathComponent(name))]
+        }
+        call.resolve(["items": items])
+    }
+
+    @objc func read(_ call: CAPPluginCall) {
+        if let id = call.getString("id"), let url = queuedURL(id) {
+            readFile(call, url); return
+        }
+        if !active && !segURLs().isEmpty {
+            DispatchQueue.main.async { self.merge { self.readFile(call, self.fileURL) } }
+            return
+        }
+        readFile(call, fileURL)
+    }
+
+    private func readFile(_ call: CAPPluginCall, _ url: URL) {
         let offset = call.getInt("offset") ?? 0
         let length = call.getInt("length") ?? 1_000_000
-        guard let handle = try? FileHandle(forReadingFrom: fileURL) else {
+        guard let handle = try? FileHandle(forReadingFrom: url) else {
             call.reject("Enregistrement introuvable"); return
         }
         defer { try? handle.close() }
@@ -289,6 +331,10 @@ public class DictaPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func discard(_ call: CAPPluginCall) {
+        if let id = call.getString("id"), let url = queuedURL(id) {
+            try? FileManager.default.removeItem(at: url)
+            call.resolve(); return
+        }
         try? FileManager.default.removeItem(at: fileURL)
         segURLs().forEach { try? FileManager.default.removeItem(at: $0) }
         call.resolve()

@@ -528,6 +528,13 @@ window.startRecording = async function (matiere) {
   if (!matiere) { alertForm("Choisis d'abord la matière."); return; }
   const base = { t0: Date.now(), matiere, date: $("#f-date").value || todayIso(), id: newId(), ...linkMeta() };
 
+  if (Dicta && store.get(REC_META) && !(await parkNative())) {
+    alertForm("Un enregistrement n'a pas encore été envoyé : envoie-le ou supprime-le d'abord, sinon il serait écrasé.");
+    offerRecovery();
+    return;
+  }
+  if (!Dicta) await parkWeb();
+
   if (Dicta) {
     try {
       await Dicta.start();
@@ -587,10 +594,10 @@ async function stopRecording() {
 }
 
 /* Récupère le fichier natif par morceaux de 1 Mo. */
-async function readNative() {
+async function readNative(id) {
   const parts = [];
   for (let offset = 0; ; ) {
-    const { data, eof } = await Dicta.read({ offset, length: 1_000_000 });
+    const { data, eof } = await Dicta.read({ offset, length: 1_000_000, ...(id && { id }) });
     const bytes = unb64(data);
     parts.push(bytes);
     offset += bytes.length;
@@ -621,13 +628,14 @@ $("#rec-stop").onclick = async () => {
   const r = await stopRecording();
   if (!r) return;
   try {
-    if (r.native) return await sendNative(r);
+    if (r.native) { saveNativeMeta(r); return await sendNative(r); }
     const blob = new Blob(r.chunks, { type: r.mr.mimeType || MIME });
     await send({ id: r.id, kind: "cours", matiere: r.matiere, date: r.date, type: blob.type,
       heure: r.heure, creneau: r.creneau, support: r.support,
       duree_s: Math.round(r.duree / 1000) }, await blob.arrayBuffer());
     await idb.del("current");
   } catch {
+    store.set(AUTO_KEY, String(Date.now()));   // pas de nouvel essai automatique tout de suite
     offerRecovery();
   }
 };
@@ -662,8 +670,9 @@ async function offerRecovery() {
 }
 // en revenant dans l'appli (écran déverrouillé), on revérifie qu'un enregistrement n'a pas été perdu de vue
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && !rec && store.get(REC_META)) offerRecovery();
+  if (document.visibilityState === "visible" && !rec && (store.get(REC_META) || queueGet().length)) offerRecovery();
 });
+window.addEventListener("online", () => { if (!rec) offerRecovery(); });
 
 async function recover() {
   if (Dicta && !rec) {
@@ -685,7 +694,8 @@ async function recover() {
       return;
     }  // l'appli a été rechargée pendant le cours
     if (st && !st.recording && !st.size && meta) store.del(REC_META);  // plus rien à récupérer
-    if (st && !st.recording && st.size > 0 && meta) {
+    if (st && !st.recording && st.size > 0 && meta && await parkNative()) return flushQueue();
+    if (st && !st.recording && st.size > 0 && meta) {   // ancienne version de l'appli iPhone
       $("#upload").hidden = false;
       $("#upload-bar").value = 0;
       $("#upload-msg").innerHTML = `Un enregistrement de <b>${esc(meta.matiere)}</b> n'a pas été envoyé.
@@ -696,19 +706,108 @@ async function recover() {
       return;
     }
   }
+  if (rec) return;
+  await parkWeb();
+  return flushQueue();
+}
+
+/* ---------- File d'attente des enregistrements pas encore envoyés ----------
+   Un enregistrement qui n'a pas pu partir est mis de côté (sur l'iPhone : dossier « attente » de l'appli ;
+   dans le navigateur : IndexedDB). Rien n'est effacé avant d'être bien arrivé sur GitHub.
+   La file part toute seule en revenant dans l'appli avec du réseau (au plus un essai automatique
+   toutes les 10 minutes après un échec), ou avec « Envoyer maintenant ». */
+const QUEUE_KEY = "ecam-rec-queue", AUTO_KEY = "ecam-rec-autofail";
+function queueGet() { try { return JSON.parse(store.get(QUEUE_KEY)) || []; } catch { return []; } }
+function queueSet(q) { q.length ? store.set(QUEUE_KEY, JSON.stringify(q)) : store.del(QUEUE_KEY); }
+const queueDrop = (id) => queueSet(queueGet().filter((x) => x.id !== id));
+const metaDuree = (m) => m.duree_s ?? Math.round((m.since === undefined ? Date.now() - m.t0 : recElapsed(m)) / 1000);
+
+/* Enregistrement natif terminé mais pas envoyé -> file d'attente. false si impossible (ancienne appli iPhone). */
+async function parkNative() {
+  let meta = null;
+  try { meta = JSON.parse(store.get(REC_META)); } catch {}
+  if (!meta) return true;
+  const st = await nativeStatus();
+  if (!st || st.recording) return false;
+  if (!st.size) { store.del(REC_META); return true; }
+  try { await Dicta.park({ id: meta.id }); } catch { return false; }
+  queueSet([...queueGet().filter((x) => x.id !== meta.id), { ...meta, duree_s: metaDuree(meta), native: true }]);
+  store.del(REC_META);
+  return true;
+}
+
+async function parkWeb() {
   const saved = await idb.get("current");
-  if (!saved?.chunks?.length || rec) return;
+  if (!saved?.chunks?.length) return;
+  await idb.put(`q-${saved.meta.id}`, saved);
+  await idb.del("current");
+  queueSet([...queueGet().filter((x) => x.id !== saved.meta.id), { ...saved.meta, web: true }]);
+}
+
+let flushing = false;
+async function flushQueue(manual = false) {
+  if (flushing || rec) return;
+  if (!queueGet().length) return;
+  if (!manual && (!navigator.onLine || !store.get(TOKEN_KEY) || Date.now() - (+store.get(AUTO_KEY) || 0) < 10 * 60e3)) {
+    return showQueue();
+  }
+  flushing = true;
+  try {
+    for (const m of queueGet()) {
+      if (rec) return;
+      try {
+        if (m.web) {
+          const saved = await idb.get(`q-${m.id}`);
+          if (!saved?.chunks?.length) { queueDrop(m.id); continue; }
+          const blob = new Blob(saved.chunks, { type: saved.meta.mime });
+          await send({ ...saved.meta, kind: "cours", type: blob.type }, await blob.arrayBuffer());
+          await idb.del(`q-${m.id}`);
+        } else {
+          alertForm(`Envoi de l'enregistrement en attente : ${m.matiere}…`);
+          let audio;
+          try { audio = await readNative(m.id); }
+          catch (e) { if (/introuvable/i.test(e.message || e)) { queueDrop(m.id); continue; } throw e; }
+          if (!audio.byteLength) { await Dicta.discard({ id: m.id }).catch(() => {}); queueDrop(m.id); continue; }
+          await send({ id: m.id, kind: "cours", matiere: m.matiere, date: m.date, type: "audio/mp4",
+            heure: m.heure, creneau: m.creneau, support: m.support, duree_s: m.duree_s }, audio);
+          await Dicta.discard({ id: m.id }).catch(() => {});
+        }
+        queueDrop(m.id);
+      } catch (e) {
+        store.set(AUTO_KEY, String(Date.now()));
+        return showQueue(`Échec de l'envoi : ${e.message || e}`);
+      }
+    }
+    store.del(AUTO_KEY);
+  } finally { flushing = false; }
+}
+
+function showQueue(err = "") {
+  const q = queueGet();
+  if (!q.length || rec) return;
   const box = $("#upload");
   box.hidden = false;
   $("#upload-bar").value = 0;
-  $("#upload-msg").innerHTML = `Un enregistrement de <b>${esc(saved.meta.matiere)}</b> n'a pas été envoyé.
-    <div class="row"><button type="button" class="btn primary small" id="rec-resend">Envoyer</button>
-    <button type="button" class="btn small" id="rec-drop">Supprimer</button></div>`;
-  $("#rec-resend").onclick = async () => {
-    const blob = new Blob(saved.chunks, { type: saved.meta.mime });
-    try { await send({ ...saved.meta, kind: "cours", type: blob.type }, await blob.arrayBuffer()); await idb.del("current"); } catch {}
-  };
-  $("#rec-drop").onclick = async () => { await idb.del("current"); box.hidden = true; };
+  $("#upload-msg").innerHTML = `${err ? `<p class="ko">${esc(err)}</p>` : ""}
+    <b>${q.length} enregistrement${q.length > 1 ? "s" : ""} en attente d'envoi</b> (gardé${q.length > 1 ? "s" : ""} sur cet appareil) :
+    <ul class="rec-queue">${q.map((m) => `<li><span>${esc(m.matiere)} · ${esc(fmtDate(m.date))}${m.duree_s ? ` · ${esc(fmtDuration(m.duree_s))}` : ""}</span>
+      <button type="button" class="btn small" data-qdrop="${esc(m.id)}">Supprimer</button></li>`).join("")}</ul>
+    <div class="row"><button type="button" class="btn primary small" id="rec-flush">Envoyer maintenant</button></div>
+    <p class="muted small">${navigator.onLine ? "Ils partiront aussi tout seuls à ta prochaine ouverture de l'appli." : "Pas de réseau : ils partiront tout seuls quand tu en auras."}</p>`;
+  $("#rec-flush").onclick = () => flushQueue(true);
+  box.querySelectorAll("[data-qdrop]").forEach((b) => {
+    b.onclick = async () => {
+      if (!b.dataset.armed) {   // en deux temps (pas de window.confirm dans l'appli iPhone)
+        b.dataset.armed = "1"; b.textContent = "Confirmer ?"; b.classList.add("danger");
+        setTimeout(() => { delete b.dataset.armed; b.textContent = "Supprimer"; b.classList.remove("danger"); }, 4000);
+        return;
+      }
+      const m = queueGet().find((x) => x.id === b.dataset.qdrop);
+      if (m?.web) await idb.del(`q-${m.id}`); else if (m) await Dicta?.discard({ id: m.id }).catch(() => {});
+      queueDrop(b.dataset.qdrop);
+      queueGet().length ? showQueue() : (box.hidden = true);
+    };
+  });
 }
 
 /* ---------- Jeton GitHub ---------- */

@@ -718,3 +718,9 @@ li.prepa-card .ds-rev { margin-top: 8px; }
 .act-hist li { padding: 6px 0; border-top: 1px solid var(--line); font-size: .93rem; }
 .act-hist li:first-child { border-top: 0; }
 .act-hist .d { display: inline-block; min-width: 7.5em; color: var(--muted); font-size: .85rem; }
+
+/* File d'attente des enregistrements */
+.rec-queue { list-style: none; margin: 8px 0; padding: 0; }
+.rec-queue li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); }
+.rec-queue li:first-child { border-top: 0; }
+.rec-queue .danger { border-color: #C0392B; color: #C0392B; }
