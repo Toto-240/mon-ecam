@@ -284,20 +284,34 @@ async function ensureInbox() {
   if (!r.ok && r.status !== 422) throw new Error(`création de la boîte impossible (${r.status})`);
 }
 
-const PART = 20e6;   // GitHub refuse les fichiers trop gros d'un seul coup
+const PART = 8e6;   // morceaux de 8 Mo : petits envois, plus sûrs sur le réseau mobile
 
-/* Envoie le fichier chiffré : en un seul morceau, ou en morceaux « id.i-n.part » recollés côté GitHub */
+/* Envoie le fichier chiffré : en un seul morceau, ou en morceaux « nom.i-n.part » recollés côté GitHub.
+   Chaque essai a ses propres noms de fichiers (un essai raté ne gêne pas le suivant) ; ce qu'un essai
+   raté avait déjà envoyé est effacé. */
 async function putBlob(id, blob, onProgress) {
-  if (blob.size <= PART) return putFile(`${id}.bin`, await toBase64(blob), onProgress);
+  const stem = `${id}-${Math.random().toString(36).slice(2, 7)}`;
   const n = Math.ceil(blob.size / PART);
-  for (let i = 0; i < n; i++) {
-    const part = blob.slice(i * PART, Math.min(blob.size, (i + 1) * PART));
-    const name = `${id}.${String(i).padStart(3, "0")}-${String(n).padStart(3, "0")}.part`;
-    let tries = 0;
-    for (;;) {
-      try { await putFile(name, await toBase64(part), (p) => onProgress((i + p) / n)); break; }
-      catch (e) { if (++tries >= 3 || /jeton/.test(e.message)) throw e; await new Promise((r) => setTimeout(r, 2000 * tries)); }
+  const sent = [];
+  try {
+    for (let i = 0; i < n; i++) {
+      const part = n === 1 ? blob : blob.slice(i * PART, Math.min(blob.size, (i + 1) * PART));
+      const name = n === 1 ? `${stem}.bin` : `${stem}.${String(i).padStart(3, "0")}-${String(n).padStart(3, "0")}.part`;
+      const b64 = await toBase64(part);
+      for (let tries = 1; ; tries++) {
+        try { sent.push({ name, sha: await putFile(name, b64, (p) => onProgress((i + p) / n)) }); break; }
+        catch (e) {
+          if (e.final || tries >= 5) throw e;
+          await new Promise((r) => setTimeout(r, 1500 * tries));
+        }
+      }
     }
+  } catch (e) {
+    for (const f of sent) {   // ménage : sans le reste, ces morceaux ne serviraient à rien
+      if (f.sha) await gh(`/contents/inbox/${f.name}`, { method: "DELETE",
+        body: JSON.stringify({ message: "Envoi annulé", sha: f.sha, branch: "inbox" }) }).catch(() => {});
+    }
+    throw e;
   }
 }
 
@@ -307,11 +321,23 @@ function putFile(name, b64, onProgress) {
     x.open("PUT", `https://api.github.com/repos/${repo()}/contents/inbox/${name}`);
     x.setRequestHeader("Authorization", `Bearer ${store.get(TOKEN_KEY)}`);
     x.setRequestHeader("Accept", "application/vnd.github+json");
+    x.timeout = 180000;
     x.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
-    x.onload = () => (x.status >= 200 && x.status < 300 ? ok() : ko(new Error(
-      x.status === 401 || x.status === 403 ? "jeton GitHub refusé ou sans droit d'écriture" :
-      x.status === 413 || x.status === 422 ? "fichier trop gros pour GitHub" : `envoi refusé (${x.status})`)));
-    x.onerror = () => ko(new Error("pas de connexion Internet"));
+    const fail = (text, final = false) => { const e = new Error(text); e.final = final; ko(e); };
+    x.onload = () => {
+      if (x.status >= 200 && x.status < 300) {
+        let sha = null;
+        try { sha = JSON.parse(x.responseText).content.sha; } catch {}
+        return ok(sha);
+      }
+      let why = "";
+      try { why = JSON.parse(x.responseText).message || ""; } catch {}
+      if (x.status === 401 || x.status === 403) return fail("jeton GitHub refusé ou sans droit d'écriture", true);
+      if (x.status === 413) return fail("morceau trop gros pour GitHub", true);
+      fail(`envoi refusé par GitHub (${x.status}${why ? ` : ${why}` : ""})`);   // 409, 422, 5xx : on réessaie
+    };
+    x.onerror = () => fail("pas de connexion Internet");
+    x.ontimeout = () => fail("envoi trop long (connexion lente)");
     x.send(JSON.stringify({ message: "Nouvel envoi", content: b64, branch: "inbox" }));
   });
 }
