@@ -173,11 +173,16 @@ function slotHtml(e) {
   const st = e.d1 <= NOW ? " past" : e.d0 <= NOW ? " now" : "";
   const canAdd = ["CM", "TD", "TP"].includes(e.type) && e.d0 <= NOW;
   const f = canAdd && ficheFor(e);
+  const act = canAdd ? window.persoActivite?.(e) || "" : "";
+  const actHtml = !canAdd ? "" : act
+    ? `<button type="button" class="act-line" data-act="${esc(e.debut)}" title="Modifier"><span aria-hidden="true">✏️</span> ${esc(act)}</button>`
+    : `<button type="button" class="btn small act-btn" data-act="${esc(e.debut)}">+ Ce qu'on a fait</button>`;
   return `<li class="slot ${esc(e.type)}${st}">
     <time datetime="${e.d0.toISOString()}">${e.sansHeure ? "?<small>heure</small>" : `${fmtTime(e.d0)}<small>${fmtTime(e.d1)}</small>`}</time>
     <div><div class="t">${esc(e.matiere)}</div><div class="m">${esc(e.perso ? "Annoncé à l'oral" : e.prof || e.groupes || "")}</div></div>
     <div><div class="r">${esc(e.salle)}</div><div class="k">${esc(kindLabel(e.type))}</div></div>
     ${changeTag(e)}
+    ${actHtml}
     ${!canAdd ? "" : f
       ? `<button type="button" class="btn small fiche-btn done" data-fiche="${esc(f.id)}">Voir la fiche</button>`
       : `<button type="button" class="btn small fiche-btn" data-add="${esc(e.debut)}">+ Ajouter une fiche</button>`}
@@ -201,10 +206,38 @@ function renderSlots(byDay) {
   }).join("");
   const evs = events();
   ol.querySelectorAll("[data-fiche]").forEach((b) => { b.onclick = () => window.openFiche?.(b.dataset.fiche); });
+  ol.querySelectorAll("[data-act]").forEach((b) => {
+    const e = evs.find((x) => x.debut === b.dataset.act);
+    b.onclick = () => editActivite(b, e);
+  });
   ol.querySelectorAll("[data-add]").forEach((b) => {
     const e = evs.find((x) => x.debut === b.dataset.add);
     b.onclick = () => window.openAddSheet?.(e);
   });
+}
+
+/* « Ce qu'on a fait » : quelques mots tapés directement sous le cours */
+function editActivite(btn, e) {
+  if (!e) return;
+  const form = document.createElement("form");
+  form.className = "act-form";
+  form.innerHTML = `<input type="text" maxlength="200" enterkeyhint="done" placeholder="Ex. : exposés, jeu de rôle, exo 3"
+      aria-label="Ce qu'on a fait en cours"><button type="submit" class="btn small primary">OK</button>`;
+  const input = form.querySelector("input");
+  input.value = window.persoActivite?.(e) || "";
+  btn.replaceWith(form);
+  input.focus();
+  let done = false;
+  const save = () => {
+    if (done) return;
+    done = true;
+    const v = input.value.trim();
+    if (v !== (window.persoActivite?.(e) || "")) window.saveActivite(e, v);
+    renderPlanning();
+  };
+  form.onsubmit = (ev) => { ev.preventDefault(); save(); };
+  input.addEventListener("blur", () => setTimeout(save, 150));
+  input.addEventListener("keydown", (ev) => { if (ev.key === "Escape") { done = true; renderPlanning(); } });
 }
 
 WIDE.addEventListener("change", () => DATA && renderPlanning());

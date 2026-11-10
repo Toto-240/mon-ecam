@@ -7,7 +7,7 @@
 const PERSO_PATH = "/contents/perso/etat.enc";
 const PERSO_BASE = "ecam-perso-base";     // dernier état connu de GitHub
 const PERSO_PENDING = "ecam-perso-ops";   // changements pas encore envoyés
-const emptyPerso = () => ({ faits: {}, ds: [], dsSel: {}, dsFinis: {}, devoirs: [], memos: [], cloud: [], rappels: [], scores: [], maj: "" });
+const emptyPerso = () => ({ faits: {}, ds: [], dsSel: {}, dsFinis: {}, devoirs: [], memos: [], cloud: [], rappels: [], scores: [], activites: {}, maj: "" });
 
 const persoStore = {
   get(k, def) { try { return JSON.parse(store.get(k)) ?? def; } catch { return def; } },
@@ -16,11 +16,14 @@ const persoStore = {
 
 /* Un changement = une petite opération, rejouée sur la version de GitHub au moment d'envoyer */
 function applyOp(s, op) {
-  s = { ...emptyPerso(), ...s, faits: { ...(s?.faits || {}) }, ds: [...(s?.ds || [])], dsSel: { ...(s?.dsSel || {}) }, dsFinis: { ...(s?.dsFinis || {}) }, devoirs: [...(s?.devoirs || [])], memos: [...(s?.memos || [])], cloud: [...(s?.cloud || [])], rappels: [...(s?.rappels || [])], scores: [...(s?.scores || [])] };
+  s = { ...emptyPerso(), ...s, faits: { ...(s?.faits || {}) }, ds: [...(s?.ds || [])], dsSel: { ...(s?.dsSel || {}) }, dsFinis: { ...(s?.dsFinis || {}) }, devoirs: [...(s?.devoirs || [])], memos: [...(s?.memos || [])], cloud: [...(s?.cloud || [])], rappels: [...(s?.rappels || [])], scores: [...(s?.scores || [])], activites: { ...(s?.activites || {}) } };
   if (op.op === "fait") {
     if (op.val) s.faits[op.key] = op.val; else delete s.faits[op.key];
   } else if (op.op === "ds+") {
     s.ds = s.ds.filter((d) => d.id !== op.ds.id).concat(op.ds);
+  } else if (op.op === "act") {
+    if (op.texte) s.activites[op.key] = { texte: op.texte, maj: op.quand || new Date().toISOString() };
+    else delete s.activites[op.key];
   } else if (op.op === "score+") {
     s.scores = s.scores.filter((x) => x.id !== op.score.id).concat(op.score).slice(-400);
   } else if (op.op === "rap+") {
@@ -245,6 +248,12 @@ window.delCloud = (id) => persoChange({ op: "cloud-", id });
 window.persoRappels = () => PERSO.rappels || [];
 window.saveRappel = (r) => persoChange({ op: "rap+", r });
 window.delRappel = (id) => persoChange({ op: "rap-", id });
+
+/* Ce qu'on a fait en cours (quelques mots par cours du planning) */
+window.actKey = (e) => `${e.debut}|${e.matiere}`;
+window.persoActivite = (e) => (PERSO.activites || {})[window.actKey(e)]?.texte || "";
+window.persoActivites = () => PERSO.activites || {};
+window.saveActivite = (e, texte) => persoChange({ op: "act", key: window.actKey(e), texte: (texte || "").trim().slice(0, 200) });
 
 /* Scores de QCM */
 window.persoScores = () => PERSO.scores || [];

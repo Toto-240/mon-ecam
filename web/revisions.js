@@ -766,6 +766,19 @@ function nextDsDate(m) {
 const scoresFor = (m) => (window.persoScores?.() || []).filter((x) => sameMatiere(x.matiere, m))
   .sort((a, b) => (a.quand || "").localeCompare(b.quand || ""));
 
+/* Historique « ce qu'on a fait » de la matière (rempli sous chaque cours du planning) */
+function activitesHtml(m) {
+  const list = Object.entries(window.persoActivites?.() || {})
+    .map(([k, v]) => { const i = k.indexOf("|"); return { debut: k.slice(0, i), matiere: k.slice(i + 1), texte: v.texte }; })
+    .filter((a) => a.texte && sameMatiere(a.matiere, m))
+    .sort((a, b) => b.debut.localeCompare(a.debut));
+  if (!list.length) return "";
+  return `<details class="progress-card act-card"${list.length <= 6 ? " open" : ""}>
+    <summary>🗒️ Ce qu'on a fait en cours <span class="muted">(${list.length})</span></summary>
+    <ul class="act-hist">${list.map((a) => `<li><span class="d">${esc(fmtDate(a.debut))}</span>${esc(a.texte)}</li>`).join("")}</ul>
+  </details>`;
+}
+
 function progressHtml(m) {
   const sc = scoresFor(m);
   if (!sc.length) return "";
@@ -876,6 +889,7 @@ function renderFiches() {
     : `<div class="row">
       <button type="button" class="btn small primary" data-pick-start>Choisir des fiches…</button>
       <button type="button" class="btn small" data-add-libre>+ Ajouter une fiche</button></div>`}
+    ${activitesHtml(m)}
     ${progressHtml(m)}
     <ul class="list subject-list">
       ${r ? `<li class="rev"><button type="button" class="item" data-open-rev="${esc(m)}">

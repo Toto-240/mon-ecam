@@ -700,3 +700,21 @@ li.prepa-card .ds-rev { margin-top: 8px; }
 .ea.rec { background: #E5484D; }
 .ea.rec.on { background: #fff; color: #E5484D; }
 .encours-fiche { margin-top: 10px; width: 100%; border: 0; background: rgba(255,255,255,.18); color: #fff; border-radius: 12px; padding: 9px; font: inherit; font-weight: 600; cursor: pointer; }
+
+/* « Ce qu'on a fait » sous les cours */
+.slot .act-btn, .slot .act-line, .slot .act-form { grid-column: 2 / -1; justify-self: start; margin-top: 6px; }
+.slot .act-btn { border-style: dashed; color: var(--muted); }
+.slot .act-line {
+  display: block; max-width: 100%; text-align: left; font: inherit; font-size: .92rem; line-height: 1.35;
+  color: var(--ink, inherit); background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 7px 10px; cursor: pointer; opacity: 1;
+}
+.slot .act-form { display: flex; gap: 6px; width: 100%; justify-self: stretch; }
+.slot .act-form input {
+  flex: 1; min-width: 0; font: inherit; font-size: 16px; padding: 7px 10px;
+  border: 1px solid var(--ecam); border-radius: 10px; background: var(--surface); color: inherit;
+}
+.act-hist { list-style: none; margin: 8px 0 0; padding: 0; }
+.act-hist li { padding: 6px 0; border-top: 1px solid var(--line); font-size: .93rem; }
+.act-hist li:first-child { border-top: 0; }
+.act-hist .d { display: inline-block; min-width: 7.5em; color: var(--muted); font-size: .85rem; }
