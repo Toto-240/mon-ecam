@@ -30,7 +30,7 @@ def main():
         try:
             ds = detect_ds(client, meta, [f"Fiche du cours :\n{f.get('md', '')}"])[1]
         except Exception as e:
-            print(f"{f['id']} : échec ({type(e).__name__})")
+            print(f"{f['id']} : échec ({type(e).__name__}: {str(e)[:160]})")
             continue
         n += 1
         if ds:
