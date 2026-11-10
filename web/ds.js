@@ -122,7 +122,7 @@ function wirePrepa(box, exams) {
       b.disabled = true;
       b.textContent = "Demande envoyée, prépa en cours…";
       try {
-        await send({ id: newId(), kind: "revision", matiere: m, ds: e.debut, fiches: e.chosen, prepa,
+        await send({ id: newId(), kind: "revision", matiere: m, ds: e.debut, fiches: e.chosen, prepa, programme: dsProgramme(e),
           qcm_n: +form.querySelector("[data-prepa-n]").value, aujourdhui: dayIso(new Date()) }, new ArrayBuffer(0), "add");
       } catch { b.disabled = false; b.textContent = "Réessayer"; }
     };
@@ -138,6 +138,24 @@ function openBlanc(id) {
     <div class="row"><button type="button" class="btn primary" id="blanc-show">Voir le corrigé</button></div>
     <section id="blanc-corrige" class="blanc-corrige" hidden>${md(r.blanc.corrige)}</section>`);
   $("#blanc-show").onclick = () => { $("#blanc-corrige").hidden = false; $("#blanc-show").hidden = true; $("#blanc-corrige").scrollIntoView({ behavior: "smooth" }); };
+}
+
+/* Programme annoncé d'un DS : champ « programme », sinon la ligne « Programme : … » de tes notes */
+function dsProgramme(e) {
+  if (e.programme?.length) return e.programme;
+  const line = String(e.persoNotes || "").split("\n").find((l) => /^\s*programme\s*:/i.test(l));
+  return line ? line.replace(/^\s*programme\s*:\s*/i, "").split(/\s*[,;·]\s*|\s+et\s+/).map((x) => x.trim()).filter(Boolean) : [];
+}
+/* Une fiche traite-t-elle un des points du programme ? (mots du point retrouvés dans la fiche,
+   en comparant les débuts de mots pour accepter « comparatives » / « comparatifs ») */
+const fold = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+function ficheTraite(f, prog) {
+  const words = new Set(fold(`${f.titre} ${f.md}`).match(/[a-z0-9]{3,}/g) || []);
+  const stems = new Set([...words].map((w) => w.slice(0, 6)));
+  return prog.some((p) => {
+    const ws = (fold(p).match(/[a-z0-9]{4,}/g) || []).filter((w) => !["avec", "dans", "pour", "sans", "leur", "cours"].includes(w));
+    return ws.length && ws.every((w) => stems.has(w.slice(0, 6)));
+  });
 }
 
 /* ---------- DS repérés automatiquement (photos, notes, enregistrements) ---------- */
@@ -156,7 +174,7 @@ function autoAddDetected() {
       if (window.dsVu?.(key)) return;
       if (!d.date) { aPreciser.push({ key, d, det }); return; }
       window.setDsVu?.(key);   // d'abord : l'ajout redessine l'onglet
-      window.addPersoDS?.({ id: key, matiere: dsDetectMatiere(d, det), date: d.date, debut: d.debut || "",
+      window.addPersoDS?.({ id: key, matiere: dsDetectMatiere(d, det), date: d.date, debut: d.debut || "", programme: d.programme || [],
         fin: d.debut ? d.fin || "" : "", salle: d.salle || "", notes: dsDetectNotes(d, det), auto: true, cree: new Date().toISOString() });
     });
   }
@@ -206,7 +224,11 @@ window.renderDS = function () {
     const fs = allFiches.filter((f) => sameMatiere(f.matiere, e.matiere))
       .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
     const key = dsKey(e);
-    const exclus = new Set(window.dsExclus?.(key) || []);
+    // sélection par défaut : si le programme du DS est connu, seulement les fiches qui en parlent
+    const choix = window.dsExclus?.(key);
+    const prog = dsProgramme(e);
+    const auto = !choix && prog.length ? fs.filter((f) => ficheTraite(f, prog)) : null;
+    const exclus = new Set(choix || (auto?.length ? fs.filter((f) => !auto.includes(f)).map((f) => f.id) : []));
     const chosen = fs.filter((f) => !exclus.has(f.id));
     // révision faite pour ce DS (avec ta sélection), sinon celle de la matière
     const r = revs.find((x) => x.ds === e.debut && sameMatiere(x.matiere, e.matiere))
@@ -219,7 +241,7 @@ window.renderDS = function () {
       <div class="ds-top">
         <div>
           <h3>${esc(e.matiere)}</h3>
-          <div class="ds-when">${esc(fmtDayLong(e.d0))}, ${e.sansHeure ? "heure à préciser" : `${fmtTime(e.d0)}–${fmtTime(e.d1)}`}${e.salle ? `, salle ${esc(e.salle)}` : ""}</div>
+          <div class="ds-when">${esc(fmtDayLong(e.d0))}, ${e.sansHeure ? "heure à préciser" : `${fmtTime(e.d0)}–${fmtTime(e.d1)}`}${e.salle ? `, salle ${esc(e.salle)}` : ""}${e.heureCours ? ` <span class="muted">(pendant le cours)</span>` : ""}</div>
           ${e.prof ? `<div class="ds-when">${esc(e.prof)}</div>` : ""}
           ${e.perso ? `<div class="chg chg-oral">${e.auto ? "Repéré dans tes notes" : "Annoncé à l'oral"}, pas encore dans le planning</div>` : ""}
         </div>
@@ -231,7 +253,7 @@ window.renderDS = function () {
       ${prepaHtml(e, r, i, sameSel)}
       <details class="ds-pick"${dsOpen.has(key) ? " open" : ""} data-key="${esc(key)}">
         <summary><b>Fiches à réviser</b> <span class="muted">${chosen.length} sur ${fs.length}</span></summary>
-        <p class="muted small">Décoche les fiches que tu n'as pas à apprendre pour ce DS. La révision et le QCM seront faits avec celles cochées.</p>
+        <p class="muted small">${auto?.length ? `Pré-cochées d'après le programme annoncé (${auto.length} fiche${auto.length > 1 ? "s" : ""} en parlent). ` : ""}Décoche les fiches que tu n'as pas à apprendre pour ce DS. La révision et le QCM seront faits avec celles cochées.</p>
         <div class="row tight pick-all">
           <button type="button" class="btn small" data-sel-all="${i}">Tout cocher</button>
           <button type="button" class="btn small" data-sel-none="${i}">Tout décocher</button>

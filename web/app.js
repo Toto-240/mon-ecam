@@ -41,11 +41,15 @@ function events() {
   for (const p of window.persoDS?.() || []) {
     // s'il apparaît ensuite dans le planning officiel, on garde l'officiel avec tes notes
     const off = evs.find((e) => e.type === "DS" && !e.perso && e.debut.slice(0, 10) === p.date && norm(e.matiere) === norm(p.matiere));
-    if (off) { off.persoNotes = p.notes; off.persoId = p.id; continue; }
-    const debut = `${p.date}T${p.debut || "08:00"}:00`;
-    const fin = `${p.date}T${p.fin || (p.debut ? addHour(p.debut) : "23:59")}:00`;
-    evs.push({ perso: true, auto: !!p.auto, persoId: p.id, persoNotes: p.notes, sansHeure: !p.debut, type: "DS",
-      matiere: p.matiere, titre: `DS ${p.matiere}`, debut, fin, salle: p.salle || "", prof: "",
+    if (off) { off.persoNotes = p.notes; off.persoId = p.id; off.programme = p.programme; continue; }
+    // heure non donnée : celle du cours de la même matière ce jour-là (le DS a lieu en cours)
+    const same = (a, b) => (typeof sameMatiere === "function" ? sameMatiere(a, b) : norm(a) === norm(b));
+    const cours = !p.debut && evs.find((e) => !e.perso && e.debut.slice(0, 10) === p.date && same(e.matiere, p.matiere));
+    const debut = cours ? cours.debut : `${p.date}T${p.debut || "08:00"}:00`;
+    const fin = cours ? cours.fin || cours.debut : `${p.date}T${p.fin || (p.debut ? addHour(p.debut) : "23:59")}:00`;
+    evs.push({ perso: true, auto: !!p.auto, persoId: p.id, persoNotes: p.notes, programme: p.programme,
+      sansHeure: !p.debut && !cours, heureCours: !!cours, type: "DS",
+      matiere: p.matiere, titre: `DS ${p.matiere}`, debut, fin, salle: p.salle || cours?.salle || "", prof: cours?.prof || "",
       d0: new Date(debut), d1: new Date(fin) });
   }
   return evs.filter((e) => !isNaN(e.d0)).sort((a, b) => a.d0 - b.d0);

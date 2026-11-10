@@ -50,7 +50,7 @@ function applyOp(s, op) {
   } else if (op.op === "dsfini") {
     if (op.val) s.dsFinis[op.key] = op.val; else delete s.dsFinis[op.key];
   } else if (op.op === "dssel") {
-    if (op.exclus?.length) s.dsSel[op.key] = op.exclus; else delete s.dsSel[op.key];
+    if (Array.isArray(op.exclus)) s.dsSel[op.key] = op.exclus; else delete s.dsSel[op.key];   // [] = tout coché, choisi par toi
   } else if (op.op === "ds-") {
     s.ds = s.ds.filter((d) => d.id !== op.id);
   }
@@ -206,7 +206,7 @@ window.setFait = (d, on) => persoChange({ op: "fait", key: devoirKey(d), val: on
 window.persoDS = () => PERSO.ds;
 window.addPersoDS = (ds) => persoChange({ op: "ds+", ds });
 window.delPersoDS = (id) => persoChange({ op: "ds-", id });
-window.dsExclus = (key) => PERSO.dsSel?.[key] || [];
+window.dsExclus = (key) => PERSO.dsSel?.[key];   // undefined : jamais choisi (sélection par défaut)
 window.setDsExclus = (key, exclus) => persoChange({ op: "dssel", key, exclus });
 window.dsFini = (key) => !!PERSO.dsFinis?.[key];
 window.setDsFini = (key, on) => persoChange({ op: "dsfini", key, val: on ? new Date().toISOString() : null });

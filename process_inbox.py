@@ -356,6 +356,10 @@ def prepa_ds(client, meta, fiches, texte, n_qcm, out: Path, password: str):
     """Prépa d'un DS : fiche de révision, QCM, DS blanc + corrigé, plan jusqu'au DS (au choix)."""
     from datetime import date, timedelta
     matiere, parts = meta.get("matiere"), meta.get("prepa") or {}
+    prog = [str(x)[:200] for x in (meta.get("programme") or []) if x][:20]
+    if prog:   # programme annoncé par le prof : tout est centré dessus
+        texte = (f"=== PROGRAMME ANNONCÉ DU DS : {' ; '.join(prog)}. Centre la fiche de révision, le QCM, le DS blanc "
+                 f"et le plan UNIQUEMENT sur ces points (le reste des fiches ne sert que de contexte). ===\n\n") + texte
     # prépa d'un DS (un fichier par DS), ou prépa sur des fiches choisies dans Révisions (une par demande)
     rid = f"ds-{slug(matiere)}-{str(meta['ds'])[:10]}" if meta.get("ds") else meta["id"]
     fin = str(meta.get("ds") or meta.get("jusqua") or "")[:10]
