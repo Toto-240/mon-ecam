@@ -1,0 +1,24 @@
+name: probe-gemini
+on: workflow_dispatch
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    steps:
+      - run: pip install -q google-genai
+      - env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+        run: |
+          python - <<'PY'
+          import os
+          from google import genai
+          c = genai.Client()
+          print("GEMINI_MODEL (variable) défini :", bool(os.environ.get("GEMINI_MODEL")), os.environ.get("GEMINI_MODEL"))
+          names = sorted(m.name.split("/")[-1] for m in c.models.list())
+          print([n for n in names if "gemini" in n])
+          for m in ["gemini-flash-latest", "gemini-3-flash-preview", "gemini-2.5-flash", "gemini-3.1-flash-lite", "gemini-flash-lite-latest", "gemini-pro-latest", "gemini-3-pro-preview", "gemini-3.1-pro-preview", "gemini-3.1-flash", "gemini-3-flash"]:
+              try:
+                  r = c.models.generate_content(model=m, contents="Réponds juste OK"); print("OK ", m, (r.text or "").strip()[:10])
+              except Exception as e:
+                  print("KO ", m, str(e)[:90])
+          PY
