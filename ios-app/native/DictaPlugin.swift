@@ -17,6 +17,7 @@ public class DictaPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "discard", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "park", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "queued", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "printPage", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "share", returnType: CAPPluginReturnPromise),
     ]
 
@@ -244,6 +245,28 @@ public class DictaPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     /// Lit le fichier par morceaux (base64) pour l'envoyer depuis la page.
+    /// Imprime la page affichée (mise en page d'impression préparée par print.js) : fenêtre d'impression
+    /// d'iOS, avec AirPrint et « Enregistrer dans Fichiers » / partage en PDF.
+    @objc func printPage(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard let webView = self.bridge?.webView else { call.reject("Page introuvable"); return }
+            let info = UIPrintInfo(dictionary: nil)
+            info.outputType = .general
+            info.jobName = call.getString("title") ?? "Mon ECAM"
+            let pc = UIPrintInteractionController.shared
+            pc.printInfo = info
+            pc.printFormatter = webView.viewPrintFormatter()
+            let done: UIPrintInteractionController.CompletionHandler = { _, completed, error in
+                if let error = error { call.reject(error.localizedDescription) } else { call.resolve(["printed": completed]) }
+            }
+            if UIDevice.current.userInterfaceIdiom == .pad, let view = self.bridge?.viewController?.view {
+                pc.present(from: CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1), in: view, animated: true, completionHandler: done)
+            } else {
+                pc.present(animated: true, completionHandler: done)
+            }
+        }
+    }
+
     /* File d'attente : les enregistrements pas encore envoyés sont mis de côté dans Documents/attente/<id>.m4a
        (un nouvel enregistrement n'écrase plus l'ancien). */
     private var queueDir: URL { docs.appendingPathComponent("attente", isDirectory: true) }

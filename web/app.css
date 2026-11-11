@@ -761,3 +761,50 @@ li.prepa-card .ds-rev { margin-top: 8px; }
 /* DS repérés automatiquement, date à préciser */
 .ds-detect { border-left: 4px solid var(--ecam); margin-bottom: 12px; }
 .ds-detect p { margin: 6px 0; }
+
+/* ---------- Impression (print.js) ---------- */
+#print-root { display: none; }
+html.printing #print-root { display: block; }
+@media screen {
+  /* pendant la préparation de l'impression sur iPhone : seule la page à imprimer est montrée */
+  html.printing body > *:not(#print-root) { display: none !important; }
+  html.printing, html.printing body { background: #fff !important; }
+  html.printing #print-root { padding: 16px; }
+}
+@media print {
+  @page { size: A4; margin: 16mm 15mm; }
+  html, body { background: #fff !important; }
+  body > *:not(#print-root) { display: none !important; }
+  #print-root { display: block !important; }
+}
+#print-root {
+  color: #111; background: #fff; font: 11pt/1.5 Georgia, "Times New Roman", serif;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+#print-root * { color: inherit; }
+#print-root .p-head { border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 14px; font-family: -apple-system, "Segoe UI", sans-serif; }
+#print-root .p-title { font-size: 18pt; font-weight: 700; }
+#print-root .p-sub { display: flex; justify-content: space-between; font-size: 9.5pt; color: #555; }
+#print-root .p-part + .p-part { break-before: page; page-break-before: always; }
+#print-root .p-fiche { break-before: page; page-break-before: always; }
+#print-root h1 { font-size: 16pt; margin: 0 0 8px; font-family: -apple-system, "Segoe UI", sans-serif; }
+#print-root h2 { font-size: 13pt; margin: 14px 0 6px; border-bottom: 1px solid #bbb; font-family: -apple-system, "Segoe UI", sans-serif; break-after: avoid; }
+#print-root h3, #print-root h4 { font-size: 11.5pt; margin: 10px 0 4px; break-after: avoid; font-family: -apple-system, "Segoe UI", sans-serif; }
+#print-root p, #print-root li { orphans: 3; widows: 3; }
+#print-root ul, #print-root ol { padding-left: 1.3em; margin: 4px 0; }
+#print-root pre { white-space: pre-wrap; background: #f3f3f3; border: 1px solid #ddd; padding: 6px 8px; font-size: 9.5pt; break-inside: avoid; }
+#print-root code { font-family: Menlo, Consolas, monospace; font-size: 9.5pt; }
+#print-root table { border-collapse: collapse; width: 100%; margin: 6px 0; break-inside: avoid; }
+#print-root th, #print-root td { border: 1px solid #999; padding: 3px 6px; text-align: left; vertical-align: top; }
+#print-root blockquote { border-left: 3px solid #999; margin: 6px 0; padding-left: 10px; color: #333; }
+#print-root .p-meta { font-size: 9pt; color: #666; margin: 0 0 4px; font-family: -apple-system, "Segoe UI", sans-serif; }
+#print-root .p-toc li span { color: #666; font-size: 9.5pt; }
+#print-root .p-qcm > li { margin-bottom: 10px; break-inside: avoid; }
+#print-root .p-qcm > li > p { margin: 0 0 3px; font-weight: 600; }
+#print-root .p-qcm ul { list-style: none; padding-left: .4em; }
+#print-root .p-qcm ul li { margin: 2px 0; }
+#print-root .p-box { display: inline-block; width: 1.25em; height: 1.25em; line-height: 1.2em; text-align: center; border: 1px solid #333; border-radius: 3px; font-size: 8.5pt; margin-right: 4px; font-family: sans-serif; }
+#print-root .p-corr li { margin-bottom: 6px; break-inside: avoid; }
+#print-root .p-expl { font-size: 9.5pt; color: #444; }
+#print-root .p-plan > li { margin-bottom: 8px; break-inside: avoid; }
+#print-root .math { font-style: italic; }

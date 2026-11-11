@@ -1008,13 +1008,15 @@ function renderFiches() {
           <div class="row tight">
             <button type="button" class="btn small primary" data-rev-go${pick.size ? "" : " disabled"}>Lancer la prépa (${pick.size})</button>
             <button type="button" class="btn small" data-carte-go${pick.size ? "" : " disabled"}>Carte mentale (${pick.size})</button>
+            <button type="button" class="btn small" data-pick-print${pick.size ? "" : " disabled"}>🖨️ Imprimer (${pick.size})</button>
           </div>
         </div>
         <p id="carte-msg" class="small muted" aria-live="polite"></p>
       </div>`
     : `<div class="row">
       <button type="button" class="btn small primary" data-pick-start>Choisir des fiches…</button>
-      <button type="button" class="btn small" data-add-libre>+ Ajouter une fiche</button></div>`}
+      <button type="button" class="btn small" data-add-libre>+ Ajouter une fiche</button>
+      <button type="button" class="btn small" data-print-all>🖨️ Tout imprimer</button></div>`}
     ${activitesHtml(m)}
     ${progressHtml(m)}
     <ul class="list subject-list">
@@ -1050,6 +1052,9 @@ function renderFiches() {
   box.querySelector("[data-add-libre]")?.addEventListener("click", () => window.openAddSheetLibre?.(m));
   box.querySelector("[data-pick-start]")?.addEventListener("click", () => { cartePick.set(m, new Set(fs.map((f) => f.id))); renderFiches(); });
   box.querySelector("[data-pick-cancel]")?.addEventListener("click", () => { cartePick.delete(m); renderFiches(); });
+  const chrono = (list) => [...list].sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  box.querySelector("[data-print-all]")?.addEventListener("click", () => window.printMatiere?.(m, chrono(fs), r));
+  box.querySelector("[data-pick-print]")?.addEventListener("click", () => window.printFiches?.(m, chrono(fs.filter((f) => pick.has(f.id)))));
   box.querySelector("[data-pick-all]")?.addEventListener("click", () => { cartePick.set(m, new Set(fs.map((f) => f.id))); renderFiches(); });
   box.querySelector("[data-pick-none]")?.addEventListener("click", () => { cartePick.set(m, new Set()); renderFiches(); });
   box.querySelectorAll("[data-pick]").forEach((c) => {
@@ -1211,11 +1216,12 @@ function openRevision(matiere, id, focus) {
     <div class="why" hidden>${esc(q.explication || "")}</div></div>`).join("");
   // depuis la prépa DS : le QCM seul ; sinon la fiche puis le QCM
   const onlyQcm = focus === "qcm";
-  openReader(onlyQcm ? `QCM : ${matiere}` : `Révision : ${matiere}`, `<p class="meta">${esc(matiere)}, à partir de ${r.sources} fiche${r.sources > 1 ? "s" : ""}${r.ds ? ` (pour le DS du ${esc(fmtDate(r.ds.slice(0, 10)))})` : r.choix ? " choisies" : ""}</p>${onlyQcm ? "" : md(r.md)}
+  openReader(onlyQcm ? `QCM : ${matiere}` : `Révision : ${matiere}`, `<p class="meta">${esc(matiere)}, à partir de ${r.sources} fiche${r.sources > 1 ? "s" : ""}${r.ds ? ` (pour le DS du ${esc(fmtDate(r.ds.slice(0, 10)))})` : r.choix ? " choisies" : ""}</p>${onlyQcm ? "" : `<div class="row"><button type="button" class="btn small" id="rev-print">🖨️ Imprimer</button></div>${md(r.md)}`}
     ${qcm ? `<section class="qcm"><h2>QCM</h2><p id="score" class="score" aria-live="polite"></p>${qcm}
       <button type="button" class="btn" id="qcm-reset">Recommencer</button></section>` : ""}
     ${r._fichier && !onlyQcm ? deleteZone(r.ds ? "Supprimer toute la prépa de ce DS" : "Supprimer cette révision", r.ds ? "Fiche, QCM, DS blanc et plan de ce DS sont supprimés, pas tes fiches de cours." : "Seules la fiche de révision et son QCM sont supprimés, pas tes fiches de cours.") : ""}`);
   if (r._fichier && !onlyQcm) wireDelete(`revisions/${r._fichier}`, r.ds ? "Supprimer toute la prépa de ce DS" : "Supprimer cette révision");
+  $("#rev-print")?.addEventListener("click", () => window.printRevision?.(r));
   const body = $("#reader-body");
   let good = 0, done = 0;
   const total = r.qcm.length, missed = [];

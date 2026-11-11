@@ -90,6 +90,9 @@ function prepaForm(e, i, n, r) {
 }
 
 function wirePrepa(box, exams) {
+  box.querySelectorAll("[data-ds-print]").forEach((b) => {
+    b.onclick = () => { const e = exams[+b.dataset.dsPrint]; window.printDossierDS?.(e, e.rev, e.chosenFiches); };
+  });
   box.querySelectorAll("details[data-open-key]").forEach((d) => {
     d.addEventListener("toggle", () => { d.open ? prepaOpen.add(d.dataset.openKey) : prepaOpen.delete(d.dataset.openKey); });
   });
@@ -135,8 +138,10 @@ function openBlanc(id) {
   if (!r?.blanc) return;
   openReader(`DS blanc : ${r.matiere}`, `<p class="meta">À faire sans tes fiches, en temps limité. Le corrigé est en bas.</p>
     ${md(r.blanc.sujet)}
-    <div class="row"><button type="button" class="btn primary" id="blanc-show">Voir le corrigé</button></div>
+    <div class="row"><button type="button" class="btn primary" id="blanc-show">Voir le corrigé</button>
+      <button type="button" class="btn" id="blanc-print">🖨️ Imprimer</button></div>
     <section id="blanc-corrige" class="blanc-corrige" hidden>${md(r.blanc.corrige)}</section>`);
+  $("#blanc-print").onclick = () => window.printBlanc?.(r);
   $("#blanc-show").onclick = () => { $("#blanc-corrige").hidden = false; $("#blanc-show").hidden = true; $("#blanc-corrige").scrollIntoView({ behavior: "smooth" }); };
 }
 
@@ -237,6 +242,8 @@ window.renderDS = function () {
     const stale = r && (r.ds ? !sameSel : true);
     const said = profSaid(fs);
     e.chosen = chosen.map((f) => f.id);
+    e.chosenFiches = [...chosen].sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    e.rev = r;
     return `<article class="ds${days <= 7 ? " soon" : ""}">
       <div class="ds-top">
         <div>
@@ -251,6 +258,7 @@ window.renderDS = function () {
       ${said.length ? `<h4>Ce que le prof a dit</h4><ul class="said">${said.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>` : ""}
       ${fs.length ? `
       ${prepaHtml(e, r, i, sameSel)}
+      <div class="row tight"><button type="button" class="btn small" data-ds-print="${i}">🖨️ Imprimer le dossier du DS</button></div>
       <details class="ds-pick"${dsOpen.has(key) ? " open" : ""} data-key="${esc(key)}">
         <summary><b>Fiches à réviser</b> <span class="muted">${chosen.length} sur ${fs.length}</span></summary>
         <p class="muted small">${auto?.length ? `Pré-cochées d'après le programme annoncé (${auto.length} fiche${auto.length > 1 ? "s" : ""} en parlent). ` : ""}Décoche les fiches que tu n'as pas à apprendre pour ce DS. La révision et le QCM seront faits avec celles cochées.</p>
