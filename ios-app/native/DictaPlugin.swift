@@ -20,6 +20,7 @@ public class DictaPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "queued", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "printPage", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "printHtml", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "pdfHtml", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "share", returnType: CAPPluginReturnPromise),
     ]
 
@@ -303,6 +304,61 @@ public class DictaPlugin: CAPPlugin, CAPBridgedPlugin {
                     } else {
                         pc.present(animated: true, completionHandler: done)
                     }
+                }
+            }
+            wv.navigationDelegate = loader
+            self.printView = wv
+            self.printLoader = loader
+            wv.loadHTMLString(html, baseURL: nil)
+        }
+    }
+
+    /// Fabrique un vrai PDF A4 (pages découpées) à partir du document de print.js, puis ouvre la feuille
+    /// de partage d'iOS : Imprimer, Enregistrer dans Fichiers, AirDrop… Sans l'aperçu d'impression.
+    @objc func pdfHtml(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard let html = call.getString("html"), let vc = self.bridge?.viewController, let host = vc.view else {
+                call.reject("Document vide"); return
+            }
+            self.printView?.removeFromSuperview()
+            let wv = WKWebView(frame: CGRect(x: -2000, y: 0, width: 794, height: 1123))
+            wv.isUserInteractionEnabled = false
+            host.addSubview(wv)
+            let loader = PrintLoader { [weak self] in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    guard let self = self else { return }
+                    let page = CGRect(x: 0, y: 0, width: 595.2, height: 841.8)          // A4 en points
+                    let renderer = UIPrintPageRenderer()
+                    renderer.addPrintFormatter(wv.viewPrintFormatter(), startingAtPageAt: 0)
+                    renderer.setValue(NSValue(cgRect: page), forKey: "paperRect")
+                    renderer.setValue(NSValue(cgRect: page.insetBy(dx: 40, dy: 44)), forKey: "printableRect")
+                    let data = NSMutableData()
+                    UIGraphicsBeginPDFContextToData(data, page, nil)
+                    let n = renderer.numberOfPages
+                    renderer.prepare(forDrawingPages: NSRange(location: 0, length: max(n, 1)))
+                    for i in 0..<n {
+                        UIGraphicsBeginPDFPage()
+                        renderer.drawPage(at: i, in: UIGraphicsGetPDFContextBounds())
+                    }
+                    UIGraphicsEndPDFContext()
+                    wv.removeFromSuperview()
+                    self.printView = nil
+                    self.printLoader = nil
+                    guard n > 0 else { call.reject("Document vide"); return }
+                    let raw = (call.getString("name") ?? "Mon ECAM").replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+                    let dir = FileManager.default.temporaryDirectory.appendingPathComponent("partage", isDirectory: true)
+                    try? FileManager.default.removeItem(at: dir)
+                    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                    let url = dir.appendingPathComponent(raw.hasSuffix(".pdf") ? raw : "\(raw).pdf")
+                    do { try data.write(to: url, options: .atomic) } catch { call.reject("Écriture impossible"); return }
+                    let sheet = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+                    if let pop = sheet.popoverPresentationController {   // iPad
+                        pop.sourceView = host
+                        pop.sourceRect = CGRect(x: host.bounds.midX, y: host.bounds.midY, width: 0, height: 0)
+                        pop.permittedArrowDirections = []
+                    }
+                    sheet.completionWithItemsHandler = { _, done, _, _ in call.resolve(["ok": done, "pages": n]) }
+                    vc.present(sheet, animated: true)
                 }
             }
             wv.navigationDelegate = loader

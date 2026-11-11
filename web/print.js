@@ -78,16 +78,18 @@
       if (Native) {
         // iPhone : document complet imprimé à part (l'appli peut se redessiner pendant l'aperçu)
         const doc = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=794">
-          <style>@page { size: A4; margin: 16mm 15mm; } html, body { margin: 0; background: #fff; }
+          <style>html, body { margin: 0; background: #fff; }
           #print-root { display: block !important; } ${printCss()}</style></head><body>${root.outerHTML}</body></html>`;
         try {
           document.documentElement.classList.remove("printing");
-          await Native.printHtml({ title, html: doc });
+          await Native.pdfHtml({ title, name: title.replace(/[·\/:]/g, "-").replace(/\s+/g, " ").trim(), html: doc });
           done();
           return;
         } catch (e) {
           if (!/not implemented|unimplemented/i.test(e?.message || e?.code || "")) throw e;
-          document.documentElement.classList.add("printing");   // ancienne appli : impression de la page
+          done();   // ancienne appli : son impression plantait, on demande la mise à jour
+          alert("Pour imprimer, installe la nouvelle version de l'appli iPhone (avec Sideloadly).");
+          return;
         }
       }
       if (Native?.printPage) {
