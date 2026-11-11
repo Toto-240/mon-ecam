@@ -132,7 +132,7 @@ function persoSync() {
   if (syncing && Date.now() - syncStart < 90e3) return syncing.then(() => persoSync());
   syncStart = Date.now();   // une synchro bloquée depuis plus de 90 s est abandonnée
   syncing = (async () => {
-    for (let essai = 0; essai < 3; essai++) {
+    for (let essai = 0; essai < 5; essai++) {
       const { sha, state } = await fetchRemote();
       const ops = persoStore.get(PERSO_PENDING, []);
       if (!ops.length) { if (state) persoStore.set(PERSO_BASE, state); return; }
@@ -148,6 +148,7 @@ function persoSync() {
         return;
       }
       if (r.status !== 409 && r.status !== 422) throw new Error(r.status === 403 ? "ce jeton ne peut pas modifier le dépôt" : `envoi refusé (${r.status})`);
+      await new Promise((ok) => setTimeout(ok, 1000 * (essai + 1)));   // le dépôt bougeait : petite pause avant de relire
     }
     throw new Error("GitHub occupé, nouvel essai plus tard");
   })().then(() => { store.set("ecam-perso-ok", new Date().toISOString()); store.del("ecam-perso-err"); persoNote(); },

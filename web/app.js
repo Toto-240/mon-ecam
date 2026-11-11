@@ -506,14 +506,20 @@ async function requestSync() {
     let r = await gh("/actions/workflows/sync.yml/dispatches", { method: "POST", body: JSON.stringify({ ref: "main" }) });
     if (!r.ok) {
       const path = "/contents/perso/synchro.json";
-      const cur = await gh(`${path}?ref=main&t=${Date.now()}`, { cache: "no-store" });
-      const sha = cur.ok ? (await cur.json()).sha : undefined;
-      r = await gh(path, { method: "PUT", body: JSON.stringify({ message: "Synchro demandée", branch: "main", sha,
-        content: btoa(JSON.stringify({ demande: new Date().toISOString() })) }) });
+      // 409/422 : le dépôt a bougé au même moment (une autre tâche vient d'enregistrer) -> on relit et on réessaie
+      for (let essai = 0; essai < 5; essai++) {
+        if (essai) await new Promise((ok) => setTimeout(ok, 1200 * essai));
+        const cur = await gh(`${path}?ref=main&t=${Date.now()}`, { cache: "no-store" });
+        const sha = cur.ok ? (await cur.json()).sha : undefined;
+        r = await gh(path, { method: "PUT", body: JSON.stringify({ message: "Synchro demandée", branch: "main", sha,
+          content: btoa(JSON.stringify({ demande: new Date().toISOString() })) }) });
+        if (r.status !== 409 && r.status !== 422) break;
+      }
       if (!r.ok) {
         const msg = (await r.json().catch(() => ({}))).message || "";
         throw new Error(r.status === 401 ? "jeton GitHub refusé ou expiré"
           : r.status === 403 || r.status === 404 ? `ce jeton ne peut pas écrire dans le dépôt (${r.status} ${msg})`
+          : r.status === 409 || r.status === 422 ? "GitHub était occupé, réessaie dans une minute"
           : `GitHub a refusé (${r.status} ${msg})`);
       }
     }
