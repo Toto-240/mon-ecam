@@ -881,6 +881,14 @@ function renderPendingList(ul, list) {
 
 /* ---------- Fiches ---------- */
 const openSubjects = new Set();
+/* Ouvre directement les fiches d'une matière (depuis l'accueil) */
+window.openMatiere = (m) => {
+  const f = (DATA.fiches || []).find((x) => sameMatiere(x.matiere, m));
+  openSubjects.clear();
+  if (f) openSubjects.add(f.matiere);
+  showPane("revisions");
+  renderFiches();
+};
 const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 function nextDsDate(m) {
   const ds = (window.upcomingExams?.() || (typeof upcomingExams === "function" ? upcomingExams() : []))

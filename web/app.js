@@ -273,6 +273,9 @@ function renderDevoirs() {
   const badge = $("#badge");
   badge.hidden = !soon;
   badge.textContent = soon;
+  $("#plus-badge").hidden = !soon;
+  $("#plus-badge").textContent = soon;
+  window.aRendre = items;   // pour l'accueil
   $("#devoirs").innerHTML = items.length ? items.map((d) => {
     const i = all.indexOf(d);
     const ms = d.due - NOW, days = Math.ceil(ms / 864e5);
@@ -404,6 +407,7 @@ function renderAll() {
   window.renderAlarmes?.();
   window.renderEnCours?.();
   window.renderTrajet?.();
+  window.renderAccueil?.();
   window.renderCloud?.();
   window.planRappels?.();
 }
@@ -585,19 +589,47 @@ fetch("config.json", { cache: "no-store" }).then((r) => r.json()).then((c) => {
 
 $("#filtre").oninput = renderCours;
 
+/* 5 onglets (design A) : certains regroupent plusieurs pages */
+const PANE_GROUP = { accueil: "accueil", planning: "cours", revisions: "cours", cours: "cours", enregistrer: "enregistrer",
+  ds: "ds", plus: "plus", rendre: "plus", devoirs: "plus", notes: "plus", trajet: "plus", cloud: "plus" };
+const PANE_TITLE = { accueil: "Aujourd'hui", planning: "Cours", revisions: "Cours", cours: "Cours", enregistrer: "Micro",
+  ds: "DS", plus: "Plus", rendre: "À rendre", devoirs: "Devoirs IA", notes: "Notes", trajet: "Trajet", cloud: "Cloud" };
+
 function showPane(name) {
+  if (!document.getElementById("pane-" + name)) name = "accueil";
+  const group = PANE_GROUP[name] || name;
   document.querySelectorAll(".panes button").forEach((b) =>
-    b.dataset.pane === name ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
+    b.dataset.group === group ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
   document.querySelectorAll(".pane").forEach((p) => { p.hidden = p.id !== "pane-" + name; });
+  $("#pane-title").textContent = PANE_TITLE[name] || "";
+  $("#subtabs").hidden = group !== "cours";
+  document.querySelectorAll("#subtabs [data-goto]").forEach((b) => b.setAttribute("aria-selected", b.dataset.goto === name));
+  $("#back-plus").hidden = !(group === "plus" && name !== "plus");
+  if (group === "cours") store.set("ecam-cours-sub", name);
   store.set("ecam-pane", name);
-  document.body.dataset.pane = name;   // ex. : le bandeau du pense-bête n'apparaît que dans le Planning
+  document.body.dataset.pane = name;   // ex. : le bandeau du pense-bête n'apparaît que sur l'accueil
   if (name === "trajet") window.renderTrajet?.();
+  if (name === "accueil") window.renderAccueil?.();
   scrollTo(0, 0);
 }
-document.querySelectorAll(".panes button").forEach((b) => { b.onclick = () => showPane(b.dataset.pane); });
+document.querySelectorAll(".panes button").forEach((b) => {
+  b.onclick = () => showPane(b.dataset.group === "cours" ? store.get("ecam-cours-sub") || "planning" : b.dataset.pane);
+});
+document.querySelectorAll("#subtabs [data-goto]").forEach((b) => { b.onclick = () => showPane(b.dataset.goto); });
+$("#back-plus").onclick = () => showPane("plus");
+/* page Plus : tuiles vers les pages, ou vers les fenêtres (rappels, pense-bête, notifications…) */
+document.querySelectorAll("#pane-plus [data-goto], #pane-plus [data-click]").forEach((b) => {
+  b.onclick = () => {
+    if (b.dataset.goto) showPane(b.dataset.goto);
+    if (b.dataset.click) $(b.dataset.click)?.click();
+    if (b.dataset.open) { const d = $(b.dataset.open); if (d) { d.open = true; d.scrollIntoView({ block: "start" }); } }
+  };
+});
 {
   const last = store.get("ecam-pane");
-  if (last && document.getElementById("pane-" + last)) showPane(last);
+  // nouveau design : on arrive une première fois sur l'accueil
+  if (!store.get("ecam-design-a")) { store.set("ecam-design-a", "1"); showPane("accueil"); }
+  else showPane(last && document.getElementById("pane-" + last) ? last : "accueil");
 }
 
 if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {

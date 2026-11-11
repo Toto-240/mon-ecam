@@ -163,5 +163,25 @@ window.trajetAlertes = function () {
   return out;
 };
 
+/* Pour l'accueil : le prochain départ utile (avant le 1er cours, ou après le dernier) */
+window.trajetResume = function () {
+  const T = DATA?.tcl, c = trajetCfg();
+  const iso = isoDay(NOW), j = T?.jours?.[iso];
+  if (!j) return null;
+  const now = minOf(NOW), cours = coursDuJour(iso);
+  const first = cours[0], last = cours[cours.length - 1];
+  if (first && now < minOf(first.d0)) {
+    const all = chainsAller(j, c).filter((x) => x.leave >= now);
+    const best = [...all].reverse().find((x) => x.arrive <= minOf(first.d0) - c.marge) || all[0];
+    return best && { sens: "aller", leave: tHM(best.leave), arrive: tHM(best.arrive), ligne: best.bus[2], dans: best.leave - now,
+      retard: best.arrive > minOf(first.d0) - c.marge };
+  }
+  if (last && now < minOf(last.d1) + 240) {
+    const x = chainsRetour(j, c).find((y) => y.leave >= Math.max(now, minOf(last.d1)));
+    return x && { sens: "retour", leave: tHM(x.leave), arrive: tHM(x.arrive), ligne: x.bus[2], dans: x.leave - now };
+  }
+  return null;
+};
+
 setInterval(() => { if (DATA && document.visibilityState === "visible" && document.body.dataset.pane === "trajet") window.renderTrajet(); }, 30e3);
 })();

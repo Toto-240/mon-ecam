@@ -75,6 +75,21 @@
     document.documentElement.classList.add("printing");
     const done = () => { document.documentElement.classList.remove("printing"); root.innerHTML = ""; };
     try {
+      if (Native) {
+        // iPhone : document complet imprimé à part (l'appli peut se redessiner pendant l'aperçu)
+        const doc = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=794">
+          <style>@page { size: A4; margin: 16mm 15mm; } html, body { margin: 0; background: #fff; }
+          #print-root { display: block !important; } ${printCss()}</style></head><body>${root.outerHTML}</body></html>`;
+        try {
+          document.documentElement.classList.remove("printing");
+          await Native.printHtml({ title, html: doc });
+          done();
+          return;
+        } catch (e) {
+          if (!/not implemented|unimplemented/i.test(e?.message || e?.code || "")) throw e;
+          document.documentElement.classList.add("printing");   // ancienne appli : impression de la page
+        }
+      }
       if (Native?.printPage) {
         await new Promise((r) => setTimeout(r, 150));   // le temps d'afficher la mise en page
         await Native.printPage({ title });
@@ -90,6 +105,19 @@
         alert("L'impression demande la nouvelle version de l'appli iPhone (à réinstaller avec Sideloadly).");
       }
     }
+  }
+
+  /* Les règles de mise en page de l'impression (celles de #print-root dans app.css) */
+  function printCss() {
+    const out = [];
+    const walk = (rules) => {
+      for (const r of rules) {
+        if (r.cssRules && !r.selectorText) walk(r.cssRules);
+        else if (r.selectorText?.includes("#print-root") && !r.selectorText.includes("html.printing")) out.push(r.cssText);
+      }
+    };
+    for (const sh of document.styleSheets) { try { walk(sh.cssRules); } catch {} }
+    return out.join("\n").replace(/#print-root\s*\{\s*display:\s*none;?\s*\}/g, "");
   }
 
   /* ---------- Raccourcis utilisés par les onglets ---------- */

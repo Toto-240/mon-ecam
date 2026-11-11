@@ -1,6 +1,7 @@
 import Foundation
 import AVFoundation
 import Capacitor
+import WebKit
 
 /// Enregistreur natif : continue écran verrouillé (mode audio en arrière-plan).
 @objc(DictaPlugin)
@@ -18,6 +19,7 @@ public class DictaPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "park", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "queued", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "printPage", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "printHtml", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "share", returnType: CAPPluginReturnPromise),
     ]
 
@@ -267,6 +269,49 @@ public class DictaPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
+    /// Imprime un document HTML complet préparé par print.js, dans une page à part (invisible) :
+    /// l'appli peut se redessiner pendant l'aperçu sans le faire disparaître.
+    private var printView: WKWebView?
+    private var printLoader: PrintLoader?
+
+    @objc func printHtml(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard let html = call.getString("html"), let host = self.bridge?.viewController?.view else {
+                call.reject("Document vide"); return
+            }
+            self.printView?.removeFromSuperview()
+            let wv = WKWebView(frame: CGRect(x: -2000, y: 0, width: 794, height: 1123))
+            wv.isUserInteractionEnabled = false
+            host.addSubview(wv)   // hors de l'écran, mais dans la fenêtre (sinon l'impression est blanche)
+            let loader = PrintLoader { [weak self] in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    guard let self = self else { return }
+                    let info = UIPrintInfo(dictionary: nil)
+                    info.outputType = .general
+                    info.jobName = call.getString("title") ?? "Mon ECAM"
+                    let pc = UIPrintInteractionController.shared
+                    pc.printInfo = info
+                    pc.printFormatter = wv.viewPrintFormatter()
+                    let done: UIPrintInteractionController.CompletionHandler = { _, completed, error in
+                        wv.removeFromSuperview()
+                        self.printView = nil
+                        self.printLoader = nil
+                        if let error = error { call.reject(error.localizedDescription) } else { call.resolve(["printed": completed]) }
+                    }
+                    if UIDevice.current.userInterfaceIdiom == .pad {
+                        pc.present(from: CGRect(x: host.bounds.midX, y: host.bounds.midY, width: 1, height: 1), in: host, animated: true, completionHandler: done)
+                    } else {
+                        pc.present(animated: true, completionHandler: done)
+                    }
+                }
+            }
+            wv.navigationDelegate = loader
+            self.printView = wv
+            self.printLoader = loader
+            wv.loadHTMLString(html, baseURL: nil)
+        }
+    }
+
     /* File d'attente : les enregistrements pas encore envoyés sont mis de côté dans Documents/attente/<id>.m4a
        (un nouvel enregistrement n'écrase plus l'ancien). */
     private var queueDir: URL { docs.appendingPathComponent("attente", isDirectory: true) }
@@ -361,5 +406,18 @@ public class DictaPlugin: CAPPlugin, CAPBridgedPlugin {
         try? FileManager.default.removeItem(at: fileURL)
         segURLs().forEach { try? FileManager.default.removeItem(at: $0) }
         call.resolve()
+    }
+}
+
+
+/// Prévient quand la page à imprimer a fini de charger.
+final class PrintLoader: NSObject, WKNavigationDelegate {
+    private let onLoad: () -> Void
+    private var fired = false
+    init(onLoad: @escaping () -> Void) { self.onLoad = onLoad }
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        guard !fired else { return }
+        fired = true
+        onLoad()
     }
 }

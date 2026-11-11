@@ -18,7 +18,7 @@ window.renderEnCours = function () {
   if (!box) return;
   const a = coursActif();
   box.hidden = !a;
-  $("#door").hidden = !!a && a.etat === "cur";   // la carte « en cours » remplace celle de la porte
+  $("#door").hidden = true;   // remplacée par l'accueil (design A)
   if (!a) return;
   const { e, etat } = a;
   const total = e.d1 - e.d0, left = Math.max(0, Math.round((e.d1 - NOW) / 60e3));
