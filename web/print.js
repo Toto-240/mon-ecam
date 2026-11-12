@@ -77,21 +77,14 @@
     const done = () => { document.documentElement.classList.remove("printing"); root.innerHTML = ""; setTimeout(() => { window.printBusy = false; }, 3000); };
     try {
       if (Native) {
-        // iPhone : document complet imprimé à part (l'appli peut se redessiner pendant l'aperçu)
-        const doc = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=794">
-          <style>html, body { margin: 0; background: #fff; }
-          #print-root { display: block !important; } ${printCss()}</style></head><body>${root.outerHTML}</body></html>`;
-        try {
-          document.documentElement.classList.remove("printing");
-          await Native.pdfHtml({ title, name: title.replace(/[·\/:]/g, "-").replace(/\s+/g, " ").trim(), html: doc });
-          done();
-          return;
-        } catch (e) {
-          if (!/not implemented|unimplemented/i.test(e?.message || e?.code || "")) throw e;
-          done();   // ancienne appli : son impression plantait, on demande la mise à jour
-          alert("Pour imprimer, installe la nouvelle version de l'appli iPhone (avec Sideloadly).");
-          return;
-        }
+        // iPhone : PDF A4 fabriqué ici (jsPDF), puis la feuille de partage d'iOS (Imprimer, Fichiers…),
+        // comme le PDF des devoirs. L'impression d'iOS n'est plus utilisée (sa fenêtre se refermait).
+        document.documentElement.classList.remove("printing");
+        const data = await window.pdfFromPrintRoot(root, title);
+        const name = `${title.replace(/[·\/:]/g, "-").replace(/\s+/g, " ").trim()}.pdf`;
+        done();
+        await Native.share({ data, name });
+        return;
       }
       if (Native?.printPage) {
         await new Promise((r) => setTimeout(r, 150));   // le temps d'afficher la mise en page
