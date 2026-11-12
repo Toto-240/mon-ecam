@@ -215,5 +215,25 @@
     [P.revision(r), P.fiches(fiches, "Fiches cochées"), P.qcm(r), P.qcmCorrige(r), P.blanc(r), P.corrige(r), P.plan(r)], ["plan"]);
   window.printMatiere = (m, fiches) => choose(`Fiches · ${m}`, "", [justFiches(fiches)], [], true);
   window.printFiche = (f) => choose(ficheTitle(f), "", [justFiches([f])], [], true);
+  /* Fiches cochées : impression directe ou PDF direct, sans fenêtre de choix */
+  window.ficheAction = async (m, fiches, mode, msgEl) => {
+    const part = justFiches(fiches);
+    if (!part) return;
+    bare = true;
+    const title = `Fiches · ${m}`, html = `<section class="p-part">${part.html}</section>`;
+    const say = (t) => { if (msgEl) msgEl.innerHTML = t; };
+    try {
+      if (mode === "print") {
+        if (!isApp()) return printNow(title, "", html);
+        say("Ouverture de la fenêtre d'impression…");
+        await nativePrint(title, "", html);
+        return say("");
+      }
+      say("Fabrication du PDF…");
+      say(await makePdf(title, "", html, isApp() ? "files" : "download"));
+    } catch (e) {
+      say(unimpl(e) ? "Installe la nouvelle version de l'appli iPhone (avec Sideloadly) pour ça." : `Impossible : ${esc(e?.message || String(e))}`);
+    }
+  };
   window.printFiches = (m, fiches) => choose(`Fiches · ${m}`, "", [justFiches(fiches)], [], true);
 })();

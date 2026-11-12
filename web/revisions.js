@@ -1026,15 +1026,22 @@ function renderFiches() {
           <div class="row tight">
             <button type="button" class="btn small primary" data-rev-go${pick.size ? "" : " disabled"}>Lancer la prépa (${pick.size})</button>
             <button type="button" class="btn small" data-carte-go${pick.size ? "" : " disabled"}>Carte mentale (${pick.size})</button>
-            <button type="button" class="btn small" data-pick-print${pick.size ? "" : " disabled"}>🖨️ Imprimer (${pick.size})</button>
           </div>
+        </div>
+        <div class="prepa-box">
+          <p class="prepa-h"><b>Imprimer ou télécharger les fiches cochées</b></p>
+          <div class="row tight">
+            <button type="button" class="btn small primary" data-pick-act="print"${pick.size ? "" : " disabled"}>🖨️ Imprimer (${pick.size})</button>
+            <button type="button" class="btn small primary" data-pick-act="pdf"${pick.size ? "" : " disabled"}>📄 PDF (${pick.size})</button>
+          </div>
+          <p class="small muted" data-pick-msg aria-live="polite"></p>
         </div>
         <p id="carte-msg" class="small muted" aria-live="polite"></p>
       </div>`
     : `<div class="row">
       <button type="button" class="btn small primary" data-pick-start>Choisir des fiches…</button>
       <button type="button" class="btn small" data-add-libre>+ Ajouter une fiche</button>
-      <button type="button" class="btn small" data-print-all>📄 Tout en PDF</button></div>`}
+      <button type="button" class="btn small" data-print-pick>🖨️ Imprimer / PDF…</button></div>`}
     ${activitesHtml(m)}
     ${progressHtml(m)}
     <ul class="list subject-list">
@@ -1056,7 +1063,7 @@ function renderFiches() {
         <div class="m">${c.sources} fiche${c.sources > 1 ? "s" : ""}${c.cree ? `, ${esc(fmtDate(c.cree.slice(0, 10)))}` : ""}</div>
       </button></li>`).join("")}
       ${fs.map((f) => `<li${pick ? ` class="pick${pick.has(f.id) ? "" : " off"}"` : ""}>${pick ? `<input type="checkbox" data-pick="${esc(f.id)}"${pick.has(f.id) ? " checked" : ""}
-        aria-label="Mettre ${esc(f.titre || m)} dans la carte mentale">` : ""}<button type="button" class="item" data-open="${esc(f.id)}">
+        aria-label="Choisir ${esc(f.titre || m)}">` : ""}<button type="button" class="item" data-open="${esc(f.id)}">
         <div class="t">${esc(f.titre || m)}</div>
         <div class="m">${f.source === "moodle" ? `D'après ${f.origine === "padlet" ? "le Padlet" : "le support Moodle"}${f.date ? ", " + esc(fmtDate(f.date)) : ""}`
           : f.source === "complete" ? `Support Moodle complété par le cours du ${esc(fmtDate(f.date))}`
@@ -1071,8 +1078,18 @@ function renderFiches() {
   box.querySelector("[data-pick-start]")?.addEventListener("click", () => { cartePick.set(m, new Set(fs.map((f) => f.id))); renderFiches(); });
   box.querySelector("[data-pick-cancel]")?.addEventListener("click", () => { cartePick.delete(m); renderFiches(); });
   const chrono = (list) => [...list].sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-  box.querySelector("[data-print-all]")?.addEventListener("click", () => window.printMatiere?.(m, chrono(fs), r));
-  box.querySelector("[data-pick-print]")?.addEventListener("click", () => window.printFiches?.(m, chrono(fs.filter((f) => pick.has(f.id)))));
+  box.querySelector("[data-print-pick]")?.addEventListener("click", () => {
+    cartePick.set(m, new Set(fs.map((f) => f.id))); renderFiches();
+    setTimeout(() => box.querySelector("[data-pick-act]")?.closest(".prepa-box")?.scrollIntoView({ block: "center", behavior: "smooth" }), 50);
+  });
+  box.querySelectorAll("[data-pick-act]").forEach((b) => {
+    b.onclick = async () => {
+      const msg = box.querySelector("[data-pick-msg]");
+      box.querySelectorAll("[data-pick-act]").forEach((x) => { x.disabled = true; });
+      try { await window.ficheAction?.(m, chrono(fs.filter((f) => pick.has(f.id))), b.dataset.pickAct, msg); }
+      finally { box.querySelectorAll("[data-pick-act]").forEach((x) => { x.disabled = !pick.size; }); }
+    };
+  });
   box.querySelector("[data-pick-all]")?.addEventListener("click", () => { cartePick.set(m, new Set(fs.map((f) => f.id))); renderFiches(); });
   box.querySelector("[data-pick-none]")?.addEventListener("click", () => { cartePick.set(m, new Set()); renderFiches(); });
   box.querySelectorAll("[data-pick]").forEach((c) => {
