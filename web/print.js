@@ -3,13 +3,14 @@
    toute une matière. On choisit les parties, puis la mise en page A4 (feuille blanche) s'imprime :
    fenêtre d'impression d'iOS dans l'appli iPhone (AirPrint ou « Enregistrer en PDF »), du navigateur sur PC. */
 (() => {
-  // même accès à l'appli iPhone que le micro (revisions.js) : une 2e inscription du module peut échouer
-  const Native = (() => {
+  // appli iPhone ? (vérifié au moment du clic) et son module natif, par le chemin le plus direct
+  const isApp = () => !!window.Capacitor?.isNativePlatform?.();
+  const plugin = () => {
     try {
-      if (typeof Dicta !== "undefined" && Dicta) return Dicta;
-      return window.Capacitor?.isNativePlatform?.() ? window.Capacitor.registerPlugin("Dicta") : null;
+      return window.Capacitor?.Plugins?.Dicta || (typeof Dicta !== "undefined" && Dicta) || window.Capacitor.registerPlugin("Dicta");
     } catch { return null; }
-  })();
+  };
+  const unimpl = (e) => /not implemented|unimplemented/i.test(String(e?.message || e?.code || e));
   const L = "ABCDEFGH";
 
   /* ---------- Parties imprimables ---------- */
@@ -59,11 +60,11 @@
       <p class="muted small">${esc(title)}</p>
       ${parts.map((p) => `<label class="check"><input type="checkbox" data-ppart="${p.key}"${off.includes(p.key) ? "" : " checked"}> <span>${esc(p.label)}</span></label>`).join("")}
       <p class="muted small">Chaque partie commence sur une nouvelle page.</p>
-      <div class="row">${Native
-        ? `<button type="button" class="btn primary" data-pgo="files">Enregistrer le PDF sur le téléphone</button>`
-        : `<button type="button" class="btn primary" data-pgo="print">Imprimer</button>`}</div>
-      ${Native ? `<p class="muted small">Le PDF va dans l'app <b>Fichiers</b> › Sur mon iPhone › Mon ECAM › Impressions : ouvre-le et touche le bouton de partage › Imprimer.</p>` : ""}
-      <p class="small" data-pmsg aria-live="polite"></p></div>`;
+      <div class="row"><button type="button" class="btn primary" data-pgo="print">Imprimer${isApp() ? " ou PDF" : ""}</button>
+        ${isApp() ? `<button type="button" class="btn" data-pgo="files">Enregistrer le PDF sur le téléphone</button>` : ""}</div>
+      ${isApp() ? `<p class="muted small">« Imprimer ou PDF » ouvre la fenêtre d'impression de l'iPhone : choisis ton imprimante, ou touche le bouton de partage en haut pour l'enregistrer en PDF.</p>` : ""}
+      <p class="small" data-pmsg aria-live="polite"></p>
+      <p class="muted p-ver">version ${esc((typeof APP_VERSION !== "undefined" && APP_VERSION) || "?")} · ${isApp() ? `appli iPhone${plugin() ? "" : " (module absent)"}` : "navigateur"}</p></div>`;
     sheet.hidden = false;
     const msg = sheet.querySelector("[data-pmsg]");
     sheet.querySelector("[data-pclose]").onclick = () => { sheet.hidden = true; };
@@ -73,14 +74,22 @@
         const chosen = parts.filter((p) => keep.has(p.key));
         if (!chosen.length) { msg.textContent = "Coche au moins une partie."; return; }
         const html = chosen.map((p) => `<section class="p-part">${p.html}</section>`).join("");
-        if (b.dataset.pgo === "print") { sheet.hidden = true; return printNow(title, sub, html); }
+        if (b.dataset.pgo === "print" && !isApp()) { sheet.hidden = true; return printNow(title, sub, html); }
         sheet.querySelectorAll("[data-pgo]").forEach((x) => { x.disabled = true; });
         msg.textContent = "Fabrication du PDF…";
         try {
+          if (b.dataset.pgo === "print") {
+            msg.textContent = "Ouverture de la fenêtre d'impression…";
+            const ok = await nativePrint(title, sub, html);
+            msg.textContent = ok ? "" : "Impression annulée.";
+            if (!ok) return;
+            sheet.hidden = true;
+            return;
+          }
           const r = await makePdf(title, sub, html, b.dataset.pgo);
           msg.innerHTML = r;
         } catch (e) {
-          msg.textContent = /not implemented|unimplemented/i.test(e?.message || e?.code || "")
+          msg.textContent = unimpl(e)
             ? "Installe la nouvelle version de l'appli iPhone (avec Sideloadly) pour enregistrer le PDF."
             : `Impossible : ${e?.message || e}`;
         } finally {
@@ -88,6 +97,29 @@
         }
       };
     });
+  }
+
+  /* iPhone : la vraie fenêtre d'impression d'iOS (imprimante AirPrint, ou partage › Enregistrer en PDF),
+     avec le document préparé dans une page à part ; ancienne appli : impression de la page. */
+  async function nativePrint(title, sub, html) {
+    const root = document.createElement("div");
+    root.id = "print-root";
+    root.innerHTML = `<header class="p-head"><div class="p-title">${esc(title)}</div><div class="p-sub">${esc(sub || "")}
+      <span>Mon ECAM · ${esc(fmtDate(dayIso(new Date())))}</span></div></header>${html}`;
+    const doc = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=794">
+      <style>html, body { margin: 0; background: #fff; } #print-root { display: block !important; } ${printCss()}</style></head>
+      <body>${root.outerHTML}</body></html>`;
+    window.printBusy = true;
+    try {
+      const r = await plugin().printHtml({ title, html: doc });
+      return r?.printed !== false;
+    } catch (e) {
+      if (!unimpl(e)) throw e;
+      await printNow(title, sub, html);   // ancienne appli
+      return true;
+    } finally {
+      setTimeout(() => { window.printBusy = false; }, 3000);
+    }
   }
 
   /* iPhone : PDF fabriqué ici et rangé sur le téléphone, dans Fichiers (aucune fenêtre d'iOS, rien dans le Cloud) */
@@ -98,7 +130,7 @@
     const data = await window.pdfFromPrintRoot(root, title);
     const name = `${title.replace(/[·\/:]/g, "-").replace(/\s+/g, " ").trim()}.pdf`;
     if (mode === "files") {
-      const r = await Native.savePdf({ data, name });
+      const r = await plugin().savePdf({ data, name });
       return `✓ PDF enregistré : app <b>Fichiers</b> › Sur mon iPhone › Mon ECAM › Impressions › <b>${esc(r?.name || name)}</b>`;
     }
 
@@ -115,26 +147,8 @@
     root.onclick = () => done();   // si le navigateur ne prévient pas de la fin : un appui ferme l'aperçu
     const done = () => { document.documentElement.classList.remove("printing"); root.innerHTML = ""; setTimeout(() => { window.printBusy = false; }, 3000); };
     try {
-      if (Native) {
-        // iPhone : PDF A4 fabriqué ici (jsPDF), puis la feuille de partage d'iOS (Imprimer, Fichiers…),
-        // comme le PDF des devoirs. L'impression d'iOS n'est plus utilisée (sa fenêtre se refermait).
-        document.documentElement.classList.remove("printing");
-        const data = await window.pdfFromPrintRoot(root, title);
-        const name = `${title.replace(/[·\/:]/g, "-").replace(/\s+/g, " ").trim()}.pdf`;
-        done();
-        diag("partage ouvert", { ko: Math.round(data.length * 0.75 / 1024) });
-        const r = await Native.share({ data, name });
-        diag("partage fermé", r);
-        return;
-      }
-      if (Native?.printPage) {
-        await new Promise((r) => setTimeout(r, 150));   // le temps d'afficher la mise en page
-        await Native.printPage({ title });
-        done();
-      } else {
-        window.addEventListener("afterprint", done, { once: true });
-        window.print();
-      }
+      window.addEventListener("afterprint", done, { once: true });
+      window.print();
     } catch (e) {
       done();
       diag("erreur", { msg: String(e?.message || e).slice(0, 120) });

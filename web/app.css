@@ -938,3 +938,7 @@ body { font-family: Inter, system-ui, sans-serif; letter-spacing: -0.005em; }
 .rec-live { background: var(--hero); }
 .rec-orb::before { background: var(--accent); }
 .rec-orb .ring { border-color: color-mix(in srgb, var(--accent) 70%, transparent); }
+/* impression depuis une fiche ouverte : la page doit pouvoir s'étendre (sinon pages blanches) */
+html.printing body { overflow: visible !important; }
+html.printing .reader, html.printing #print-sheet { display: none !important; }
+.p-ver { font-size: .7rem; margin: 8px 0 0; }
