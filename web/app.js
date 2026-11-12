@@ -626,18 +626,6 @@ document.querySelectorAll("#pane-plus [data-goto], #pane-plus [data-click]").for
     if (b.dataset.open) { const d = $(b.dataset.open); if (d) { d.open = true; d.scrollIntoView({ block: "start" }); } }
   };
 });
-/* Plus › Mot de passe de l'appli : celui gardé sur cet appareil (on ne peut pas le relire sur GitHub) */
-$("#pw-show").onclick = () => { $("#pw-box").hidden = !$("#pw-box").hidden; $("#pw-val").textContent = "••••••••"; $("#pw-reveal").textContent = "Afficher"; };
-$("#pw-reveal").onclick = () => {
-  const shown = $("#pw-reveal").textContent === "Masquer";
-  $("#pw-val").textContent = shown ? "••••••••" : store.get("ecam-pw") || "(aucun sur cet appareil)";
-  $("#pw-reveal").textContent = shown ? "Afficher" : "Masquer";
-};
-$("#pw-copy").onclick = async () => {
-  try { await navigator.clipboard.writeText(store.get("ecam-pw") || ""); $("#pw-msg").textContent = "Copié."; }
-  catch { $("#pw-msg").textContent = "Copie impossible : touche « Afficher » et recopie-le."; }
-};
-
 {
   const last = store.get("ecam-pane");
   // nouveau design : on arrive une première fois sur l'accueil
