@@ -626,21 +626,11 @@ document.querySelectorAll("#pane-plus [data-goto], #pane-plus [data-click]").for
     if (b.dataset.open) { const d = $(b.dataset.open); if (d) { d.open = true; d.scrollIntoView({ block: "start" }); } }
   };
 });
-/* Plus › Se déconnecter : seulement après avoir retapé le bon mot de passe (sinon impossible de revenir).
-   Le mot de passe n'est jamais affiché (voir CLAUDE.md). */
-$("#logout-open").onclick = () => { $("#logout-form").hidden = !$("#logout-form").hidden; $("#logout-msg").textContent = ""; $("#logout-pw").value = ""; };
-$("#logout-cancel").onclick = () => { $("#logout-form").hidden = true; $("#logout-pw").value = ""; };
-$("#logout-form").onsubmit = (ev) => {
-  ev.preventDefault();
-  const typed = $("#logout-pw").value;
-  $("#logout-pw").value = "";
-  if (!typed || typed !== store.get("ecam-pw")) {
-    $("#logout-msg").textContent = "Ce n'est pas le bon mot de passe : je ne te déconnecte pas, tu ne pourrais pas revenir.";
-    return;
-  }
+/* Plus › Se déconnecter : efface le mot de passe de cet appareil, l'appli redemande le mot de passe */
+$("#logout").onclick = () => {
   store.del("ecam-pw");
   DATA = null;
-  showPane("accueil");
+  store.set("ecam-pane", "accueil");
   location.reload();
 };
 
