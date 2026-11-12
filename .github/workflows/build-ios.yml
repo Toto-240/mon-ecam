@@ -40,6 +40,10 @@ jobs:
             k="${kv%%|*}"; v="${kv#*|}"
             /usr/libexec/PlistBuddy -c "Add :$k string '$v'" "$PLIST" || /usr/libexec/PlistBuddy -c "Set :$k '$v'" "$PLIST"
           done
+          # les PDF enregistrés par l'appli apparaissent dans l'app Fichiers (Sur mon iPhone › Mon ECAM)
+          for k in UIFileSharingEnabled LSSupportsOpeningDocumentsInPlace; do
+            /usr/libexec/PlistBuddy -c "Add :$k bool true" "$PLIST" || /usr/libexec/PlistBuddy -c "Set :$k true" "$PLIST"
+          done
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$PLIST" || true
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string audio" "$PLIST" || true
 

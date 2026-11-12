@@ -21,6 +21,7 @@ public class DictaPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "printPage", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "printHtml", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "pdfHtml", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "savePdf", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "share", returnType: CAPPluginReturnPromise),
     ]
 
@@ -366,6 +367,22 @@ public class DictaPlugin: CAPPlugin, CAPBridgedPlugin {
             self.printLoader = loader
             wv.loadHTMLString(html, baseURL: nil)
         }
+    }
+
+    /// Range un PDF dans l'app Fichiers (Sur mon iPhone › Mon ECAM › Impressions), sans aucune fenêtre.
+    @objc func savePdf(_ call: CAPPluginCall) {
+        guard let b64 = call.getString("data"), let data = Data(base64Encoded: b64) else { call.reject("Fichier vide"); return }
+        var name = (call.getString("name") ?? "Mon ECAM.pdf").replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+        if !name.lowercased().hasSuffix(".pdf") { name += ".pdf" }
+        let dir = docs.appendingPathComponent("Impressions", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        var url = dir.appendingPathComponent(name)
+        var k = 2
+        while FileManager.default.fileExists(atPath: url.path) {   // ne jamais écraser un PDF déjà enregistré
+            url = dir.appendingPathComponent("\(String(name.dropLast(4))) (\(k)).pdf"); k += 1
+        }
+        do { try data.write(to: url, options: .atomic) } catch { call.reject("Écriture impossible : \(error.localizedDescription)"); return }
+        call.resolve(["name": url.lastPathComponent])
     }
 
     /* File d'attente : les enregistrements pas encore envoyés sont mis de côté dans Documents/attente/<id>.m4a
