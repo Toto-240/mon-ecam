@@ -918,7 +918,7 @@ function activitesHtml(m) {
     .sort((a, b) => b.debut.localeCompare(a.debut));
   if (!list.length) return "";
   return `<details class="progress-card act-card"${list.length <= 6 ? " open" : ""}>
-    <summary>🗒️ Ce qu'on a fait en cours <span class="muted">(${list.length})</span></summary>
+    <summary>🗒️ Ce qu'on a fait en cours</summary>
     <ul class="act-hist">${list.map((a) => `<li><span class="d">${esc(fmtDate(a.debut))}</span>${esc(a.texte)}</li>`).join("")}</ul>
   </details>`;
 }
