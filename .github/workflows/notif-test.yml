@@ -1,6 +1,10 @@
 name: Notification test
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/workflows/notif-test.yml"]
 
 jobs:
   test:
@@ -10,4 +14,9 @@ jobs:
       - name: Envoyer une notification de test
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
-        run: python -c "import notif; notif.send('Mon ECAM', 'Notification de test : tout fonctionne ✓', tags=['white_check_mark'])"
+        run: |
+          python - <<'PY'
+          import notif
+          notif.send("Mon ECAM", "Notification de test - tout fonctionne", tags=["white_check_mark"])
+          print("envoyée")
+          PY
