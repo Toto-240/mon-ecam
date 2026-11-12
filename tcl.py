@@ -46,8 +46,8 @@ def mins(t):
     return int(h) * 60 + int(m)
 
 
-TER_URL = "https://eu.ftp.opendatasoft.com/sncf/gtfs/export-ter-gtfs-last.zip"   # horaires SNCF TER, publics
-TER_BRIGNAIS, TER_GDL = "OCE87722728", "OCE87721175"
+TER_URL = "https://eu.ftp.opendatasoft.com/sncf/plandata/Export_OpenData_SNCF_GTFS_NewTripId.zip"   # SNCF, public, à jour
+TER_GARES = {"brignais": "brignais", "lyon gorge de loup": "gdl"}
 
 
 def ter_legs(days):
@@ -60,36 +60,45 @@ def ter_legs(days):
         print(f"horaires TER indisponibles ({type(e).__name__})")
         return {}
     rows = lambda n: csv.DictReader(io.TextIOWrapper(z.open(n), "utf-8-sig"))
+    noms = {s["stop_id"]: (s["stop_name"], s.get("parent_station") or "") for s in rows("stops.txt")}
     gare = {}
-    for s in rows("stops.txt"):
-        p = (s.get("parent_station") or "").replace("StopArea:", "")
-        if p in (TER_BRIGNAIS, TER_GDL):
-            gare[s["stop_id"]] = ("brignais" if p == TER_BRIGNAIS else "gdl", "Car TER" if "Car" in s["stop_id"] else "TER")
+    for sid, (nom, parent) in noms.items():
+        k = TER_GARES.get(nom.strip().lower()) or TER_GARES.get(noms.get(parent, ("", ""))[0].strip().lower())
+        if k:
+            gare[sid] = k
     passages = defaultdict(list)
     for st in rows("stop_times.txt"):
         g = gare.get(st["stop_id"])
         if g:
-            passages[st["trip_id"]].append((int(st["stop_sequence"]), g[0], mins(st["arrival_time"]), mins(st["departure_time"]), g[1]))
-    service = {t["trip_id"]: t["service_id"] for t in rows("trips.txt") if t["trip_id"] in passages}
-    dayset = {d.strftime("%Y%m%d") for d in days}
+            passages[st["trip_id"]].append((int(st["stop_sequence"]), g, mins(st["arrival_time"]), mins(st["departure_time"])))
+    passages = {t: v for t, v in passages.items() if len({x[1] for x in v}) == 2}
+    car = {x["route_id"] for x in rows("routes.txt") if x.get("route_type") == "3"}
+    trips = {t["trip_id"]: (t["service_id"], "Car TER" if t["route_id"] in car else "TER") for t in rows("trips.txt") if t["trip_id"] in passages}
+    dayset = {d.strftime("%Y%m%d"): d for d in days}
     actifs = defaultdict(set)
+    if "calendar.txt" in z.namelist():
+        for c in rows("calendar.txt"):
+            for ds, d in dayset.items():
+                if c["start_date"] <= ds <= c["end_date"] and c[WEEK[d.weekday()]] == "1":
+                    actifs[ds].add(c["service_id"])
     for c in rows("calendar_dates.txt"):
-        if c["date"] in dayset and c["exception_type"] == "1":
-            actifs[c["date"]].add(c["service_id"])
+        if c["date"] in dayset:
+            (actifs[c["date"]].add if c["exception_type"] == "1" else actifs[c["date"]].discard)(c["service_id"])
     out = {}
     for ds in dayset:
         a, r_ = set(), set()
         for trip, ps in passages.items():
-            if service.get(trip) not in actifs[ds]:
+            service, kind = trips.get(trip, (None, "TER"))
+            if service not in actifs[ds]:
                 continue
             ps = sorted(ps)
-            for (s1, g1, _, dep, kind), (s2, g2, arr, _, _) in zip(ps, ps[1:]):
+            for (_, g1, _, dep), (_, g2, arr, _) in zip(ps, ps[1:]):
                 if g1 == "brignais" and g2 == "gdl":
                     a.add((dep, arr, kind))
                 if g1 == "gdl" and g2 == "brignais":
                     r_.add((dep, arr, kind))
         out[ds] = {"a_ter": sorted(a), "r_ter": sorted(r_)}
-    print("TER :", {k: (len(v["a_ter"]), len(v["r_ter"])) for k, v in sorted(out.items())})
+    print(f"TER : {len(gare)} arrêts, {len(passages)} courses ;", {k: (len(v["a_ter"]), len(v["r_ter"])) for k, v in sorted(out.items())})
     return out
 
 
