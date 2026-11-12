@@ -28,7 +28,7 @@ OUT = Path(__file__).parent / "tcl.enc"
 DAYS = 7
 
 STOPS = {"maison": "S5762", "gdl": "S5040", "vl": "S5095", "fourviere": "S5224"}   # stations (parent_station)
-NOMS = {"maison": "Aquavert", "gdl": "Gorge de Loup", "vl": "Vieux Lyon", "fourviere": "Fourvière"}
+NOMS = {"maison": "Aquavert", "papa": "Brignais", "gdl": "Gorge de Loup", "vl": "Vieux Lyon", "fourviere": "Fourvière"}
 BUS = ["C21", "C22", "C24", "114"]
 LEGS = {   # nom : (lignes, de, vers)
     "a_bus": (BUS, "maison", "gdl"),
@@ -44,6 +44,53 @@ WEEK = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sun
 def mins(t):
     h, m, *_ = t.split(":")
     return int(h) * 60 + int(m)
+
+
+TER_URL = "https://eu.ftp.opendatasoft.com/sncf/gtfs/export-ter-gtfs-last.zip"   # horaires SNCF TER, publics
+TER_BRIGNAIS, TER_GDL = "OCE87722728", "OCE87721175"
+
+
+def ter_legs(days):
+    """Semaine chez papa : TER (ou car TER) Brignais <-> Lyon Gorge de Loup, puis métro D comme d'habitude."""
+    try:
+        r = requests.get(TER_URL, timeout=300)
+        r.raise_for_status()
+        z = zipfile.ZipFile(io.BytesIO(r.content))
+    except Exception as e:
+        print(f"horaires TER indisponibles ({type(e).__name__})")
+        return {}
+    rows = lambda n: csv.DictReader(io.TextIOWrapper(z.open(n), "utf-8-sig"))
+    gare = {}
+    for s in rows("stops.txt"):
+        p = (s.get("parent_station") or "").replace("StopArea:", "")
+        if p in (TER_BRIGNAIS, TER_GDL):
+            gare[s["stop_id"]] = ("brignais" if p == TER_BRIGNAIS else "gdl", "Car TER" if "Car" in s["stop_id"] else "TER")
+    passages = defaultdict(list)
+    for st in rows("stop_times.txt"):
+        g = gare.get(st["stop_id"])
+        if g:
+            passages[st["trip_id"]].append((int(st["stop_sequence"]), g[0], mins(st["arrival_time"]), mins(st["departure_time"]), g[1]))
+    service = {t["trip_id"]: t["service_id"] for t in rows("trips.txt") if t["trip_id"] in passages}
+    dayset = {d.strftime("%Y%m%d") for d in days}
+    actifs = defaultdict(set)
+    for c in rows("calendar_dates.txt"):
+        if c["date"] in dayset and c["exception_type"] == "1":
+            actifs[c["date"]].add(c["service_id"])
+    out = {}
+    for ds in dayset:
+        a, r_ = set(), set()
+        for trip, ps in passages.items():
+            if service.get(trip) not in actifs[ds]:
+                continue
+            ps = sorted(ps)
+            for (s1, g1, _, dep, kind), (s2, g2, arr, _, _) in zip(ps, ps[1:]):
+                if g1 == "brignais" and g2 == "gdl":
+                    a.add((dep, arr, kind))
+                if g1 == "gdl" and g2 == "brignais":
+                    r_.add((dep, arr, kind))
+        out[ds] = {"a_ter": sorted(a), "r_ter": sorted(r_)}
+    print("TER :", {k: (len(v["a_ter"]), len(v["r_ter"])) for k, v in sorted(out.items())})
+    return out
 
 
 def main():
@@ -100,12 +147,15 @@ def main():
             if ia is not None and ib is not None:
                 legs_by_service[service][name].append([ps[ia][3], ps[ib][2], ligne])
 
+    ter = ter_legs(days)
+
     out = {"maj": today.isoformat(), "noms": NOMS, "jours": {}}
     for d in days:
         ds = d.strftime("%Y%m%d")
         jour = {}
         for name in LEGS:
             jour[name] = sorted({tuple(x) for s in services[ds] for x in legs_by_service[s][name]})
+        jour.update(ter.get(ds, {"a_ter": [], "r_ter": []}))
         out["jours"][d.isoformat()] = {k: [list(x) for x in v] for k, v in jour.items()}
         print(d, {k: len(v) for k, v in jour.items()})
     OUT.write_text(encrypt_json(out, pw), encoding="utf-8")

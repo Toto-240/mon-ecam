@@ -1,10 +1,11 @@
 "use strict";
-/* Onglet « Trajet » : bus C21/C22/C24/114 (Aquavert) <-> métro D (Gorge de Loup) <-> funiculaire F2 (Vieux Lyon) <-> Fourvière.
-   Horaires théoriques TCL du jour (tcl.py), correspondances enchaînées ici. Pas de temps réel. */
+/* Onglet « Trajet » : semaine chez maman, bus C21/C22/C24/114 (Aquavert) ; semaine chez papa, TER (Brignais) ;
+   puis métro D (Gorge de Loup) <-> funiculaire F2 (Vieux Lyon) <-> Fourvière.
+   Horaires théoriques TCL et SNCF TER du jour (tcl.py), correspondances enchaînées ici. Pas de temps réel. */
 
 (() => {
 const TRAJET_KEY = "ecam-trajet";
-const TRAJET_DEF = { home: 5, school: 5, c1: 4, c2: 3, marge: 5, alerte: true };
+const TRAJET_DEF = { home: 5, homeP: 5, school: 5, c1: 4, cT: 5, c2: 3, marge: 5, alerte: true, lieu: "maman", auto: false, ancre: "" };
 function trajetCfg() {
   try { return { ...TRAJET_DEF, ...JSON.parse(store.get(TRAJET_KEY) || "{}") }; } catch { return { ...TRAJET_DEF }; }
 }
@@ -13,23 +14,37 @@ const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,
 const minOf = (d) => d.getHours() * 60 + d.getMinutes();
 const firstAfter = (legs, t) => legs.find((l) => l[0] >= t);
 
+/* Chez maman ou chez papa ce jour-là ? (alternance chaque semaine, du lundi au dimanche, si demandée) */
+const monday = (d) => { const x = new Date(d); x.setHours(12, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+function lieuFor(day, c = trajetCfg()) {
+  if (!c.auto || !c.ancre) return c.lieu;
+  const w = Math.round((monday(day) - monday(new Date(`${c.ancre}T12:00:00`))) / (7 * 864e5));
+  return w % 2 === 0 ? c.lieu : c.lieu === "papa" ? "maman" : "papa";
+}
+/* Le premier tronçon (bus ou TER), la marche et la correspondance selon le lieu */
+const depart = (j, c, lieu, sens) => lieu === "papa"
+  ? { legs: j[`${sens}_ter`] || [], walk: c.homeP, corr: c.cT }
+  : { legs: j[`${sens}_bus`] || [], walk: c.home, corr: c.c1 };
+
 /* Trajets complets d'un jour (minutes depuis minuit) */
-function chainsAller(j, c) {
+function chainsAller(j, c, lieu = c.lieu) {
   const out = [];
-  for (const b of j.a_bus) {
-    const m = firstAfter(j.a_metro, b[1] + c.c1); if (!m) continue;
+  const dp = depart(j, c, lieu, "a");
+  for (const b of dp.legs) {
+    const m = firstAfter(j.a_metro, b[1] + dp.corr); if (!m) continue;
     const f = firstAfter(j.a_funi, m[1] + c.c2); if (!f) continue;
-    out.push({ leave: b[0] - c.home, bus: b, metro: m, funi: f, arrive: f[1] + c.school });
+    out.push({ leave: b[0] - dp.walk, bus: b, metro: m, funi: f, arrive: f[1] + c.school });
   }
   // pour une même arrivée, on garde le départ le plus tardif
   return out.filter((x, i) => !out.some((y, k) => k !== i && y.arrive <= x.arrive && y.leave > x.leave));
 }
-function chainsRetour(j, c) {
+function chainsRetour(j, c, lieu = c.lieu) {
   const out = [];
+  const dp = depart(j, c, lieu, "r");
   for (const f of j.r_funi) {
     const m = firstAfter(j.r_metro, f[1] + c.c2); if (!m) continue;
-    const b = firstAfter(j.r_bus, m[1] + c.c1); if (!b) continue;
-    out.push({ leave: f[0] - c.school, funi: f, metro: m, bus: b, arrive: b[1] + c.home });
+    const b = firstAfter(dp.legs, m[1] + dp.corr); if (!b) continue;
+    out.push({ leave: f[0] - c.school, funi: f, metro: m, bus: b, arrive: b[1] + dp.walk });
   }
   return out.filter((x, i) => !out.some((y, k) => k !== i && y.arrive <= x.arrive && y.leave > x.leave));
 }
@@ -58,8 +73,15 @@ window.renderTrajet = function () {
   const first = cours[0], last = cours[cours.length - 1];
   if (!trajetDir) trajetDir = isToday && (minOf(NOW) >= 12 * 60 || (first && NOW >= first.d0)) ? "retour" : "aller";
   const aller = trajetDir === "aller";
+  const lieu = lieuFor(day, c), papa = lieu === "papa";
+  const start = papa ? T.noms?.papa || "Brignais" : T.noms.maison;
+  const badge = papa ? "tl-ter" : "tl-bus";
 
-  const head = `<div class="seg trajet-dir">
+  const head = `<div class="seg trajet-lieu">
+      <button type="button" data-tlieu="maman" aria-pressed="${!papa}">Chez maman · Aquavert</button>
+      <button type="button" data-tlieu="papa" aria-pressed="${papa}">Chez papa · Brignais</button></div>
+    <label class="check tauto"><input type="checkbox" id="tcfg-auto" ${c.auto ? "checked" : ""}> Alterner tout seul chaque semaine (du lundi au dimanche)</label>
+    <div class="seg trajet-dir">
       <button type="button" data-tdir="aller" aria-pressed="${aller}">🏫 Aller à l'école</button>
       <button type="button" data-tdir="retour" aria-pressed="${!aller}">🏠 Retour</button></div>
     <div class="seg trajet-day">
@@ -71,10 +93,14 @@ window.renderTrajet = function () {
     return wireTrajet();
   }
 
-  const all = aller ? chainsAller(j, c) : chainsRetour(j, c);
+  if (papa && !j.a_ter) {
+    box.innerHTML = head + `<p class="empty-state">Les horaires des TER arrivent à la prochaine mise à jour (chaque matin).</p>`;
+    return wireTrajet();
+  }
+  const all = aller ? chainsAller(j, c, lieu) : chainsRetour(j, c, lieu);
   const route = (x) => aller
-    ? `<span class="tl tl-bus">${esc(x.bus[2])}</span> ${tHM(x.bus[0])} → <span class="tl tl-d">D</span> ${tHM(x.metro[0])} → <span class="tl tl-f">F2</span> ${tHM(x.funi[0])}`
-    : `<span class="tl tl-f">F2</span> ${tHM(x.funi[0])} → <span class="tl tl-d">D</span> ${tHM(x.metro[0])} → <span class="tl tl-bus">${esc(x.bus[2])}</span> ${tHM(x.bus[0])}`;
+    ? `<span class="tl ${badge}">${esc(x.bus[2])}</span> ${tHM(x.bus[0])} → <span class="tl tl-d">D</span> ${tHM(x.metro[0])} → <span class="tl tl-f">F2</span> ${tHM(x.funi[0])}`
+    : `<span class="tl tl-f">F2</span> ${tHM(x.funi[0])} → <span class="tl tl-d">D</span> ${tHM(x.metro[0])} → <span class="tl ${badge}">${esc(x.bus[2])}</span> ${tHM(x.bus[0])}`;
   const row = (x, cls = "") => `<li class="trow ${cls}">
       <div class="tleave"><b>${tHM(x.leave)}</b><span>${x.leave - now >= 0 && isToday ? `dans ${fmtWait(x.leave - now)}` : "départ"}</span></div>
       <div class="troute">${route(x)}</div>
@@ -103,12 +129,13 @@ window.renderTrajet = function () {
   const upcoming = all.filter((x) => x.leave >= now - (isToday ? 0 : 1e9)).slice(0, 6);
   const lastChain = all[all.length - 1];
   const lastLeg = (legs, nom) => legs.length ? `<li><span>${nom}</span><b>${tHM(legs[legs.length - 1][0])}</b></li>` : "";
+  const vehic = papa ? "TER" : "bus";
   const derniers = aller
-    ? lastLeg(j.a_bus, `Dernier bus à ${esc(T.noms.maison)}`) + lastLeg(j.a_metro, "Dernier métro D à Gorge de Loup") + lastLeg(j.a_funi, "Dernier F2 à Vieux Lyon")
-    : lastLeg(j.r_funi, "Dernier F2 à Fourvière") + lastLeg(j.r_metro, "Dernier métro D à Vieux Lyon") + lastLeg(j.r_bus, "Dernier bus à Gorge de Loup");
+    ? lastLeg(depart(j, c, lieu, "a").legs, `Dernier ${vehic} à ${esc(start)}`) + lastLeg(j.a_metro, "Dernier métro D à Gorge de Loup") + lastLeg(j.a_funi, "Dernier F2 à Vieux Lyon")
+    : lastLeg(j.r_funi, "Dernier F2 à Fourvière") + lastLeg(j.r_metro, "Dernier métro D à Vieux Lyon") + lastLeg(depart(j, c, lieu, "r").legs, `Dernier ${vehic} à Gorge de Loup`);
 
   box.innerHTML = head + conseil + `
-    <h3 class="memo-h">${isToday ? "Prochains départs" : "Départs"} depuis ${aller ? esc(T.noms.maison) : "Fourvière"}</h3>
+    <h3 class="memo-h">${isToday ? "Prochains départs" : "Départs"} depuis ${aller ? esc(start) : "Fourvière"}</h3>
     ${upcoming.length ? `<ul class="list tlist">${upcoming.map((x) => row(x)).join("")}</ul>` : `<p class="empty-state">Plus de trajet complet aujourd'hui.</p>`}
     <div class="card tlast">
       <h3 class="memo-h">🌙 Derniers départs</h3>
@@ -117,15 +144,17 @@ window.renderTrajet = function () {
     </div>
     <details class="card tcfg"><summary>Réglages du trajet</summary>
       <div class="tcfg-grid">
-        ${num("home", "Marche maison ↔ Aquavert", c.home)}
+        ${num("home", "Marche chez maman ↔ Aquavert", c.home)}
+        ${num("homeP", "Marche chez papa ↔ gare de Brignais", c.homeP)}
         ${num("school", "Marche Fourvière ↔ école", c.school)}
         ${num("c1", "Correspondance bus ↔ métro", c.c1)}
+        ${num("cT", "Correspondance TER ↔ métro", c.cT)}
         ${num("c2", "Correspondance métro ↔ funi", c.c2)}
         ${num("marge", "Arriver en avance de", c.marge)}
       </div>
       <label class="check"><input type="checkbox" id="tcfg-alerte" ${c.alerte ? "checked" : ""}> Notification « pars dans 5 min » les jours de cours (appli iPhone)</label>
     </details>
-    <p class="muted small">Horaires théoriques TCL (pas le temps réel), mis à jour chaque matin.</p>`;
+    <p class="muted small">Horaires théoriques TCL et SNCF TER (pas le temps réel), mis à jour chaque matin.</p>`;
   wireTrajet();
 };
 
@@ -144,6 +173,17 @@ function wireTrajet() {
   });
   const a = $("#tcfg-alerte");
   if (a) a.onchange = () => save("alerte", a.checked);
+  // lieu choisi pour la semaine affichée : sert aussi de point de départ à l'alternance
+  const day = new Date(NOW); day.setDate(day.getDate() + trajetDay);
+  const iso = (d) => isoDay(monday(d));
+  box.querySelectorAll("[data-tlieu]").forEach((b) => {
+    b.onclick = () => { const c = trajetCfg(); c.lieu = b.dataset.tlieu; c.ancre = iso(day); store.set(TRAJET_KEY, JSON.stringify(c)); window.planRappels?.(); window.renderAccueil?.(); window.renderTrajet(); };
+  });
+  const au = $("#tcfg-auto");
+  if (au) au.onchange = () => {
+    const c = trajetCfg(); c.lieu = lieuFor(day, c); c.auto = au.checked; c.ancre = iso(day);
+    store.set(TRAJET_KEY, JSON.stringify(c)); window.planRappels?.(); window.renderAccueil?.(); window.renderTrajet();
+  };
 }
 
 /* Pour les rappels iPhone : heure de départ conseillée pour chaque jour de cours à venir */
@@ -154,11 +194,14 @@ window.trajetAlertes = function () {
   for (const [iso, j] of Object.entries(T.jours)) {
     const first = coursDuJour(iso)[0];
     if (!first) continue;
-    const best = [...chainsAller(j, c)].reverse().find((x) => x.arrive <= minOf(first.d0) - c.marge);
+    const lieu = lieuFor(new Date(`${iso}T12:00:00`), c);
+    const best = [...chainsAller(j, c, lieu)].reverse().find((x) => x.arrive <= minOf(first.d0) - c.marge);
     if (!best) continue;
     const d = new Date(`${iso}T00:00:00`);
     d.setMinutes(best.leave - 5);
-    out.push({ when: d, title: `🚌 Pars dans 5 min`, body: `${best.bus[2]} à ${tHM(best.bus[0])} (${T.noms.maison}) → école à ${tHM(best.arrive)}, cours à ${fmtTime(first.d0)}.` });
+    const from = lieu === "papa" ? T.noms?.papa || "Brignais" : T.noms.maison;
+    out.push({ when: d, title: lieu === "papa" ? "🚆 Pars dans 5 min" : "🚌 Pars dans 5 min",
+      body: `${best.bus[2]} à ${tHM(best.bus[0])} (${from}) → école à ${tHM(best.arrive)}, cours à ${fmtTime(first.d0)}.` });
   }
   return out;
 };
@@ -170,14 +213,15 @@ window.trajetResume = function () {
   if (!j) return null;
   const now = minOf(NOW), cours = coursDuJour(iso);
   const first = cours[0], last = cours[cours.length - 1];
+  const lieu = lieuFor(NOW, c);
   if (first && now < minOf(first.d0)) {
-    const all = chainsAller(j, c).filter((x) => x.leave >= now);
+    const all = chainsAller(j, c, lieu).filter((x) => x.leave >= now);
     const best = [...all].reverse().find((x) => x.arrive <= minOf(first.d0) - c.marge) || all[0];
     return best && { sens: "aller", leave: tHM(best.leave), arrive: tHM(best.arrive), ligne: best.bus[2], dans: best.leave - now,
       retard: best.arrive > minOf(first.d0) - c.marge };
   }
   if (last && now < minOf(last.d1) + 240) {
-    const x = chainsRetour(j, c).find((y) => y.leave >= Math.max(now, minOf(last.d1)));
+    const x = chainsRetour(j, c, lieu).find((y) => y.leave >= Math.max(now, minOf(last.d1)));
     return x && { sens: "retour", leave: tHM(x.leave), arrive: tHM(x.arrive), ligne: x.bus[2], dans: x.leave - now };
   }
   return null;
