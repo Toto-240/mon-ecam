@@ -431,8 +431,12 @@ document.addEventListener("visibilitychange", () => {
    Absent dans Safari ou dans une ancienne version de l'appli : on utilise alors le micro de la page. */
 const REC_META = "ecam-rec-meta";
 const Dicta = (() => {
-  try { return window.Capacitor?.isNativePlatform?.() ? window.Capacitor.registerPlugin("Dicta") : null; }
-  catch { return null; }
+  // d'abord le module tel que l'appli l'annonce (Capacitor.Plugins) : registerPlugin peut échouer
+  // sur une page chargée depuis Internet, et l'appli retombait alors sur le micro de la page web
+  try {
+    if (!window.Capacitor?.isNativePlatform?.()) return null;
+    return window.Capacitor.Plugins?.Dicta || window.Capacitor.registerPlugin("Dicta");
+  } catch { return window.Capacitor?.Plugins?.Dicta || null; }
 })();
 const notImplemented = (e) => /not implemented|unimplemented|not available/i.test(String(e?.message || e));
 
@@ -500,6 +504,12 @@ $("#rec-pause").onclick = async () => {
       r.acc = recElapsed(r);
       r.since = null;
     } else {                // reprise
+      if (!r.native && r.stream?.getAudioTracks().some((t) => t.readyState === "ended")) {
+        // micro de la page coupé par l'iPhone pendant que l'appli était en arrière-plan
+        $("#rec-hint").textContent = "⚠️ L'iPhone a coupé le micro quand tu as quitté l'appli. Appuie sur Terminer (ce qui a été enregistré est gardé), puis relance un enregistrement.";
+        b.disabled = false;
+        return;
+      }
       if (r.native) await Dicta.resume(); else r.mr.resume();
       r.since = Date.now();
     }
