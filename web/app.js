@@ -557,6 +557,7 @@ async function checkVersion() {
     if (!v || v === APP_VERSION) return;
     // jamais pendant un enregistrement : on recharge seulement quand le micro est libre
     if (window.recordingActive?.()) return;
+    if (window.printBusy) return;   // ni pendant une impression (la fenêtre d'iOS disparaîtrait)
     if (sessionStorage.getItem("ecam-reload") === v) return; // déjà essayé : pas de boucle
     sessionStorage.setItem("ecam-reload", v);
     const u = new URL(location.href);

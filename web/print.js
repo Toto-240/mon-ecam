@@ -73,7 +73,8 @@
     root.innerHTML = `<header class="p-head"><div class="p-title">${esc(title)}</div><div class="p-sub">${esc(sub || "")}
       <span>Mon ECAM · ${esc(fmtDate(dayIso(new Date())))}</span></div></header>${html}`;
     document.documentElement.classList.add("printing");
-    const done = () => { document.documentElement.classList.remove("printing"); root.innerHTML = ""; };
+    window.printBusy = true;
+    const done = () => { document.documentElement.classList.remove("printing"); root.innerHTML = ""; setTimeout(() => { window.printBusy = false; }, 3000); };
     try {
       if (Native) {
         // iPhone : document complet imprimé à part (l'appli peut se redessiner pendant l'aperçu)
@@ -103,9 +104,9 @@
       }
     } catch (e) {
       done();
-      if (/not implemented|n'est pas/i.test(e?.message || "")) {
-        alert("L'impression demande la nouvelle version de l'appli iPhone (à réinstaller avec Sideloadly).");
-      }
+      alert(/not implemented|n'est pas/i.test(e?.message || "")
+        ? "L'impression demande la nouvelle version de l'appli iPhone (à réinstaller avec Sideloadly)."
+        : `Impression impossible : ${e?.message || e}`);
     }
   }
 
