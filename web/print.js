@@ -83,7 +83,9 @@
         const data = await window.pdfFromPrintRoot(root, title);
         const name = `${title.replace(/[·\/:]/g, "-").replace(/\s+/g, " ").trim()}.pdf`;
         done();
-        await Native.share({ data, name });
+        diag("partage ouvert", { ko: Math.round(data.length * 0.75 / 1024) });
+        const r = await Native.share({ data, name });
+        diag("partage fermé", r);
         return;
       }
       if (Native?.printPage) {
@@ -97,11 +99,33 @@
       }
     } catch (e) {
       done();
+      diag("erreur", { msg: String(e?.message || e).slice(0, 120) });
       alert(/not implemented|n'est pas/i.test(e?.message || "")
         ? "L'impression demande la nouvelle version de l'appli iPhone (à réinstaller avec Sideloadly)."
         : `Impression impossible : ${e?.message || e}`);
     }
   }
+
+  /* Journal de diagnostic de l'impression (iPhone) : ce qui s'est passé, et si l'appli s'est rechargée */
+  function diag(what, extra) {
+    try {
+      const j = JSON.parse(localStorage.getItem("ecam-print-diag") || "[]").slice(-15);
+      j.push({ t: new Date().toISOString().slice(11, 19), what, ...(extra || {}) });
+      localStorage.setItem("ecam-print-diag", JSON.stringify(j));
+      if (what === "partage ouvert") localStorage.setItem("ecam-print-open", String(Date.now()));
+      if (what === "partage fermé") localStorage.removeItem("ecam-print-open");
+    } catch {}
+  }
+  window.printDiag = () => { try { return JSON.parse(localStorage.getItem("ecam-print-diag") || "[]"); } catch { return []; } };
+  // au démarrage : la page s'est-elle rechargée pendant que la feuille de partage était ouverte ?
+  try {
+    const open = +localStorage.getItem("ecam-print-open");
+    if (open && Date.now() - open < 5 * 60e3) {
+      localStorage.removeItem("ecam-print-open");
+      diag("appli rechargée pendant le partage", { apres_s: Math.round((Date.now() - open) / 1000) });
+      setTimeout(() => alert(`Diagnostic impression : l'appli s'est rechargée ${Math.round((Date.now() - open) / 1000)} s après l'ouverture du partage. Envoie-moi une capture de ce message.`), 1500);
+    }
+  } catch {}
 
   /* Les règles de mise en page de l'impression (celles de #print-root dans app.css) */
   function printCss() {
