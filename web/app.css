@@ -938,3 +938,5 @@ body { font-family: Inter, system-ui, sans-serif; letter-spacing: -0.005em; }
 .rec-live { background: var(--hero); }
 .rec-orb::before { background: var(--accent); }
 .rec-orb .ring { border-color: color-mix(in srgb, var(--accent) 70%, transparent); }
+.pw-box { padding: 4px 0 8px; }
+.pw-val { font-size: 1rem; padding: 6px 10px; background: var(--soft); border-radius: 8px; user-select: all; -webkit-user-select: all; word-break: break-all; }
