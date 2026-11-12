@@ -54,10 +54,9 @@
       ${parts.map((p) => `<label class="check"><input type="checkbox" data-ppart="${p.key}"${off.includes(p.key) ? "" : " checked"}> <span>${esc(p.label)}</span></label>`).join("")}
       <p class="muted small">Chaque partie commence sur une nouvelle page.</p>
       <div class="row">${Native
-        ? `<button type="button" class="btn primary" data-pgo="files">Enregistrer le PDF</button>
-           <button type="button" class="btn" data-pgo="cloud">Mettre dans le Cloud</button>`
+        ? `<button type="button" class="btn primary" data-pgo="files">Enregistrer le PDF sur le téléphone</button>`
         : `<button type="button" class="btn primary" data-pgo="print">Imprimer</button>`}</div>
-      ${Native ? `<p class="muted small">Le PDF va dans l'app <b>Fichiers</b> › Sur mon iPhone › Mon ECAM › Impressions : ouvre-le et touche le bouton de partage › Imprimer. Ou mets-le dans le Cloud pour l'imprimer depuis ton PC.</p>` : ""}
+      ${Native ? `<p class="muted small">Le PDF va dans l'app <b>Fichiers</b> › Sur mon iPhone › Mon ECAM › Impressions : ouvre-le et touche le bouton de partage › Imprimer.</p>` : ""}
       <p class="small" data-pmsg aria-live="polite"></p></div>`;
     sheet.hidden = false;
     const msg = sheet.querySelector("[data-pmsg]");
@@ -76,7 +75,7 @@
           msg.innerHTML = r;
         } catch (e) {
           msg.textContent = /not implemented|unimplemented/i.test(e?.message || e?.code || "")
-            ? "Installe la nouvelle version de l'appli iPhone (avec Sideloadly) pour enregistrer le PDF, ou choisis « Mettre dans le Cloud »."
+            ? "Installe la nouvelle version de l'appli iPhone (avec Sideloadly) pour enregistrer le PDF."
             : `Impossible : ${e?.message || e}`;
         } finally {
           sheet.querySelectorAll("[data-pgo]").forEach((x) => { x.disabled = false; });
@@ -85,7 +84,7 @@
     });
   }
 
-  /* iPhone : PDF fabriqué ici, rangé dans Fichiers (aucune fenêtre d'iOS) ou envoyé dans le Cloud */
+  /* iPhone : PDF fabriqué ici et rangé sur le téléphone, dans Fichiers (aucune fenêtre d'iOS, rien dans le Cloud) */
   async function makePdf(title, sub, html, mode) {
     const root = document.createElement("div");
     root.innerHTML = `<header class="p-head"><div class="p-title">${esc(title)}</div><div class="p-sub">${esc(sub || "")}
@@ -96,12 +95,7 @@
       const r = await Native.savePdf({ data, name });
       return `✓ PDF enregistré : app <b>Fichiers</b> › Sur mon iPhone › Mon ECAM › Impressions › <b>${esc(r?.name || name)}</b>`;
     }
-    const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
-    $("#cloud-dossier").value = "Impressions";
-    $("#print-sheet").hidden = true;
-    showPane("cloud");
-    await cloudUpload([new File([bytes], name, { type: "application/pdf" })]);
-    return "Envoyé dans le Cloud, dossier « Impressions ».";
+
   }
 
   /* ---------- Mise en page et impression ---------- */
