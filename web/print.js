@@ -3,7 +3,13 @@
    toute une matière. On choisit les parties, puis la mise en page A4 (feuille blanche) s'imprime :
    fenêtre d'impression d'iOS dans l'appli iPhone (AirPrint ou « Enregistrer en PDF »), du navigateur sur PC. */
 (() => {
-  const Native = window.Capacitor?.isNativePlatform?.() ? window.Capacitor.registerPlugin?.("Dicta") : null;
+  // même accès à l'appli iPhone que le micro (revisions.js) : une 2e inscription du module peut échouer
+  const Native = (() => {
+    try {
+      if (typeof Dicta !== "undefined" && Dicta) return Dicta;
+      return window.Capacitor?.isNativePlatform?.() ? window.Capacitor.registerPlugin("Dicta") : null;
+    } catch { return null; }
+  })();
   const L = "ABCDEFGH";
 
   /* ---------- Parties imprimables ---------- */
@@ -106,6 +112,7 @@
       <span>Mon ECAM · ${esc(fmtDate(dayIso(new Date())))}</span></div></header>${html}`;
     document.documentElement.classList.add("printing");
     window.printBusy = true;
+    root.onclick = () => done();   // si le navigateur ne prévient pas de la fin : un appui ferme l'aperçu
     const done = () => { document.documentElement.classList.remove("printing"); root.innerHTML = ""; setTimeout(() => { window.printBusy = false; }, 3000); };
     try {
       if (Native) {
@@ -127,7 +134,6 @@
       } else {
         window.addEventListener("afterprint", done, { once: true });
         window.print();
-        setTimeout(() => { if (!window.matchMedia("print").matches) done(); }, 1500);
       }
     } catch (e) {
       done();
