@@ -1,0 +1,12 @@
+name: probe-ter
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/workflows/probe-ter.yml", "probe_ter.py"]
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -q requests && python probe_ter.py
