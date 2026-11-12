@@ -41,9 +41,18 @@
   };
   const ficheTitle = (f) => (String(f.md || "").match(/^#\s+(.+)/m)?.[1] || f.titre || "Fiche").replace(/[*_`]/g, "");
 
+  // en-tête encadré (titre, date) : absent quand on exporte juste des fiches
+  let bare = false;
+  const head = (title, sub) => bare ? "" : `<header class="p-head"><div class="p-title">${esc(title)}</div><div class="p-sub">${esc(sub || "")}
+      <span>Mon ECAM · ${esc(fmtDate(dayIso(new Date())))}</span></div></header>`;
+  // juste les fiches, l'une après l'autre (chacune sur une nouvelle page), sans sommaire ni encadré
+  const justFiches = (fs) => fs?.length && { key: "fiches", label: `Fiches (${fs.length})`,
+    html: fs.map((f) => `<section class="p-fiche">${md(f.md)}</section>`).join("") };
+
   /* ---------- Fenêtre « que veux-tu imprimer ? » ---------- */
-  function choose(title, sub, parts, off = []) {
+  function choose(title, sub, parts, off = [], nu = false) {
     parts = parts.filter(Boolean);
+    bare = nu;
     if (!parts.length) return;
     let sheet = $("#print-sheet");
     if (!sheet) {
@@ -56,12 +65,12 @@
       sheet.addEventListener("click", (ev) => { if (ev.target === sheet) sheet.hidden = true; });
     }
     sheet.innerHTML = `<div class="sheet-card">
-      <div class="sheet-head"><h2>🖨️ Imprimer</h2><button type="button" class="btn small" data-pclose>Fermer</button></div>
+      <div class="sheet-head"><h2>📄 PDF ou impression</h2><button type="button" class="btn small" data-pclose>Fermer</button></div>
       <p class="muted small">${esc(title)}</p>
       ${parts.map((p) => `<label class="check"><input type="checkbox" data-ppart="${p.key}"${off.includes(p.key) ? "" : " checked"}> <span>${esc(p.label)}</span></label>`).join("")}
       <p class="muted small">Chaque partie commence sur une nouvelle page.</p>
       <div class="row"><button type="button" class="btn primary" data-pgo="print">Imprimer${isApp() ? " ou PDF" : ""}</button>
-        ${isApp() ? `<button type="button" class="btn" data-pgo="files">Enregistrer le PDF sur le téléphone</button>` : ""}</div>
+        ${isApp() ? `<button type="button" class="btn" data-pgo="files">Enregistrer le PDF sur le téléphone</button>` : `<button type="button" class="btn" data-pgo="download">📄 Télécharger le PDF</button>`}</div>
       ${isApp() ? `<p class="muted small">« Imprimer ou PDF » ouvre la fenêtre d'impression de l'iPhone : choisis ton imprimante, ou touche le bouton de partage en haut pour l'enregistrer en PDF.</p>` : ""}
       <p class="small" data-pmsg aria-live="polite"></p>
       <p class="muted p-ver">version ${esc((typeof APP_VERSION !== "undefined" && APP_VERSION) || "?")} · ${isApp() ? `appli iPhone${plugin() ? "" : " (module absent)"}` : "navigateur"}</p></div>`;
@@ -104,8 +113,7 @@
   async function nativePrint(title, sub, html) {
     const root = document.createElement("div");
     root.id = "print-root";
-    root.innerHTML = `<header class="p-head"><div class="p-title">${esc(title)}</div><div class="p-sub">${esc(sub || "")}
-      <span>Mon ECAM · ${esc(fmtDate(dayIso(new Date())))}</span></div></header>${html}`;
+    root.innerHTML = head(title, sub) + html;
     const doc = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=794">
       <style>html, body { margin: 0; background: #fff; } #print-root { display: block !important; } ${printCss()}</style></head>
       <body>${root.outerHTML}</body></html>`;
@@ -125,14 +133,21 @@
   /* iPhone : PDF fabriqué ici et rangé sur le téléphone, dans Fichiers (aucune fenêtre d'iOS, rien dans le Cloud) */
   async function makePdf(title, sub, html, mode) {
     const root = document.createElement("div");
-    root.innerHTML = `<header class="p-head"><div class="p-title">${esc(title)}</div><div class="p-sub">${esc(sub || "")}
-      <span>Mon ECAM · ${esc(fmtDate(dayIso(new Date())))}</span></div></header>${html}`;
+    root.innerHTML = head(title, sub) + html;
     const data = await window.pdfFromPrintRoot(root, title);
     const name = `${title.replace(/[·\/:]/g, "-").replace(/\s+/g, " ").trim()}.pdf`;
     if (mode === "files") {
       const r = await plugin().savePdf({ data, name });
       return `✓ PDF enregistré : app <b>Fichiers</b> › Sur mon iPhone › Mon ECAM › Impressions › <b>${esc(r?.name || name)}</b>`;
     }
+    // navigateur (ordinateur, tablette) : téléchargement direct du fichier
+    const bin = atob(data), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60e3);
+    return `✓ PDF téléchargé : <b>${esc(name)}</b> (dossier Téléchargements)`;
 
   }
 
@@ -140,8 +155,7 @@
   async function printNow(title, sub, html) {
     let root = $("#print-root");
     if (!root) { root = document.createElement("div"); root.id = "print-root"; document.body.appendChild(root); }
-    root.innerHTML = `<header class="p-head"><div class="p-title">${esc(title)}</div><div class="p-sub">${esc(sub || "")}
-      <span>Mon ECAM · ${esc(fmtDate(dayIso(new Date())))}</span></div></header>${html}`;
+    root.innerHTML = head(title, sub) + html;
     document.documentElement.classList.add("printing");
     window.printBusy = true;
     root.onclick = () => done();   // si le navigateur ne prévient pas de la fin : un appui ferme l'aperçu
@@ -199,7 +213,7 @@
     [P.blanc(r), P.corrige(r)]);
   window.printDossierDS = (e, r, fiches) => choose(`DS · ${e.matiere}`, fmtDayLong(e.d0),
     [P.revision(r), P.fiches(fiches, "Fiches cochées"), P.qcm(r), P.qcmCorrige(r), P.blanc(r), P.corrige(r), P.plan(r)], ["plan"]);
-  window.printMatiere = (m, fiches, r) => choose(`Révisions · ${m}`, "Toute la matière",
-    [P.revision(r), P.fiches(fiches, "Toutes les fiches de cours"), P.qcm(r), P.qcmCorrige(r)]);
-  window.printFiches = (m, fiches) => choose(`Fiches · ${m}`, "", [P.fiches(fiches)]);
+  window.printMatiere = (m, fiches) => choose(`Fiches · ${m}`, "", [justFiches(fiches)], [], true);
+  window.printFiche = (f) => choose(ficheTitle(f), "", [justFiches([f])], [], true);
+  window.printFiches = (m, fiches) => choose(`Fiches · ${m}`, "", [justFiches(fiches)], [], true);
 })();

@@ -1034,7 +1034,7 @@ function renderFiches() {
     : `<div class="row">
       <button type="button" class="btn small primary" data-pick-start>Choisir des fiches…</button>
       <button type="button" class="btn small" data-add-libre>+ Ajouter une fiche</button>
-      <button type="button" class="btn small" data-print-all>🖨️ Tout imprimer</button></div>`}
+      <button type="button" class="btn small" data-print-all>📄 Tout en PDF</button></div>`}
     ${activitesHtml(m)}
     ${progressHtml(m)}
     <ul class="list subject-list">
@@ -1216,8 +1216,9 @@ function openFiche(id) {
   const meta = f.source === "moodle" ? `${esc(f.matiere)}, d'après « ${esc(f.doc || "")} » sur Moodle`
     : f.source === "complete" ? `${esc(f.matiere)}, « ${esc(f.doc || "")} » (Moodle) complété par le cours du ${esc(fmtDate(f.date))}${f.heure ? " à " + esc(f.heure) : ""}`
     : `${esc(f.matiere)}, ${esc(fmtDate(f.date))}${f.heure ? " à " + esc(f.heure) : ""}${f.source === "notes" ? ", d'après tes notes" : ""}`;
-  openReader(f.matiere, `<p class="meta">${meta}</p>${md(f.md)}${f._fichier ? deleteZone("Supprimer cette fiche",
+  openReader(f.matiere, `<p class="meta">${meta}</p><div class="row"><button type="button" class="btn small" id="fiche-pdf">📄 PDF / Imprimer</button></div>${md(f.md)}${f._fichier ? deleteZone("Supprimer cette fiche",
     f.source === "moodle" || f.source === "complete" ? "Elle ne sera pas refaite automatiquement à partir de Moodle." : "") : ""}`);
+  $("#fiche-pdf")?.addEventListener("click", () => window.printFiche?.(f));
   if (f._fichier) wireDelete(`fiches/${f._fichier}`, "Supprimer cette fiche");
 }
 
@@ -1234,7 +1235,7 @@ function openRevision(matiere, id, focus) {
     <div class="why" hidden>${esc(q.explication || "")}</div></div>`).join("");
   // depuis la prépa DS : le QCM seul ; sinon la fiche puis le QCM
   const onlyQcm = focus === "qcm";
-  openReader(onlyQcm ? `QCM : ${matiere}` : `Révision : ${matiere}`, `<p class="meta">${esc(matiere)}, à partir de ${r.sources} fiche${r.sources > 1 ? "s" : ""}${r.ds ? ` (pour le DS du ${esc(fmtDate(r.ds.slice(0, 10)))})` : r.choix ? " choisies" : ""}</p>${onlyQcm ? "" : `<div class="row"><button type="button" class="btn small" id="rev-print">🖨️ Imprimer</button></div>${md(r.md)}`}
+  openReader(onlyQcm ? `QCM : ${matiere}` : `Révision : ${matiere}`, `<p class="meta">${esc(matiere)}, à partir de ${r.sources} fiche${r.sources > 1 ? "s" : ""}${r.ds ? ` (pour le DS du ${esc(fmtDate(r.ds.slice(0, 10)))})` : r.choix ? " choisies" : ""}</p>${onlyQcm ? "" : `<div class="row"><button type="button" class="btn small" id="rev-print">📄 PDF / Imprimer</button></div>${md(r.md)}`}
     ${qcm ? `<section class="qcm"><h2>QCM</h2><p id="score" class="score" aria-live="polite"></p>${qcm}
       <button type="button" class="btn" id="qcm-reset">Recommencer</button></section>` : ""}
     ${r._fichier && !onlyQcm ? deleteZone(r.ds ? "Supprimer toute la prépa de ce DS" : "Supprimer cette révision", r.ds ? "Fiche, QCM, DS blanc et plan de ce DS sont supprimés, pas tes fiches de cours." : "Seules la fiche de révision et son QCM sont supprimés, pas tes fiches de cours.") : ""}`);
