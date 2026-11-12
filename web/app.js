@@ -437,9 +437,13 @@ function showLock(message) {
   $("#pw").focus();
 }
 
+/* œil : montre ce qu'on est en train de taper (jamais le mot de passe enregistré) */
+$("#pw-eye").onclick = () => { const i = $("#pw"); i.type = i.type === "password" ? "text" : "password"; i.focus(); };
+
 $("#lock form").onsubmit = async (ev) => {
   ev.preventDefault();
   store.set("ecam-pw", $("#pw").value);
+  $("#pw").type = "password";
   $("#lock").hidden = true;
   await load();
 };

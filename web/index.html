@@ -464,12 +464,20 @@
 
 <div id="lock" class="lock" hidden>
   <form>
+    <div class="lock-logo" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M8 7h7M8 11h5"/></svg></div>
+    <p class="lock-kick">ECAM LaSalle · Lyon</p>
     <h2>Mon ECAM</h2>
-    <p class="muted">Tes données sont chiffrées. Entre le mot de passe de l'appli, celui que tu as mis dans APP_PASSWORD sur GitHub. Il reste enregistré sur cet appareil.</p>
-    <label for="pw">Mot de passe de l'appli</label>
-    <input id="pw" type="password" autocomplete="current-password" required>
+    <p class="muted">Ton planning, tes fiches et tes DS. Entre ton mot de passe pour continuer.</p>
+    <label for="pw">Mot de passe</label>
+    <div class="lock-field">
+      <input id="pw" type="password" autocomplete="current-password" required>
+      <button type="button" class="lock-eye" id="pw-eye" aria-label="Afficher ce que je tape">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
     <p id="lock-msg" class="err"></p>
-    <button type="submit">Déverrouiller</button>
+    <button type="submit" class="lock-go">Se connecter</button>
+    <p class="lock-foot muted">Tes données sont chiffrées. Le mot de passe reste sur cet appareil jusqu'à ce que tu te déconnectes.</p>
   </form>
 </div>
 

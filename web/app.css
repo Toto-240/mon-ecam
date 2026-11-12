@@ -945,3 +945,23 @@ html.printing .reader, html.printing #print-sheet { display: none !important; }
 .tl.tl-ter { background: #0B5FA5; }
 #trajet .trajet-lieu button { font-size: .85rem; }
 #trajet .tauto { margin: -4px 0 12px; font-size: .85rem; }
+
+/* écran de connexion (design A) */
+.lock { background: var(--paper); place-items: center; padding: calc(24px + env(safe-area-inset-top)) 20px 24px; }
+.lock form { max-width: 360px; background: var(--surface); border: 1px solid var(--line); border-radius: 24px; padding: 28px 22px 22px;
+  box-shadow: 0 18px 40px -24px rgba(22,33,62,.35); }
+.lock-logo { width: 56px; height: 56px; border-radius: 18px; background: var(--hero); color: #fff; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
+.lock-logo svg { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.lock-kick { margin: 0; font-size: .75rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.lock h2 { font-size: 1.9rem; margin: 2px 0 6px; }
+.lock label { font-size: .85rem; margin: 18px 0 6px; }
+.lock-field { position: relative; }
+.lock-field input { padding: 13px 48px 13px 14px; border-radius: 12px; font-size: 16px; background: var(--paper); }
+.lock-field input:focus { outline: 2px solid var(--ecam); outline-offset: 1px; }
+.lock-eye { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 40px !important; height: 40px; margin: 0 !important;
+  padding: 0 !important; border: 0; background: transparent !important; color: var(--muted) !important; display: flex; align-items: center; justify-content: center; }
+.lock-eye svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.lock .lock-go { margin-top: 10px; padding: 14px; border-radius: 12px; background: var(--ecam); font-size: 1rem; }
+@media (prefers-color-scheme: dark) { .lock .lock-go { background: var(--accent); color: var(--accent-ink); } }
+.lock-foot { font-size: .75rem; margin: 14px 0 0; text-align: center; }
+.lock #lock-msg:empty { display: none; }
