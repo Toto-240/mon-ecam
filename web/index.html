@@ -156,6 +156,15 @@
     <li><button type="button" class="item" data-click="#bell"><span class="t">Emploi du temps dans Calendrier et notifications</span><span class="chev" aria-hidden="true">›</span></button></li>
     <li><button type="button" class="item" data-goto="enregistrer" data-open="#setup"><span class="t">Réglages (jeton GitHub, micro)</span><span class="chev" aria-hidden="true">›</span></button></li>
     <li><button type="button" class="item" data-click="#sync"><span class="t">Synchroniser maintenant</span><span class="chev" aria-hidden="true">›</span></button></li>
+    <li><button type="button" class="item" id="logout-open"><span class="t">Se déconnecter</span><span class="chev" aria-hidden="true">›</span></button>
+      <form id="logout-form" class="logout-form" hidden autocomplete="off">
+        <p class="muted small">Pour éviter de te retrouver bloqué dehors, retape d'abord le mot de passe de l'appli : tu en auras besoin pour te reconnecter.</p>
+        <label class="sr" for="logout-pw">Mot de passe de l'appli</label>
+        <input id="logout-pw" class="field" type="password" autocomplete="current-password" placeholder="Mot de passe de l'appli" required>
+        <div class="row tight"><button type="submit" class="btn primary small">Se déconnecter</button>
+          <button type="button" class="btn small" id="logout-cancel">Annuler</button></div>
+        <p class="small err" id="logout-msg" aria-live="polite"></p>
+      </form></li>
   </ul>
 </main>
 

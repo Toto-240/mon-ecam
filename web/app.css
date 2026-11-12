@@ -945,3 +945,4 @@ html.printing .reader, html.printing #print-sheet { display: none !important; }
 .tl.tl-ter { background: #0B5FA5; }
 #trajet .trajet-lieu button { font-size: .85rem; }
 #trajet .tauto { margin: -4px 0 12px; font-size: .85rem; }
+.logout-form { display: grid; gap: 8px; padding: 6px 0 10px; }
