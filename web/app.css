@@ -451,6 +451,9 @@ button.tile { border: 0; font: inherit; text-align: left; cursor: pointer; width
 .depot-sources { margin: 6px 0 12px; }
 .depot-sources li { padding: 10px 12px; }
 .depot-sources .check { display: inline-flex; margin: 6px 14px 0 0; }
+.depot-files { list-style: none; margin: 8px 0 4px; padding: 0; }
+.depot-files li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line, rgba(127,127,127,.2)); font-size: .9rem; }
+.depot-files li > span { overflow-wrap: anywhere; }
 .depot-line { margin: 8px 0 0; font-size: .85rem; line-height: 1.35; }
 .depot-line.ok { color: var(--ok, #1a7f4b); }
 .depot-line.wait { color: var(--muted); }

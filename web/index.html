@@ -324,11 +324,11 @@
       <button type="button" id="depot-close" class="btn small">Fermer</button>
     </div>
     <div id="depot-choose">
-      <p class="small"><b>Quel fichier déposer ?</b></p>
+      <p class="small"><b>Quels fichiers déposer ?</b> <span class="muted">Tu peux en mettre plusieurs.</span></p>
       <ul id="depot-sources" class="list depot-sources"></ul>
-      <label class="btn" for="depot-file">Choisir un fichier sur cet appareil</label>
-      <input id="depot-file" type="file" hidden>
-      <p id="depot-file-name" class="small"></p>
+      <label class="btn" for="depot-file">Ajouter des fichiers de cet appareil</label>
+      <input id="depot-file" type="file" multiple hidden>
+      <ul id="depot-file-name" class="depot-files"></ul>
       <label class="check"><input type="checkbox" id="depot-envoyer">
         <span>Si Moodle le demande, <b>envoyer aussi le devoir pour évaluation</b> (définitif : tu ne pourras plus le modifier)</span></label>
       <div id="depot-decl" hidden>

@@ -2,7 +2,7 @@
 Dépôt d'un fichier dans un devoir Moodle, depuis l'appli (connexion ECAM des secrets GitHub).
 
 Deux temps, comme sur Moodle :
-1. « deposer » : le fichier remplace les fichiers du brouillon et le formulaire est enregistré.
+1. « deposer » : le ou les fichiers remplacent ceux du brouillon et le formulaire est enregistré.
 2. « envoyer » : seulement si Moodle demande « Envoyer le devoir » (définitif) ET que l'étudiant
    l'a confirmé dans l'appli (avec la déclaration sur l'honneur s'il y en a une).
 
@@ -86,7 +86,8 @@ def status(s, cmid):
     return {"statut": statut, "fichiers": fichiers[:300], "besoin_envoi": envoi}
 
 
-def deposer(s, cmid, nom, contenu):
+def deposer(s, cmid, fichiers):
+    """fichiers : liste de (nom, contenu). Ils remplacent tous ensemble le brouillon Moodle."""
     base = f"{ecam.MOODLE}/mod/assign/view.php"
     soup, html = _soup(s, f"{base}?id={int(cmid)}&action=editsubmission")
     form = next((f for f in soup.select("form") if f.select_one('input[name="files_filemanager"]')), None)
@@ -104,12 +105,20 @@ def deposer(s, cmid, nom, contenu):
     client_id = opts.get("client_id", "")
     ctx = (opts.get("context") or {}).get("id") or re.search(r'"contextid":(\d+)', html).group(1)
 
-    # formats acceptés par le devoir
+    # formats acceptés et nombre de fichiers autorisé par le devoir
     accepted = opts.get("accepted_types") or "*"
     if isinstance(accepted, list) and accepted and "*" not in accepted:
-        ext = "." + nom.rsplit(".", 1)[-1].lower() if "." in nom else ""
-        if ext not in [a.lower() for a in accepted]:
-            raise DepotError(f"ce devoir n'accepte que : {', '.join(accepted)}")
+        for nom, _ in fichiers:
+            ext = "." + nom.rsplit(".", 1)[-1].lower() if "." in nom else ""
+            if ext not in [a.lower() for a in accepted]:
+                raise DepotError(f"« {nom} » refusé : ce devoir n'accepte que {', '.join(accepted)}")
+    try:
+        maxfiles = int(opts.get("maxfiles", -1))
+    except (TypeError, ValueError):
+        maxfiles = -1
+    if maxfiles > 0 and len(fichiers) > maxfiles:
+        raise DepotError(f"ce devoir accepte au plus {maxfiles} fichier{'s' if maxfiles > 1 else ''} "
+                         f"(tu en as choisi {len(fichiers)})")
 
     # dépôt « Téléverser un fichier »
     repo_id = next((r.get("id") for r in (opts.get("filepicker", {}).get("repositories")
@@ -131,18 +140,19 @@ def deposer(s, cmid, nom, contenu):
     except ValueError:
         pass
 
-    up = s.post(f"{ecam.MOODLE}/repository/repository_ajax.php?action=upload",
-                data={"sesskey": sesskey, "repo_id": repo_id, "itemid": itemid, "ctx_id": ctx,
-                      "savepath": "/", "title": nom, "author": "", "license": "unknown",
-                      "client_id": client_id, "env": "filemanager", "overwrite": "1",
-                      "maxbytes": opts.get("maxbytes", -1), "areamaxbytes": opts.get("areamaxbytes", -1)},
-                files={"repo_upload_file": (nom, contenu)}, timeout=180)
-    try:
-        res = up.json()
-    except ValueError:
-        raise DepotError(f"Moodle a refusé le fichier (réponse inattendue, {up.status_code})")
-    if isinstance(res, dict) and res.get("error"):
-        raise DepotError(f"Moodle a refusé le fichier : {res['error']}")
+    for nom, contenu in fichiers:
+        up = s.post(f"{ecam.MOODLE}/repository/repository_ajax.php?action=upload",
+                    data={"sesskey": sesskey, "repo_id": repo_id, "itemid": itemid, "ctx_id": ctx,
+                          "savepath": "/", "title": nom, "author": "", "license": "unknown",
+                          "client_id": client_id, "env": "filemanager", "overwrite": "1",
+                          "maxbytes": opts.get("maxbytes", -1), "areamaxbytes": opts.get("areamaxbytes", -1)},
+                    files={"repo_upload_file": (nom, contenu)}, timeout=180)
+        try:
+            res = up.json()
+        except ValueError:
+            raise DepotError(f"Moodle a refusé « {nom} » (réponse inattendue, {up.status_code})")
+        if isinstance(res, dict) and res.get("error"):
+            raise DepotError(f"Moodle a refusé « {nom} » : {res['error']}")
 
     # enregistrer le formulaire (bouton « Enregistrer »)
     btn = form.select_one('input[type="submit"][name="submitbutton"]')
@@ -189,6 +199,30 @@ def declaration(s, cmid):
     return (lab or decl.find_parent()).get_text(" ", strip=True)
 
 
+def split_files(meta, data):
+    """Plusieurs fichiers arrivent collés bout à bout ; meta["fichiers"] donne leurs noms et tailles."""
+    liste = meta.get("fichiers") or []
+    if not liste:
+        return [(meta.get("nom") or "devoir.pdf", data)]
+    if sum(int(f["taille"]) for f in liste) != len(data):
+        raise DepotError("fichiers abîmés pendant l'envoi, recommence")
+    out, pos = [], 0
+    for f in liste:
+        n = int(f["taille"])
+        out.append((str(f.get("nom") or f"fichier{len(out) + 1}"), data[pos:pos + n]))
+        pos += n
+    noms = [n for n, _ in out]
+    if len(set(noms)) != len(noms):   # deux fichiers du même nom : Moodle garderait le dernier
+        vus = {}
+        for i, (n, c) in enumerate(out):
+            k = vus.get(n, 0)
+            vus[n] = k + 1
+            if k:
+                base, dot, ext = n.rpartition(".")
+                out[i] = (f"{base} ({k + 1}).{ext}" if dot else f"{n} ({k + 1})", c)
+    return out
+
+
 def make(meta, data):
     """Point d'entrée (process_inbox) : renvoie le résultat chiffré ensuite dans depots/."""
     cmid = int(meta["cmid"])
@@ -205,7 +239,9 @@ def make(meta, data):
     else:
         if not data:
             raise DepotError("fichier vide")
-        deposer(s, cmid, meta.get("nom") or "devoir.pdf", data)
+        fichiers = split_files(meta, data)
+        out["fichier"] = ", ".join(n for n, _ in fichiers)
+        deposer(s, cmid, fichiers)
         if meta.get("envoyer"):
             texte, refus = envoyer(s, cmid, bool(meta.get("accepte_declaration")))
             out["declaration"] = texte

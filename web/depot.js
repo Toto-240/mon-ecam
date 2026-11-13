@@ -4,7 +4,8 @@
    Utilise DATA, store, esc, decrypt, unb64, fmtTime, relDay, norm (app.js) et
    send, newId, sameMatiere (revisions.js). */
 
-let depotCtx = null, depotFile = null;
+let depotCtx = null, depotFiles = [];
+const DEPOT_MAX = 40e6;
 
 /* Derniers résultats de dépôt pour un devoir (le plus récent d'abord) */
 const depotsFor = (cmid) => (DATA.depots || []).filter((d) => String(d.cmid) === String(cmid))
@@ -43,13 +44,13 @@ document.addEventListener("click", (ev) => {
 /* ---------- Fenêtre de dépôt ---------- */
 window.openDepot = function (cmid, titre, matiere, envoiSeul = false) {
   depotCtx = { cmid, titre, matiere, envoiSeul, source: null };
-  depotFile = null;
+  depotFiles = [];
   const last = depotsFor(cmid)[0];
   $("#depot-title").textContent = envoiSeul ? "Envoyer le devoir" : "Déposer sur Moodle";
   $("#depot-what").textContent = titre || "";
   $("#depot-choose").querySelectorAll(":scope > :not(#depot-decl)").forEach((el) => { el.hidden = envoiSeul; });
   $("#depot-file").hidden = true;   // le vrai champ fichier reste caché (bouton « Choisir un fichier »)
-  $("#depot-file-name").textContent = "";
+  showFiles();
   $("#depot-envoyer").checked = false;
   $("#depot-decl-ok").checked = false;
   $("#depot-msg").textContent = envoiSeul
@@ -90,23 +91,35 @@ function renderSources(matiere, titre) {
       <div class="t">${esc(d.titre || "Devoir")}</div>
       <div class="m">${esc([d.matiere, d.cree ? fmtDate(d.cree.slice(0, 10)) : ""].filter(Boolean).join(", "))}</div>
       <div class="row tight">
-        <label class="check"><input type="radio" name="depot-src" value="${esc(d.id)}|pdf"> PDF</label>
-        <label class="check"><input type="radio" name="depot-src" value="${esc(d.id)}|docx"> Word</label>
+        <label class="check"><input type="checkbox" name="depot-src" value="${esc(d.id)}|pdf"> PDF</label>
+        <label class="check"><input type="checkbox" name="depot-src" value="${esc(d.id)}|docx"> Word</label>
       </div></li>`).join("")
-    : `<li class="m">Aucun devoir fait dans l'onglet Devoirs. Choisis un fichier ci-dessous.</li>`;
-  $("#depot-sources").querySelectorAll('input[name="depot-src"]').forEach((r) => {
-    r.onchange = () => { depotFile = null; $("#depot-file-name").textContent = ""; };
+    : `<li class="m">Aucun devoir fait dans l'onglet Devoirs. Ajoute tes fichiers ci-dessous.</li>`;
+}
+
+/* Fichiers de l'appareil choisis (on peut en ajouter en plusieurs fois, et en retirer) */
+const mo = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)} Mo` : `${Math.max(1, Math.round(n / 1e3))} ko`);
+function showFiles() {
+  const ul = $("#depot-file-name");
+  ul.innerHTML = depotFiles.map((f, i) => `<li><span>📎 ${esc(f.name)} <span class="muted">(${mo(f.size)})</span></span>
+    <button type="button" class="linkish" data-depot-rm="${i}" aria-label="Retirer ${esc(f.name)}">Retirer</button></li>`).join("");
+  ul.querySelectorAll("[data-depot-rm]").forEach((b) => {
+    b.onclick = () => { depotFiles.splice(+b.dataset.depotRm, 1); showFiles(); };
   });
 }
 
 $("#depot-file").addEventListener("change", (ev) => {
-  const f = ev.target.files[0];
+  const add = [...ev.target.files];
   ev.target.value = "";
-  if (!f) return;
-  if (f.size > 40e6) { $("#depot-msg").textContent = "Fichier trop gros (40 Mo maximum)."; return; }
-  depotFile = f;
-  document.querySelectorAll('input[name="depot-src"]').forEach((r) => { r.checked = false; });
-  $("#depot-file-name").textContent = `Fichier choisi : ${f.name}`;
+  const msg = $("#depot-msg");
+  msg.textContent = "";
+  for (const f of add) {
+    if (depotFiles.some((x) => x.name === f.name && x.size === f.size)) continue;   // déjà dans la liste
+    const total = depotFiles.reduce((t, x) => t + x.size, 0) + f.size;
+    if (total > DEPOT_MAX) { msg.textContent = `« ${f.name} » n'a pas été ajouté : 40 Mo maximum en tout.`; continue; }
+    depotFiles.push(f);
+  }
+  showFiles();
 });
 
 async function travailFile(id, format) {
@@ -137,14 +150,23 @@ $("#depot-send").onclick = async () => {
       await send({ id: newId(), kind: "depot", action: "envoyer", cmid: c.cmid, titre: c.titre, matiere: c.matiere,
         accepte_declaration: !!decl && $("#depot-decl-ok").checked }, new ArrayBuffer(0), "depot");
     } else {
-      let file;
-      const src = document.querySelector('input[name="depot-src"]:checked')?.value;
-      if (depotFile) file = { name: depotFile.name, type: depotFile.type, bytes: await depotFile.arrayBuffer() };
-      else if (src) { msg.textContent = "Préparation du fichier…"; const [id, fmt] = src.split("|"); file = await travailFile(id, fmt); }
-      else { msg.textContent = "Choisis le fichier à déposer."; btn.disabled = false; return; }
+      const files = [];
+      const srcs = [...document.querySelectorAll('input[name="depot-src"]:checked')].map((x) => x.value);
+      if (srcs.length) msg.textContent = "Préparation des fichiers…";
+      for (const src of srcs) { const [id, fmt] = src.split("|"); files.push(await travailFile(id, fmt)); }
+      for (const f of depotFiles) files.push({ name: f.name, type: f.type, bytes: await f.arrayBuffer() });
+      if (!files.length) { msg.textContent = "Choisis au moins un fichier à déposer."; btn.disabled = false; return; }
+      const total = files.reduce((t, f) => t + f.bytes.byteLength, 0);
+      if (total > DEPOT_MAX) { msg.textContent = "Trop gros : 40 Mo maximum en tout."; btn.disabled = false; return; }
+      // les fichiers partent collés bout à bout ; la liste (noms, tailles) permet de les séparer
+      const all = new Uint8Array(total);
+      let pos = 0;
+      for (const f of files) { all.set(new Uint8Array(f.bytes), pos); pos += f.bytes.byteLength; }
       await send({ id: newId(), kind: "depot", action: "deposer", cmid: c.cmid, titre: c.titre, matiere: c.matiere,
-        nom: file.name, type: file.type, envoyer: $("#depot-envoyer").checked,
-        accepte_declaration: !!decl && $("#depot-decl-ok").checked }, file.bytes, "depot");
+        nom: files.map((f) => f.name).join(", "), type: files[0].type,
+        fichiers: files.map((f) => ({ nom: f.name, type: f.type, taille: f.bytes.byteLength })),
+        envoyer: $("#depot-envoyer").checked,
+        accepte_declaration: !!decl && $("#depot-decl-ok").checked }, all.buffer, "depot");
     }
     renderDevoirs();
   } catch (e) {
