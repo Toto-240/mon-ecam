@@ -408,6 +408,7 @@ function renderAll() {
   window.renderEnCours?.();
   window.renderTrajet?.();
   window.renderAccueil?.();
+  window.renderRelire?.();
   window.renderCloud?.();
   window.planRappels?.();
 }
@@ -596,9 +597,9 @@ $("#filtre").oninput = renderCours;
 
 /* 5 onglets (design A) : certains regroupent plusieurs pages */
 const PANE_GROUP = { accueil: "accueil", planning: "cours", revisions: "cours", cours: "cours", enregistrer: "enregistrer",
-  ds: "ds", plus: "plus", rendre: "plus", devoirs: "plus", notes: "plus", trajet: "plus", cloud: "plus" };
+  ds: "ds", plus: "plus", rendre: "plus", devoirs: "plus", notes: "plus", trajet: "plus", cloud: "plus", relire: "plus" };
 const PANE_TITLE = { accueil: "Aujourd'hui", planning: "Cours", revisions: "Cours", cours: "Cours", enregistrer: "Micro",
-  ds: "DS", plus: "Plus", rendre: "À rendre", devoirs: "Devoirs IA", notes: "Notes", trajet: "Trajet", cloud: "Cloud" };
+  ds: "DS", plus: "Plus", rendre: "À rendre", devoirs: "Devoirs IA", notes: "Notes", trajet: "Trajet", cloud: "Cloud", relire: "Ce soir" };
 
 function showPane(name) {
   if (!document.getElementById("pane-" + name)) name = "accueil";
@@ -614,6 +615,7 @@ function showPane(name) {
   store.set("ecam-pane", name);
   document.body.dataset.pane = name;   // ex. : le bandeau du pense-bête n'apparaît que sur l'accueil
   if (name === "trajet") window.renderTrajet?.();
+  if (name === "relire") window.renderRelire?.();
   if (name === "accueil") window.renderAccueil?.();
   scrollTo(0, 0);
 }

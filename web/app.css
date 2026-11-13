@@ -968,3 +968,15 @@ html.printing .reader, html.printing #print-sheet { display: none !important; }
 @media (prefers-color-scheme: dark) { .lock .lock-go { background: var(--accent); color: var(--accent-ink); } }
 .lock-foot { font-size: .75rem; margin: 14px 0 0; text-align: center; }
 .lock #lock-msg:empty { display: none; }
+
+/* Ce soir : relire les fiches des cours */
+.a-ico.nuit { background: #E6E9F5; color: #2B3A78; }
+@media (prefers-color-scheme: dark) { .a-ico.nuit { background: rgba(140,160,255,.16); color: #B9C4FF; } }
+.a-chev { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; opacity: .45; flex: none; }
+.relire-jour { margin: 0 0 20px; }
+.relire-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0 8px; }
+.relire-head h3 { margin: 0; font-size: 1.05rem; }
+.relire-item .t { font-weight: 600; }
+.relire-item.lu .t { opacity: .6; }
+.relire-bref { font-size: .86rem; line-height: 1.4; margin-top: 4px; opacity: .8; }
+.relire-sep { margin: 28px 0; border: 0; border-top: 2px dashed currentColor; opacity: .25; }

@@ -38,6 +38,15 @@
       <span class="a-when${t.retard ? " late" : ""}">${t.dans <= 0 ? "maintenant" : `dans ${esc(wait(t.dans))}`}</span></button>`;
   }
 
+  function ceSoir() {
+    const r = window.relireCeSoir?.();
+    if (!r) return "";
+    return `<button type="button" class="a-card a-trajet" data-a-goto="relire">
+      <span class="a-ico nuit">${svg('<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/>')}</span>
+      <span class="a-grow"><b>Relis ta journée</b><small>${r.reste} fiche${r.reste > 1 ? "s" : ""} de cours à relire ce soir</small></span>
+      ${svg(ICO.chev, "a-chev")}</button>`;
+  }
+
   function journee(evs) {
     const today = evs.filter((e) => sameDay(e.d0, NOW));
     const list = today.length ? today : evs.filter((e) => e.d0 > NOW && sameDay(e.d0, (evs.find((x) => x.d0 > NOW) || {}).d0 || NOW));
@@ -70,7 +79,7 @@
     const box = $("#accueil");
     if (!box || !DATA) return;
     const evs = events().filter((e) => !e.sansHeure).sort((a, b) => a.d0 - b.d0);
-    box.innerHTML = hero(evs) + trajet();
+    box.innerHTML = hero(evs) + ceSoir() + trajet();
     $("#accueil-bas").innerHTML = journee(evs) + tuiles();
     const root = $("#pane-accueil");
     root.querySelectorAll("[data-a-goto]").forEach((b) => { b.onclick = () => showPane(b.dataset.aGoto); });

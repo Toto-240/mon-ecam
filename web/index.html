@@ -139,9 +139,15 @@
   <div id="trajet"></div>
 </main>
 
+<main id="pane-relire" class="pane" hidden>
+  <p class="muted small">Les fiches faites à partir de tes cours enregistrés : ce qu'a dit le prof, à relire le soir.</p>
+  <div id="relire"></div>
+</main>
+
 <main id="pane-plus" class="pane" hidden>
   <h2 class="sr">Plus</h2>
   <div class="plus-grid">
+    <button type="button" class="plus-tile" data-goto="relire"><span class="plus-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg></span><span>Ce soir</span></button>
     <button type="button" class="plus-tile" data-goto="rendre"><span id="badge" class="badge" hidden></span><span class="plus-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13l3-8h10l3 8v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M4 13h5l1 2h4l1-2h5"/></svg></span><span>À rendre</span></button>
     <button type="button" class="plus-tile" data-goto="devoirs"><span class="plus-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 4l6 6L9 21H3v-6z"/><path d="M12 6l6 6"/></svg></span><span>Devoirs IA</span></button>
     <button type="button" class="plus-tile" data-goto="notes"><span class="plus-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span><span>Notes</span></button>
@@ -494,6 +500,7 @@
 <script src="cal.js"></script>
 <script src="encours.js"></script>
 <script src="trajet.js"></script>
+<script src="relire.js"></script>
 <script src="pdf.js"></script>
 <script src="print.js"></script>
 <script src="accueil.js"></script>
