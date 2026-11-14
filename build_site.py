@@ -98,7 +98,8 @@ def main():
           else "version précédente introuvable, comparaison au prochain passage"))
     if new:
         print(f"::notice::{len(new)} changement(s) d'emploi du temps")
-        changements.notify(new)
+        deja = {c["id"] for c in history}   # déjà dans l'historique publié : déjà notifié
+        changements.notify([c for c in new if c["id"] not in deja])
     if not os.environ.get("RAPIDE"):
         notif.nouveautes(prev, data)   # nouvelles notes, nouveaux devoirs (téléphone, via ntfy)
 

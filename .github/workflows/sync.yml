@@ -72,12 +72,27 @@ jobs:
           ECAM_PASSWORD: ${{ secrets.ECAM_PASSWORD }}
         run: python ecam_scraper.py
 
+      # mémoire des notifications déjà envoyées (empreintes seulement) : jamais deux fois la même
+      - name: Mémoire des notifications
+        uses: actions/cache/restore@v4
+        with:
+          path: .notifie.json
+          key: notifie-${{ github.run_id }}
+          restore-keys: notifie-
+
       - name: Chiffrer les données et préparer le site
         env:
           APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           RAPIDE: ${{ inputs.rapide == true && '1' || '' }}
         run: python build_site.py
+
+      - name: Garder la mémoire des notifications
+        if: always() && hashFiles('.notifie.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: .notifie.json
+          key: notifie-${{ github.run_id }}-${{ github.run_attempt }}
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

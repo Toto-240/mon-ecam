@@ -5,9 +5,51 @@ Le sujet ntfy fonctionne comme un mot de passe : quiconque le connaît peut lire
 On n'y met donc que le strict nécessaire (matière, heure, titre), jamais une note chiffrée.
 """
 
+import hashlib
+import json
 import os
+from datetime import datetime, timedelta
+from pathlib import Path
 
 import requests
+
+# Mémoire des notifications déjà envoyées (gardée d'une synchro à l'autre par le cache GitHub Actions,
+# voir sync.yml) : une même nouveauté n'est jamais notifiée deux fois, même si la publication
+# précédente a échoué ou n'était pas encore en ligne. Seulement des empreintes, rien de lisible.
+STATE = Path(os.environ.get("NOTIF_STATE", ".notifie.json"))
+KEEP_DAYS = 120
+
+
+def _empreinte(cle):
+    sel = os.environ.get("NTFY_TOPIC") or os.environ.get("APP_PASSWORD") or ""
+    return hashlib.sha256(f"{sel}|{cle}".encode()).hexdigest()[:20]
+
+
+def _charger():
+    try:
+        return json.loads(STATE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def jamais_notifie(items, cle):
+    """Garde les éléments jamais notifiés (et les retient comme notifiés)."""
+    vus = _charger()
+    limite = (datetime.now() - timedelta(days=KEEP_DAYS)).isoformat()
+    vus = {k: v for k, v in vus.items() if v >= limite}
+    out, now = [], datetime.now().isoformat(timespec="seconds")
+    for it in items:
+        e = _empreinte(cle(it))
+        if e not in vus:
+            out.append(it)
+            vus[e] = now
+    try:
+        STATE.write_text(json.dumps(vus), encoding="utf-8")
+    except OSError:
+        pass
+    if len(out) < len(items):
+        print(f"{len(items) - len(out)} nouveauté(s) déjà notifiée(s), pas renvoyée(s)")
+    return out
 
 def _app_url():
     repo = os.environ.get("GITHUB_REPOSITORY", "")
@@ -49,12 +91,16 @@ def nouveautes(prev, data):
     old = {key(n) for n in prev.get("notes") or []}
     new = [n for n in data.get("notes") or [] if key(n) not in old]
     if prev.get("notes") is not None and new and len(new) < 15:
+        new = jamais_notifie(new, lambda n: "note|" + key(n))
+    if prev.get("notes") is not None and new and len(new) < 15:
         send("Nouvelle note" if len(new) == 1 else f"{len(new)} nouvelles notes",
              _lines([f"{n.get('matiere')}{' – ' + n['epreuve'] if n.get('epreuve') else ''}" for n in new]),
              tags=["memo"], priority=4)
     # nouveaux devoirs à rendre sur Moodle
     old_dv = {d.get("url") or d.get("titre") for d in prev.get("devoirs") or []}
     new_dv = [d for d in data.get("devoirs") or [] if (d.get("url") or d.get("titre")) not in old_dv]
+    if prev.get("devoirs") is not None and new_dv and len(new_dv) < 15:
+        new_dv = jamais_notifie(new_dv, lambda d: "devoir|" + str(d.get("url") or d.get("titre")))
     if prev.get("devoirs") is not None and new_dv and len(new_dv) < 15:
         def due(d):
             e = d.get("echeance") or ""

@@ -598,7 +598,26 @@ class InboxItem:
         return b"".join(p.read_bytes() for p in self.paths)
 
 
-def inbox_items(folder: Path):
+def deja_fait(meta, out: Path):
+    """Vrai si cet envoi a déjà été traité (son résultat est déjà rangé)."""
+    i, kind = meta["id"], meta.get("kind") or "cours"
+    dossier = {"depot": "depots", "carte": "cartes", "devoir": "devoirs", "devoir_moodle": "devoirs",
+               "cours": "fiches", "notes": "fiches"}.get(kind)
+    if not dossier:
+        return False   # révisions : rangées par matière, refaites à la demande
+    if (out / dossier / f"{i}.enc").exists():
+        return True
+    if kind in ("cours", "notes"):   # cours qui a complété une fiche Moodle
+        try:
+            support = load_support(meta, out)
+        except Exception:
+            return False
+        return bool(support) and i in (support.get("complete_par") or [])
+    return False
+
+
+def inbox_items(folder: Path, out: Path = None, orphans: list = None):
+    orphans = orphans if orphans is not None else []
     items = [InboxItem(p.stem, [p]) for p in sorted(folder.glob("*.bin"))]
     groups = {}
     for p in folder.glob("*.part"):
@@ -608,6 +627,11 @@ def inbox_items(folder: Path):
     for (stem, n), parts in sorted(groups.items()):
         if len(parts) == n and all(i in parts for i in range(n)):
             items.append(InboxItem(stem, [parts[i] for i in range(n)]))
+        elif out is not None and (out / "fiches" / f"{stem.rsplit('-', 1)[0]}.enc").exists():
+            # morceaux d'un envoi raté, alors que l'enregistrement a été envoyé en entier ensuite :
+            # inutiles, on les retire (sinon la boîte n'est jamais vide)
+            print(f"- {stem} : morceaux d'un envoi déjà réussi, retirés")
+            orphans.extend(p.name for p in parts.values())
         else:
             print(f"- {stem} : {len(parts)}/{n} morceaux arrivés, traité au prochain passage")
     return items
@@ -618,10 +642,11 @@ def main():
     password = os.environ.get("APP_PASSWORD")
     if not password:
         sys.exit("APP_PASSWORD manquant")
-    files = inbox_items(inbox / "inbox")
+    orphelins = []
+    files = inbox_items(inbox / "inbox", out, orphelins)
     print(f"{len(files)} élément(s) à traiter")
     summary = []
-    done, failed_now = [], set()
+    done, failed_now = list(orphelins), set()
     client = None
     for p in files:
         print(f"- {p.label}")
@@ -633,6 +658,14 @@ def main():
             continue
         meta["id"] = re.sub(r"[^A-Za-z0-9_-]", "", str(meta.get("id") or p.stem))[:40]
         summary.append(meta.get("kind") or "cours")
+        if deja_fait(meta, out):
+            # déjà traité lors d'un passage précédent (l'envoi était resté dans la boîte) :
+            # on ne refait rien (pas de nouveau dépôt Moodle, pas de fiche complétée deux fois)
+            # et on ne renvoie pas de notification
+            print("  déjà fait, retiré de la boîte")
+            done.extend(p.names)
+            summary[-1] += " déjà fait"
+            continue
         try:
             client = client or gemini()
             if meta.get("kind") not in ("revision", "notes", "depot", "carte"):
@@ -644,12 +677,6 @@ def main():
             elif meta.get("kind") == "notes":
                 if fiche_notes(client, meta, audio, out) == "ds":
                     meta["_ds_seul"] = True
-            elif meta.get("kind") == "depot" and (out / "depots" / f"{meta['id']}.enc").exists():
-                # déjà déposé lors d'un passage précédent : on ne redépose pas et on ne renotifie pas
-                print("  déjà fait, retiré de la boîte")
-                done.extend(p.names)
-                summary[-1] += " déjà fait"
-                continue
             elif meta.get("kind") == "depot":
                 import depot
                 write(out / "depots" / f"{meta['id']}.enc", depot.make(meta, audio))
@@ -669,6 +696,8 @@ def main():
                     ds = detect_ds(client, meta, [f"Fiche du cours (d'après l'enregistrement) :\n{md}"])[1]
                     if ds:
                         save_ds(meta, ds, out)
+                    else:   # rien trouvé : noté, pour que le rattrapage (scan_ds.py) ne relise pas la fiche
+                        write(out / "ds_detectes" / f"{meta['id']}.enc", {"id": meta["id"], "matiere": meta.get("matiere"), "ds": []})
                 except Exception as e:
                     print(f"  repérage des DS impossible ({type(e).__name__})")
             print("  ok")

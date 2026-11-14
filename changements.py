@@ -125,6 +125,10 @@ def notify(changes):
     topic = os.environ.get("NTFY_TOPIC")
     if not topic or not changes:
         return
+    import notif
+    changes = notif.jamais_notifie(changes, lambda c: "edt|" + c["id"])
+    if not changes:
+        return
     lines = [describe(c) for c in changes]
     body = "\n".join(lines[:8]) + (f"\n… et {len(lines) - 8} autre(s)" if len(lines) > 8 else "")
     try:
