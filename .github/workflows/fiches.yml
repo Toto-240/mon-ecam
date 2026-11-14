@@ -90,7 +90,7 @@ jobs:
           for i in 1 2 3; do
             git fetch -q origin inbox || exit 0
             git reset -q --hard FETCH_HEAD
-            while read -r f; do [ -n "$f" ] && git rm -q --ignore-unmatch "inbox/$f"; done < .traites
+            while read -r f || [ -n "$f" ]; do [ -n "$f" ] && git rm -q --ignore-unmatch "inbox/$f"; done < .traites
             git diff --cached --quiet && exit 0
             git commit -q -m "Éléments traités retirés" && git push -q origin HEAD:inbox && { echo "Éléments traités retirés"; exit 0; }
             sleep 3

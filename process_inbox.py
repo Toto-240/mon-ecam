@@ -644,6 +644,12 @@ def main():
             elif meta.get("kind") == "notes":
                 if fiche_notes(client, meta, audio, out) == "ds":
                     meta["_ds_seul"] = True
+            elif meta.get("kind") == "depot" and (out / "depots" / f"{meta['id']}.enc").exists():
+                # déjà déposé lors d'un passage précédent : on ne redépose pas et on ne renotifie pas
+                print("  déjà fait, retiré de la boîte")
+                done.extend(p.names)
+                summary[-1] += " déjà fait"
+                continue
             elif meta.get("kind") == "depot":
                 import depot
                 write(out / "depots" / f"{meta['id']}.enc", depot.make(meta, audio))
@@ -689,7 +695,7 @@ def main():
         err = out / "erreurs" / f"{stem}.enc"
         if err.exists() and stem not in failed_now:
             err.unlink()
-    (inbox / ".traites").write_text("\n".join(done), encoding="utf-8")
+    (inbox / ".traites").write_text("".join(f"{n}\n" for n in done), encoding="utf-8")   # \n final : sinon « read » saute la dernière ligne
     print(f"{len(done)}/{len(files)} terminé(s)")
     print(f"::notice::Boîte : {len(files)} élément(s) ; " + (" | ".join(summary) or "rien"))
 
