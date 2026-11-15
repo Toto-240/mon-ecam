@@ -1046,25 +1046,25 @@ function renderFiches() {
     ${progressHtml(m)}
     <ul class="list subject-list">
       ${r ? `<li class="rev"><button type="button" class="item" data-open-rev="${esc(m)}">
-        <div class="t">Fiche de révision et QCM</div>
-        <div class="m">${r.qcm?.length || 0} question${(r.qcm?.length || 0) > 1 ? "s" : ""}, à partir de ${r.sources} cours${stale ? " (des cours ont été ajoutés depuis)" : ""}</div>
+        <div class="t">${esc(iaNom(r, "Fiche de révision"))}</div>
+        <div class="m"><span class="ia-tag">Fait avec l'IA</span> Fiche de révision + QCM · ${r.qcm?.length || 0} question${(r.qcm?.length || 0) > 1 ? "s" : ""}, à partir de ${r.sources} cours${stale ? " (des cours ont été ajoutés depuis)" : ""}</div>
       </button></li>` : ""}
       ${dsRevs(m).map((x) => `<li class="rev"><button type="button" class="item" data-open-rev-id="${esc(x.id)}">
-        <div class="t">Révision pour le DS du ${esc(fmtDate(String(x.ds).slice(0, 10)))}</div>
-        <div class="m">${x.qcm?.length || 0} question${(x.qcm?.length || 0) > 1 ? "s" : ""}, à partir des ${x.sources} fiche${x.sources > 1 ? "s" : ""} que tu as cochées</div>
+        <div class="t">${esc(iaNom(x, `Révision pour le DS du ${fmtDate(String(x.ds).slice(0, 10))}`))}</div>
+        <div class="m"><span class="ia-tag">Fait avec l'IA</span> Révision + QCM pour le DS du ${esc(fmtDate(String(x.ds).slice(0, 10)))} · ${x.qcm?.length || 0} question${(x.qcm?.length || 0) > 1 ? "s" : ""}, à partir des ${x.sources} fiche${x.sources > 1 ? "s" : ""} que tu as cochées</div>
       </button></li>`).join("")}
       ${choixRevs(m).map((x) => `<li class="prepa-card">
-        <div class="t">Prépa sur ${x.sources} fiche${x.sources > 1 ? "s" : ""} choisie${x.sources > 1 ? "s" : ""}</div>
-        <div class="m">${x.cree ? esc(fmtDate(x.cree.slice(0, 10))) : ""}</div>
+        <div class="t">${esc(iaNom(x, `Prépa sur ${x.sources} fiche${x.sources > 1 ? "s" : ""}`))}</div>
+        <div class="m"><span class="ia-tag">Fait avec l'IA</span> Prépa sur ${x.sources} fiche${x.sources > 1 ? "s" : ""} choisie${x.sources > 1 ? "s" : ""}${x.cree ? ` · ${esc(fmtDate(x.cree.slice(0, 10)))}` : ""}</div>
         ${window.prepaHtml?.(null, x, 0, true) || ""}
       </li>`).join("")}
       ${cartes.map((c) => `<li class="rev carte-item"><button type="button" class="item" data-open-carte="${esc(c.id)}">
-        <div class="t">Carte mentale${c.titre && c.titre !== m ? ` : ${esc(c.titre)}` : ""}</div>
-        <div class="m">${c.sources} fiche${c.sources > 1 ? "s" : ""}${c.cree ? `, ${esc(fmtDate(c.cree.slice(0, 10)))}` : ""}</div>
+        <div class="t">${esc(c.titre || "Carte mentale")}</div>
+        <div class="m"><span class="ia-tag">Fait avec l'IA</span> Carte mentale · ${c.sources} fiche${c.sources > 1 ? "s" : ""}${c.cree ? `, ${esc(fmtDate(c.cree.slice(0, 10)))}` : ""}</div>
       </button></li>`).join("")}
       ${fs.map((f) => `<li${pick ? ` class="pick${pick.has(f.id) ? "" : " off"}"` : ""}>${pick ? `<input type="checkbox" data-pick="${esc(f.id)}"${pick.has(f.id) ? " checked" : ""}
-        aria-label="Choisir ${esc(f.titre || m)}">` : ""}<button type="button" class="item" data-open="${esc(f.id)}">
-        <div class="t">${esc(f.titre || m)}</div>
+        aria-label="Choisir ${esc(ficheNom(f))}">` : ""}<button type="button" class="item" data-open="${esc(f.id)}">
+        <div class="t">${esc(ficheNom(f))}</div>
         <div class="m">${f.source === "moodle" ? `D'après ${f.origine === "padlet" ? "le Padlet" : "le support Moodle"}${f.date ? ", " + esc(fmtDate(f.date)) : ""}`
           : f.source === "complete" ? `Support Moodle complété par le cours du ${esc(fmtDate(f.date))}`
           : f.source === "notes" ? `${esc(fmtDate(f.date))}, d'après tes notes et photos`

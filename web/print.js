@@ -39,7 +39,7 @@
         <ul>${(j.taches || []).map((t) => `<li>☐ ${esc(t)}</li>`).join("")}</ul></li>`).join("")}</ol>`,
     },
   };
-  const ficheTitle = (f) => (String(f.md || "").match(/^#\s+(.+)/m)?.[1] || f.titre || "Fiche").replace(/[*_`]/g, "");
+  const ficheTitle = (f) => ficheNom(f);
 
   // en-tête encadré (titre, date) : absent quand on exporte juste des fiches
   let bare = false;

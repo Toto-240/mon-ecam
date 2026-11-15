@@ -980,3 +980,6 @@ html.printing .reader, html.printing #print-sheet { display: none !important; }
 .relire-item.lu .t { opacity: .6; }
 .relire-bref { font-size: .86rem; line-height: 1.4; margin-top: 4px; opacity: .8; }
 .relire-sep { margin: 28px 0; border: 0; border-top: 2px dashed currentColor; opacity: .25; }
+.ia-tag { display: inline-block; font-size: .72rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; margin-right: 4px;
+  background: rgba(124, 92, 255, .14); color: #6A4BE0; vertical-align: 1px; }
+@media (prefers-color-scheme: dark) { .ia-tag { background: rgba(160, 140, 255, .2); color: #C9BDFF; } }

@@ -1,0 +1,83 @@
+"use strict";
+/* Noms des fiches :
+   - support Moodle / Padlet : le nom du document sur Moodle, un peu nettoyé (« CM3_cpu » → « Cours 3 · CPU »),
+     avec entre parenthèses ce qu'il y a dedans, en court ;
+   - enregistrement : « Enregistrement · » + le titre donné par l'IA ;
+   - notes et photos : « Notes et photos · » + le titre donné par l'IA.
+   Les révisions, QCM et cartes gardent le titre de l'IA (voir iaNom). */
+(() => {
+  const fold = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const STOP = new Set("le la les un une des du de d l et ou en au aux a sur sous pour par avec dans ses son sa leurs the of and to in a an".split(" "));
+  const words = (s) => (fold(s).match(/[a-z0-9]+/g) || []).filter((w) => !STOP.has(w));
+  const GENERIQUE = /^(supports?|cours|documents?|ressources?|fichiers?|diapos?|diaporamas?|slides?|pdf|polys?|polycopies?)( (de|du) cours)?$/i;
+  const iaTitre = (f) => String(String(f.md || "").match(/^#\s+(.+)/m)?.[1] || f.titre || "").replace(/[*_`]/g, "").trim();
+
+  // retire la matière au début (« Fondements du génie… : Grandeurs… » → « Grandeurs… »)
+  function sansMatiere(t, m) {
+    const parts = String(t).split(/\s+[:–—-]\s+|\s*:\s+/);
+    if (parts.length > 1 && m && (sameMatiere(parts[0], m) || words(parts[0]).every((w) => fold(m).includes(w))))
+      return parts.slice(1).join(" : ").trim();
+    return String(t).trim();
+  }
+
+  // nom de fichier ou de document Moodle → lisible
+  function propre(s) {
+    let t = String(s || "").replace(/\.(pdf|pptx?|docx?|xlsx?|odt|odp|txt|html?|zip)$/i, "");
+    t = t.replace(/[_]+/g, " ").replace(/(\D)-(\D)/g, "$1 $2").replace(/\s+/g, " ").trim();
+    t = t.replace(/^\d{1,3}\s*[-.)]?\s+(?=\D)/, "");                       // « 01 - » en tête
+    const fichier = !/\s/.test(String(s || "").trim());   // « cm3_cpu » : un nom de fichier, pas un titre
+    t = t.replace(/\b(?:CM|cours)\s*0*(\d+)\b/gi, "Cours $1")
+      .replace(/\bchap(?:itre|\.)?\s*0*(\d+)\b/gi, "Chapitre $1")
+      .replace(/\b(TD|TP|DS|DM)\s*0*(\d+)\b/gi, (_, a, n) => `${a.toUpperCase()} ${n}`);
+    // « Cours 3 CPU » → « Cours 3 · CPU »
+    t = t.replace(/^((?:Cours|Chapitre|TP|TD|DS|DM|Partie|Séance|Semaine|Unit|Module|Lab|Lesson) \d+)\s*[-:.]?\s+(?=\S)/i, "$1 · ");
+    // sigles courts en minuscules dans un nom de fichier (« cpu » → « CPU »)
+    if (fichier) t = t.replace(/\b[a-z]{2,4}\b/g, (w) => (STOP.has(w) || /^(cours|chap|tp|td)$/.test(w) ? w : w.toUpperCase()));
+    // mots tout en minuscules d'un nom de fichier : majuscule au début
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  }
+
+  function moodleNom(f) {
+    const doc = String(f.doc || "").trim();
+    if (!doc) return "";
+    // dossier Moodle : « Nom du dossier : nom du fichier »
+    let [a, b] = doc.split(/\s+:\s+(?=[^:]*$)/);
+    a = propre(a); b = b ? propre(b) : "";
+    if (b) {
+      const wa = new Set(words(a)), wb = words(b);
+      if (wb.length && wb.every((w) => wa.has(w))) b = "";
+      else if (GENERIQUE.test(fold(a).trim()) || (wa.size && [...wa].every((w) => wb.includes(w)))) { a = b; b = ""; }
+    }
+    let nom = b ? `${a} · ${b}` : a;
+    // la matière répétée dans le nom du document : inutile
+    nom = sansMatiere(nom, f.matiere) || nom;
+    // entre parenthèses : ce qu'il y a dedans (d'après l'IA), en court, si ça apporte quelque chose
+    const ia = sansMatiere(iaTitre(f), f.matiere).replace(/^(cours|chapitre|tp|td|cm)\s*\d*\s*[:·.-]?\s+/i, "");
+    const deja = new Set(words(nom));
+    // on enlève le début du titre de l'IA qui répète le nom (« Le CPU : fonctionnement… » → « fonctionnement… »)
+    const toks = ia.split(/\s+/);
+    while (toks.length && words(toks[0]).every((w) => deja.has(w) || STOP.has(w))) toks.shift();
+    let c = toks.join(" ").replace(/^[\s:;,·–—-]+/, "").trim();
+    if (c && words(c).filter((w) => !deja.has(w)).length >= 2) {
+      if (c.length > 42) c = c.slice(0, 40).replace(/[\s,;:]+\S*$/, "") + "…";
+      if (/^[A-ZÀ-Ý][a-zà-ÿ]*(\s+[a-zà-ÿ0-9(]|[,;]|$)/.test(c)) c = c.charAt(0).toLowerCase() + c.slice(1);   // pas les sigles (CPU, OSI…)
+      nom += ` (${c})`;
+    }
+    return nom;
+  }
+
+  window.ficheNom = function (f) {
+    if (!f) return "";
+    if (f.source === "moodle" || f.source === "complete") {
+      const n = moodleNom(f);
+      if (n) return n;
+    }
+    const t = sansMatiere(iaTitre(f), f.matiere) || f.matiere || "Fiche";
+    if (f.source === "notes") return `Notes et photos · ${t}`;
+    if (f.source === "moodle") return t;
+    return `Enregistrement · ${t}`;
+  };
+
+  // révisions, QCM, cartes : le titre que l'IA a donné, tel quel
+  window.iaNom = (x, defaut) => iaTitre(x) || defaut || "";
+})();

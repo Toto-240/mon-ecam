@@ -25,7 +25,7 @@
     for (const l of m.values()) l.sort((a, b) => (a.heure || "").localeCompare(b.heure || ""));
     return [...m.entries()];
   };
-  const titre = (f) => (String(f.md).match(/^#\s+(.+)/m)?.[1] || f.titre || f.matiere || "Fiche").replace(/[*_`]/g, "");
+  const titre = (f) => ficheNom(f);
   const bref = (f) => {
     const t = String(f.md).match(/en bref\s*:?\**\s*:?\s*(.+)/i)?.[1]
       || String(f.md).split("\n").find((l) => l.trim() && !/^[#>\-*|]/.test(l.trim())) || "";

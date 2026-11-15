@@ -269,9 +269,9 @@ window.renderDS = function () {
         <ul class="list pick-list">
           ${fs.map((f) => `<li class="pick${exclus.has(f.id) ? " off" : ""}">
             <input type="checkbox" id="sel-${i}-${esc(f.id)}" data-sel="${i}" data-id="${esc(f.id)}"${exclus.has(f.id) ? "" : " checked"}
-              aria-label="Réviser ${esc(f.titre || f.matiere)}">
+              aria-label="Réviser ${esc(ficheNom(f))}">
             <button type="button" class="item" data-ds-fiche="${esc(f.id)}">
-              <div class="t">${esc(f.titre || f.matiere)}</div>
+              <div class="t">${esc(ficheNom(f))}</div>
               <div class="m">${f.source === "moodle" ? (f.origine === "padlet" ? "Padlet" : "Support Moodle") : f.source === "complete" ? "Support Moodle + cours" : esc(fmtDate(f.date))}</div></button>
           </li>`).join("")}
         </ul>
