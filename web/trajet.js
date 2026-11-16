@@ -5,9 +5,14 @@
 
 (() => {
 const TRAJET_KEY = "ecam-trajet";
-const TRAJET_DEF = { home: 5, homeP: 5, school: 5, c1: 4, cT: 5, c2: 3, marge: 5, alerte: true, lieu: "maman", auto: false, ancre: "" };
+const TRAJET_DEF = { home: 5, homeP: 15, school: 5, c1: 4, cT: 5, c2: 3, marge: 5, alerte: true, lieu: "maman", auto: false, ancre: "" };
 function trajetCfg() {
-  try { return { ...TRAJET_DEF, ...JSON.parse(store.get(TRAJET_KEY) || "{}") }; } catch { return { ...TRAJET_DEF }; }
+  try {
+    const c = { ...TRAJET_DEF, ...JSON.parse(store.get(TRAJET_KEY) || "{}") };
+    // 16/11 : chez papa → gare de Brignais, c'est 15 min (l'ancien réglage par défaut était 5)
+    if (!c.v2) { if (c.homeP === 5) c.homeP = 15; c.v2 = 1; }
+    return c;
+  } catch { return { ...TRAJET_DEF }; }
 }
 const tHM = (m) => `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -145,7 +150,7 @@ window.renderTrajet = function () {
     <details class="card tcfg"><summary>Réglages du trajet</summary>
       <div class="tcfg-grid">
         ${num("home", "Marche chez maman ↔ Aquavert", c.home)}
-        ${num("homeP", "Marche chez papa ↔ gare de Brignais", c.homeP)}
+        ${num("homeP", "Chez papa ↔ gare de Brignais", c.homeP)}
         ${num("school", "Marche Fourvière ↔ école", c.school)}
         ${num("c1", "Correspondance bus ↔ métro", c.c1)}
         ${num("cT", "Correspondance TER ↔ métro", c.cT)}
