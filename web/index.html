@@ -390,14 +390,22 @@
       <button type="button" id="memo-close" class="btn small">Fermer</button>
     </div>
     <form id="memo-form" autocomplete="off">
-      <textarea id="memo-text" class="field" rows="2" placeholder="Ex. : réviser le chapitre 3, refaire l'exercice 2, apporter la calculatrice…"></textarea>
+      <div class="memo-type" role="group" aria-label="Type">
+        <button type="button" class="seg" data-type="note" aria-pressed="true">📝 Note</button>
+        <button type="button" class="seg" data-type="devoir" aria-pressed="false">📚 Devoir à faire</button>
+      </div>
+      <textarea id="memo-text" class="field" rows="2" placeholder="Ex. : réviser le chapitre 3, apporter la calculatrice…"></textarea>
+      <input id="memo-matiere" class="field" list="ds-matieres" placeholder="Matière (facultatif)" aria-label="Matière" hidden>
+      <p class="small muted memo-when-h" id="memo-when-h" hidden>Pour quand ?</p>
       <div class="memo-when" role="group" aria-label="Pour quand">
         <button type="button" class="chip" data-when="auj">Aujourd'hui</button>
         <button type="button" class="chip" data-when="dem" aria-pressed="true">Demain</button>
         <button type="button" class="chip" data-when="none">Sans date</button>
-        <input type="date" id="memo-date" class="chip-date" aria-label="Choisir une date">
+        <label class="chip chip-date-wrap"><span id="memo-date-lbl">📅 Autre date</span>
+          <input type="date" id="memo-date" class="chip-date-input" aria-label="Choisir une date"></label>
       </div>
-      <div class="row"><button type="submit" class="btn primary">Ajouter</button></div>
+      <div class="row"><button type="submit" class="btn primary" id="memo-add">Ajouter la note</button></div>
+      <p class="small" id="memo-msg" aria-live="polite"></p>
     </form>
     <p id="memo-sync-state" class="small memo-sync-state"></p>
     <div id="memo-list"></div>

@@ -4,7 +4,7 @@
    Utilise NOW, esc, fmtDayLong, startOfDay, addDays (app.js) et newId (revisions.js). */
 
 const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-let memoWhen = "dem";
+let memoWhen = "dem", memoType = "note";
 
 function memoDate() {
   if (memoWhen === "auj") return iso(NOW);
@@ -16,10 +16,29 @@ function memoDate() {
 function setWhen(w) {
   memoWhen = w;
   document.querySelectorAll("#memo-form .chip[data-when]").forEach((c) => c.setAttribute("aria-pressed", c.dataset.when === w));
-  $("#memo-date").classList.toggle("on", w === "date");
+  const d = $("#memo-date").value;
+  $(".chip-date-wrap").setAttribute("aria-pressed", w === "date");
+  $("#memo-date-lbl").textContent = w === "date" && d ? `📅 ${fmtDayLong(new Date(d + "T12:00"))}` : "📅 Autre date";
 }
 document.querySelectorAll("#memo-form .chip[data-when]").forEach((c) => { c.onclick = () => setWhen(c.dataset.when); });
-$("#memo-date").addEventListener("change", () => setWhen($("#memo-date").value ? "date" : "none"));
+$("#memo-date").addEventListener("change", () => setWhen($("#memo-date").value ? "date" : (memoType === "devoir" ? "dem" : "none")));
+
+/* Note (pense-bête) ou devoir à faire (va dans « À rendre », avec son rappel) */
+function setType(t) {
+  memoType = t;
+  document.querySelectorAll("#memo-form [data-type]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.type === t));
+  const dv = t === "devoir";
+  $("#memo-matiere").hidden = !dv;
+  $("#memo-when-h").hidden = !dv;
+  $("#memo-when-h").textContent = dv ? "À rendre pour quand ?" : "Pour quand ?";
+  $("#memo-form .chip[data-when=none]").hidden = dv;   // un devoir a toujours une date
+  if (dv && memoWhen === "none") setWhen("dem");
+  $("#memo-text").placeholder = dv ? "Ex. : exercices 3 à 5 page 42, rédiger le compte rendu du TP…"
+    : "Ex. : réviser le chapitre 3, apporter la calculatrice…";
+  $("#memo-add").textContent = dv ? "Ajouter le devoir" : "Ajouter la note";
+  $("#memo-msg").textContent = "";
+}
+document.querySelectorAll("#memo-form [data-type]").forEach((b) => { b.onclick = () => setType(b.dataset.type); });
 
 /* Libellé et groupe d'une note selon sa date */
 function memoGroup(m) {
@@ -134,7 +153,18 @@ $("#memo-form").addEventListener("submit", (ev) => {
   ev.preventDefault();
   const texte = $("#memo-text").value.trim();
   if (!texte) return;
-  window.saveMemo({ id: newId(), texte, pour: memoDate(), fait: null, cree: new Date().toISOString() });
+  if (memoType === "devoir") {
+    const pour = memoDate() || iso(addDays(startOfDay(NOW), 1));
+    const matiere = $("#memo-matiere").value.trim();
+    window.addPersoDevoir({ id: newId(), titre: texte.split("\n")[0].slice(0, 120), matiere,
+      echeance: `${pour}T23:59:00`, consigne: texte.includes("\n") ? texte : "", cree: new Date().toISOString() });
+    $("#memo-msg").textContent = `✓ Ajouté dans « À rendre » pour ${fmtDayLong(new Date(pour + "T12:00"))}.`;
+    if (typeof renderDevoirs === "function" && DATA) renderDevoirs();
+    window.renderAccueil?.();
+  } else {
+    window.saveMemo({ id: newId(), texte, pour: memoDate(), fait: null, cree: new Date().toISOString() });
+    $("#memo-msg").textContent = "";
+  }
   $("#memo-text").value = "";
   $("#memo-text").focus();
 });

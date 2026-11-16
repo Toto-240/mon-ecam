@@ -470,8 +470,14 @@ button.tile { border: 0; font: inherit; text-align: left; cursor: pointer; width
 .memo-when { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .memo-when .chip { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: .85rem; cursor: pointer; }
 .memo-when .chip[aria-pressed="true"] { background: var(--ecam); border-color: var(--ecam); color: #fff; }
-.memo-when .chip-date { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: .85rem; }
-.memo-when .chip-date.on { border-color: var(--ecam); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ecam) 30%, transparent); }
+.memo-when .chip { display: inline-flex; align-items: center; min-height: 44px; font-weight: 400; }
+#memo-form .chip-date-wrap { position: relative; overflow: hidden; font-weight: 400; font-size: .85rem; margin: 0; }
+.chip-date-input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; border: 0; cursor: pointer; }
+.memo-type { display: flex; gap: 0; margin: 0 0 10px; padding: 3px; border-radius: 12px; background: color-mix(in srgb, var(--ink, #16213E) 8%, transparent); }
+.memo-type .seg { flex: 1; border: 0; background: transparent; color: inherit; font: inherit; font-weight: 600; padding: 9px 8px; border-radius: 9px; cursor: pointer; }
+.memo-type .seg[aria-pressed="true"] { background: var(--surface, #fff); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+#memo-matiere { margin-top: 8px; }
+.memo-when-h { margin: 10px 0 0; }
 .memo-h { font-size: .85rem; margin: 16px 2px 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .memo-h.late { color: #C0392B; }
 .memo-list { list-style: none; margin: 0; padding: 0; }
