@@ -989,3 +989,12 @@ html.printing .reader, html.printing #print-sheet { display: none !important; }
 .ia-tag { display: inline-block; font-size: .72rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; margin-right: 4px;
   background: rgba(124, 92, 255, .14); color: #6A4BE0; vertical-align: 1px; }
 @media (prefers-color-scheme: dark) { .ia-tag { background: rgba(160, 140, 255, .2); color: #C9BDFF; } }
+
+/* Enregistrements gardés sur l'appareil */
+.rec-saved h3 { margin: 0 0 4px; font-size: 1.05rem; }
+.rec-saved .rec-queue li { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.rec-saved .rec-queue .check { display: flex; align-items: flex-start; gap: 10px; flex: 1; min-width: 0; }
+.rec-saved .rec-queue input[type=checkbox] { width: 22px; height: 22px; margin-top: 2px; flex: none; }
+.rec-saved .ok { color: var(--ok, #1E7A3C); }
+.rec-saved .ko { color: var(--danger, #B42318); }
+.rec-mode .check { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0; font-size: .92rem; }

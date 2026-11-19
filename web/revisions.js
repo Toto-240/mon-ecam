@@ -637,8 +637,31 @@ $("#rec-cancel").onclick = async () => {
 $("#rec-stop").onclick = async () => {
   const r = await stopRecording();
   if (!r) return;
+  const garder = recMode() === "garder";
+  // d'abord mis de côté sur l'appareil (rien ne se perd, même si l'appli est fermée ensuite)
+  let parked = false;
   try {
-    if (r.native) { saveNativeMeta(r); return await sendNative(r); }
+    if (r.native) { saveNativeMeta(r); parked = await parkNative(garder); }
+    else {
+      const meta = { id: r.id, matiere: r.matiere, date: r.date, mime: r.mr.mimeType || MIME,
+        heure: r.heure, creneau: r.creneau, support: r.support, duree_s: Math.round(r.duree / 1000) };
+      await idb.put(`q-${r.id}`, { meta, chunks: r.chunks });
+      await idb.del("current");
+      queueSet([...queueGet().filter((x) => x.id !== r.id), { ...meta, web: true, keep: garder }]);
+      parked = true;
+    }
+  } catch { parked = false; }
+  if (parked) {
+    if (garder) {
+      renderSaved(`✓ Enregistrement de ${r.matiere} gardé sur ${Dicta ? "le téléphone" : "cet appareil"}. Envoie-le quand tu veux.`);
+      $("#rec-saved").scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    return flushQueue(true, [r.id]);
+  }
+  // ancienne appli iPhone (pas de mise de côté possible) : envoi direct comme avant
+  try {
+    if (r.native) return await sendNative(r);
     const blob = new Blob(r.chunks, { type: r.mr.mimeType || MIME });
     await send({ id: r.id, kind: "cours", matiere: r.matiere, date: r.date, type: blob.type,
       heure: r.heure, creneau: r.creneau, support: r.support,
@@ -649,6 +672,19 @@ $("#rec-stop").onclick = async () => {
     offerRecovery();
   }
 };
+
+/* Après un enregistrement : le garder (envoi quand je veux) ou l'envoyer tout de suite */
+const MODE_KEY = "ecam-rec-mode";
+const recMode = () => (store.get(MODE_KEY) === "auto" ? "auto" : "garder");
+function showMode() {
+  document.querySelectorAll('input[name="rec-mode"]').forEach((i) => { i.checked = i.value === recMode(); });
+  const lbl = $("#rec-stop .lbl");
+  if (lbl) lbl.textContent = recMode() === "garder" ? "Terminer et garder" : "Terminer et créer la fiche";
+}
+document.querySelectorAll('input[name="rec-mode"]').forEach((i) => {
+  i.onchange = () => { store.set(MODE_KEY, i.value); showMode(); };
+});
+showMode();
 
 // Un window.confirm bloquerait l'appli iPhone : bouton à deux temps à la place.
 let confirmArmed = 0;
@@ -704,7 +740,7 @@ async function recover() {
       return;
     }  // l'appli a été rechargée pendant le cours
     if (st && !st.recording && !st.size && meta) store.del(REC_META);  // plus rien à récupérer
-    if (st && !st.recording && st.size > 0 && meta && await parkNative()) return flushQueue();
+    if (st && !st.recording && st.size > 0 && meta && await parkNative(recMode() === "garder")) return flushQueue();
     if (st && !st.recording && st.size > 0 && meta) {   // ancienne version de l'appli iPhone
       $("#upload").hidden = false;
       $("#upload-bar").value = 0;
@@ -733,7 +769,7 @@ const queueDrop = (id) => queueSet(queueGet().filter((x) => x.id !== id));
 const metaDuree = (m) => m.duree_s ?? Math.round((m.since === undefined ? Date.now() - m.t0 : recElapsed(m)) / 1000);
 
 /* Enregistrement natif terminé mais pas envoyé -> file d'attente. false si impossible (ancienne appli iPhone). */
-async function parkNative() {
+async function parkNative(keep = false) {
   let meta = null;
   try { meta = JSON.parse(store.get(REC_META)); } catch {}
   if (!meta) return true;
@@ -741,7 +777,7 @@ async function parkNative() {
   if (!st || st.recording) return false;
   if (!st.size) { store.del(REC_META); return true; }
   try { await Dicta.park({ id: meta.id }); } catch { return false; }
-  queueSet([...queueGet().filter((x) => x.id !== meta.id), { ...meta, duree_s: metaDuree(meta), native: true }]);
+  queueSet([...queueGet().filter((x) => x.id !== meta.id), { ...meta, duree_s: metaDuree(meta), native: true, keep }]);
   store.del(REC_META);
   return true;
 }
@@ -751,19 +787,24 @@ async function parkWeb() {
   if (!saved?.chunks?.length) return;
   await idb.put(`q-${saved.meta.id}`, saved);
   await idb.del("current");
-  queueSet([...queueGet().filter((x) => x.id !== saved.meta.id), { ...saved.meta, web: true }]);
+  queueSet([...queueGet().filter((x) => x.id !== saved.meta.id), { ...saved.meta, web: true, keep: recMode() === "garder" }]);
 }
 
 let flushing = false;
-async function flushQueue(manual = false) {
+/* manual : envoyé à la demande (ids : seulement ceux-là). En automatique, seuls partent ceux qui
+   devaient partir tout de suite et n'ont pas pu ; ceux que tu as choisi de garder attendent. */
+async function flushQueue(manual = false, ids = null) {
   if (flushing || rec) return;
-  if (!queueGet().length) return;
+  const pick = () => queueGet().filter((m) => (ids ? ids.includes(m.id) : manual || !m.keep));
+  if (!pick().length) return renderSaved();
   if (!manual && (!navigator.onLine || !store.get(TOKEN_KEY) || Date.now() - (+store.get(AUTO_KEY) || 0) < 10 * 60e3)) {
-    return showQueue();
+    return renderSaved();
   }
   flushing = true;
+  renderSaved();
+  let errMsg = "";
   try {
-    for (const m of queueGet()) {
+    for (const m of pick()) {
       if (rec) return;
       try {
         if (m.web) {
@@ -773,38 +814,56 @@ async function flushQueue(manual = false) {
           await send({ ...saved.meta, kind: "cours", type: blob.type }, await blob.arrayBuffer());
           await idb.del(`q-${m.id}`);
         } else {
-          alertForm(`Envoi de l'enregistrement en attente : ${m.matiere}…`);
+          alertForm(`Envoi de l'enregistrement : ${m.matiere}…`);
           let audio;
           try { audio = await readNative(m.id); }
           catch (e) { if (/introuvable/i.test(e.message || e)) { queueDrop(m.id); continue; } throw e; }
           if (!audio.byteLength) { await Dicta.discard({ id: m.id }).catch(() => {}); queueDrop(m.id); continue; }
           await send({ id: m.id, kind: "cours", matiere: m.matiere, date: m.date, type: "audio/mp4",
             heure: m.heure, creneau: m.creneau, support: m.support, duree_s: m.duree_s }, audio);
-          await Dicta.discard({ id: m.id }).catch(() => {});
+          await Dicta.discard({ id: m.id }).catch(() => {});   // effacé seulement une fois bien arrivé
         }
         queueDrop(m.id);
       } catch (e) {
         store.set(AUTO_KEY, String(Date.now()));
-        return showQueue(`Échec de l'envoi : ${e.message || e}`);
+        // pas parti : on le garde, il faudra le renvoyer
+        queueSet(queueGet().map((x) => (x.id === m.id ? { ...x, keep: true } : x)));
+        errMsg = `Échec de l'envoi (${e.message || e}). L'enregistrement reste gardé, réessaie plus tard.`;
+        return;
       }
     }
     store.del(AUTO_KEY);
-  } finally { flushing = false; }
+  } finally { flushing = false; renderSaved(errMsg); }
 }
 
-function showQueue(err = "") {
-  const q = queueGet();
-  if (!q.length || rec) return;
-  const box = $("#upload");
+/* Enregistrements gardés sur l'appareil : on coche ceux à envoyer */
+const savedSel = new Set();
+function renderSaved(msg = "") {
+  const box = $("#rec-saved");
+  if (!box) return;
+  const q = queueGet().sort((a, b) => (b.date + (b.heure || "")).localeCompare(a.date + (a.heure || "")));
+  for (const id of [...savedSel]) if (!q.some((m) => m.id === id)) savedSel.delete(id);
+  window.updateSavedBadge?.();
+  if (!q.length) { box.hidden = !msg; box.innerHTML = msg ? `<p class="small ok">${esc(msg)}</p>` : ""; return; }
   box.hidden = false;
-  $("#upload-bar").value = 0;
-  $("#upload-msg").innerHTML = `${err ? `<p class="ko">${esc(err)}</p>` : ""}
-    <b>${q.length} enregistrement${q.length > 1 ? "s" : ""} en attente d'envoi</b> (gardé${q.length > 1 ? "s" : ""} sur cet appareil) :
-    <ul class="rec-queue">${q.map((m) => `<li><span>${esc(m.matiere)} · ${esc(fmtDate(m.date))}${m.duree_s ? ` · ${esc(fmtDuration(m.duree_s))}` : ""}</span>
-      <button type="button" class="btn small" data-qdrop="${esc(m.id)}">Supprimer</button></li>`).join("")}</ul>
-    <div class="row"><button type="button" class="btn primary small" id="rec-flush">Envoyer maintenant</button></div>
-    <p class="muted small">${navigator.onLine ? "Ils partiront aussi tout seuls à ta prochaine ouverture de l'appli." : "Pas de réseau : ils partiront tout seuls quand tu en auras."}</p>`;
-  $("#rec-flush").onclick = () => flushQueue(true);
+  const n = savedSel.size;
+  box.innerHTML = `<h3 id="rec-saved-h">Enregistrements gardés (${q.length})</h3>
+    <p class="muted small">Sur ${Dicta ? "ton téléphone" : "cet appareil"}, rien n'est perdu même si tu fermes l'appli. Coche ceux à envoyer pour faire leur fiche.</p>
+    ${msg ? `<p class="small ${/Échec/.test(msg) ? "ko" : "ok"}">${esc(msg)}</p>` : ""}
+    <ul class="rec-queue">${q.map((m) => `<li>
+      <label class="check"><input type="checkbox" data-qsel="${esc(m.id)}"${savedSel.has(m.id) ? " checked" : ""}${flushing ? " disabled" : ""}>
+        <span><b>${esc(m.matiere)}</b><br><span class="muted small">${esc(fmtDayLong(new Date(m.date + "T12:00")))}${m.heure ? ` · ${esc(m.heure)}` : ""}${m.duree_s ? ` · ${esc(fmtDuration(m.duree_s))}` : ""}${m.keep ? "" : " · envoi en cours"}</span></span></label>
+      <button type="button" class="btn small" data-qdrop="${esc(m.id)}"${flushing ? " disabled" : ""}>Supprimer</button></li>`).join("")}</ul>
+    <div class="row">
+      <button type="button" class="btn primary small" id="rec-send-sel"${n && !flushing ? "" : " disabled"}>Envoyer la sélection (${n})</button>
+      <button type="button" class="btn small" id="rec-send-all"${flushing ? " disabled" : ""}>Tout envoyer</button>
+    </div>
+    ${flushing ? `<p class="small muted">Envoi en cours… garde l'appli ouverte.</p>` : ""}`;
+  box.querySelectorAll("[data-qsel]").forEach((c) => {
+    c.onchange = () => { c.checked ? savedSel.add(c.dataset.qsel) : savedSel.delete(c.dataset.qsel); renderSaved(); };
+  });
+  $("#rec-send-sel").onclick = () => { const ids = [...savedSel]; savedSel.clear(); flushQueue(true, ids); };
+  $("#rec-send-all").onclick = () => { savedSel.clear(); flushQueue(true); };
   box.querySelectorAll("[data-qdrop]").forEach((b) => {
     b.onclick = async () => {
       if (!b.dataset.armed) {   // en deux temps (pas de window.confirm dans l'appli iPhone)
@@ -815,10 +874,12 @@ function showQueue(err = "") {
       const m = queueGet().find((x) => x.id === b.dataset.qdrop);
       if (m?.web) await idb.del(`q-${m.id}`); else if (m) await Dicta?.discard({ id: m.id }).catch(() => {});
       queueDrop(b.dataset.qdrop);
-      queueGet().length ? showQueue() : (box.hidden = true);
+      renderSaved();
     };
   });
 }
+window.recGardes = () => queueGet().filter((m) => m.keep).length;
+setTimeout(() => renderSaved(), 0);
 
 /* ---------- Jeton GitHub ---------- */
 async function checkToken() {

@@ -47,6 +47,15 @@
       ${svg(ICO.chev, "a-chev")}</button>`;
   }
 
+  function gardes() {
+    const n = window.recGardes?.() || 0;
+    if (!n) return "";
+    return `<button type="button" class="a-card a-trajet" data-a-goto="enregistrer">
+      <span class="a-ico orange">${svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>')}</span>
+      <span class="a-grow"><b>${n} enregistrement${n > 1 ? "s" : ""} gardé${n > 1 ? "s" : ""}</b><small>À envoyer quand tu veux pour faire ${n > 1 ? "leurs fiches" : "sa fiche"}</small></span>
+      ${svg(ICO.chev, "a-chev")}</button>`;
+  }
+
   function journee(evs) {
     const today = evs.filter((e) => sameDay(e.d0, NOW));
     const list = today.length ? today : evs.filter((e) => e.d0 > NOW && sameDay(e.d0, (evs.find((x) => x.d0 > NOW) || {}).d0 || NOW));
@@ -79,13 +88,15 @@
     const box = $("#accueil");
     if (!box || !DATA) return;
     const evs = events().filter((e) => !e.sansHeure).sort((a, b) => a.d0 - b.d0);
-    box.innerHTML = hero(evs) + ceSoir() + trajet();
+    box.innerHTML = hero(evs) + (NOW.getHours() >= 16 ? gardes() + ceSoir() : ceSoir()) + trajet() + (NOW.getHours() >= 16 ? "" : gardes());
     $("#accueil-bas").innerHTML = journee(evs) + tuiles();
     const root = $("#pane-accueil");
     root.querySelectorAll("[data-a-goto]").forEach((b) => { b.onclick = () => showPane(b.dataset.aGoto); });
     root.querySelectorAll("[data-a-fiches]").forEach((b) => { b.onclick = () => window.openMatiere?.(b.dataset.aFiches); });
     root.querySelectorAll("[data-a-week]").forEach((b) => { b.onclick = () => showPane("planning"); });
   };
+
+  window.updateSavedBadge = () => { if (DATA && document.body.dataset.pane === "accueil") window.renderAccueil(); };
 
   function sameDay(a, b) { return a && b && dayKey(a) === dayKey(b); }
 

@@ -246,6 +246,14 @@
     <progress id="upload-bar" max="1" value="0"></progress>
   </div>
 
+  <section id="rec-saved" class="card rec-saved" hidden aria-labelledby="rec-saved-h"></section>
+
+  <div class="card rec-mode" role="radiogroup" aria-label="Après un enregistrement">
+    <p class="small"><b>Quand j'arrête un enregistrement</b></p>
+    <label class="check"><input type="radio" name="rec-mode" value="garder"> Le garder sur le téléphone, je l'envoie quand je veux</label>
+    <label class="check"><input type="radio" name="rec-mode" value="auto"> L'envoyer tout de suite pour faire la fiche</label>
+  </div>
+
   <ul id="pending" class="list" hidden></ul>
 
   <details id="setup" class="card setup">
