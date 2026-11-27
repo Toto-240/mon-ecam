@@ -106,6 +106,16 @@ def course_items(s, cid):
     return items
 
 
+def demojibake(t):
+    """« rÃ©gime » → « régime » : nom en UTF-8 lu comme du Latin-1 (en-têtes HTTP)."""
+    if not t or not re.search("[ÃÂ][\x80-\xbf]", t):
+        return t
+    try:
+        return t.encode("latin-1").decode("utf-8")
+    except (UnicodeDecodeError, UnicodeEncodeError):
+        return t
+
+
 def filename_of(r, fallback):
     cd = r.headers.get("content-disposition", "")
     m = re.search(r"filename\*=UTF-8''([^;]+)", cd) or re.search(r'filename="?([^";]+)', cd)
@@ -153,7 +163,7 @@ def documents(s, cmid, kind, name, seen):
         if not data:
             return []
         fname = filename_of(r, name)
-        return [{"key": f"{cmid}:{fname}", "titre": name, "fichier": fname, "data": data, "date": file_date(r)}]
+        return [{"key": f"{cmid}:{fname}", "titre": name, "fichier": demojibake(fname), "data": data, "date": file_date(r)}]
 
     if kind == "folder":
         soup = BeautifulSoup(s.get(f"{ecam.MOODLE}/mod/folder/view.php?id={cmid}", timeout=40).text, "html.parser")
@@ -167,7 +177,7 @@ def documents(s, cmid, kind, name, seen):
                 continue
             r, data = got
             fname = filename_of(r, label)
-            docs.append({"key": f"{cmid}:{label}", "titre": f"{name} : {Path(fname).stem}", "fichier": fname,
+            docs.append({"key": f"{cmid}:{label}", "titre": f"{name} : {Path(demojibake(fname)).stem}", "fichier": demojibake(fname),
                          "data": data, "date": file_date(r)})
         return docs
 
