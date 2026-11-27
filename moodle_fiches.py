@@ -86,6 +86,26 @@ def save_seen(seen, pw):
     SEEN_FILE.write_text(encrypt_json(seen, pw), encoding="utf-8")
 
 
+ORDRE_FILE = BASE / "moodle_ordre.enc"
+
+
+def save_ordre(positions, seen, pw):
+    """Place de chaque fiche Moodle dans la page du cours (pour les afficher dans le même ordre)."""
+    try:
+        ordre = decrypt_json(ORDRE_FILE.read_text(encoding="utf-8"), pw)
+    except Exception:
+        ordre = {}
+    sub = {}
+    for k, v in seen.items():
+        cmid = k.split(":", 1)[0]
+        if v != "fiche" or cmid not in positions:
+            continue
+        n = sub.get(cmid, 0)
+        sub[cmid] = n + 1
+        ordre[key_id(k)] = positions[cmid] * 1000 + n
+    ORDRE_FILE.write_text(encrypt_json(ordre, pw), encoding="utf-8")
+
+
 # ---------- Moodle ----------
 
 def course_items(s, cid):
@@ -289,6 +309,7 @@ def main():
     courses.sort(key=lambda c: (clean_course(c["nom"]) not in current, clean_course(c["nom"])))
 
     made = skipped = failed = 0
+    positions = {}
     causes = {}
     t0 = time.time()
     remaining = 0
@@ -301,6 +322,8 @@ def main():
             failed += 1
             note(causes, "cours", e)
             continue
+        for i, (cmid, _, _) in enumerate(items):
+            positions[cmid] = i
         for cmid, kind, name in items:
             if kind != "folder" and any(k.startswith(f"{cmid}:") and finished(seen, k) for k in seen):
                 continue
@@ -353,6 +376,10 @@ def main():
                 time.sleep(PAUSE)
             time.sleep(1)  # discret avec Moodle
     save_seen(seen, pw)
+    try:
+        save_ordre(positions, seen, pw)
+    except Exception as e:
+        note(causes, "ordre", e)
     report(made, skipped, failed, remaining, causes)
 
 

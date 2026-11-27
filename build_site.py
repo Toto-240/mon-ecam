@@ -104,6 +104,11 @@ def main():
         notif.nouveautes(prev, data)   # nouvelles notes, nouveaux devoirs (téléphone, via ntfy)
 
     # horaires TCL du trajet (tcl.py, chiffrés)
+    if (BASE / "moodle_ordre.enc").exists():   # ordre des fiches Moodle dans la page du cours
+        try:
+            data["ordreMoodle"] = decrypt_json((BASE / "moodle_ordre.enc").read_text(encoding="utf-8"), password)
+        except Exception:
+            print("moodle_ordre.enc illisible, ignoré")
     if (BASE / "tcl.enc").exists():
         try:
             data["tcl"] = decrypt_json((BASE / "tcl.enc").read_text(encoding="utf-8"), password)

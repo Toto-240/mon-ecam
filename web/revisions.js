@@ -1057,7 +1057,7 @@ function renderFiches() {
 
   /* Une matière ouverte */
   const m = current;
-  const fs = by.get(m).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  const fs = window.ordreFiches ? window.ordreFiches(by.get(m)) : by.get(m).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
   const r = revs[m];
   const stale = r && r.sources < fs.length;
   const pick = cartePick.get(m);
@@ -1138,7 +1138,7 @@ function renderFiches() {
   box.querySelector("[data-add-libre]")?.addEventListener("click", () => window.openAddSheetLibre?.(m));
   box.querySelector("[data-pick-start]")?.addEventListener("click", () => { cartePick.set(m, new Set(fs.map((f) => f.id))); renderFiches(); });
   box.querySelector("[data-pick-cancel]")?.addEventListener("click", () => { cartePick.delete(m); renderFiches(); });
-  const chrono = (list) => [...list].sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  const chrono = (list) => (window.ordreFiches ? window.ordreFiches(list) : [...list].sort((a, b) => (a.date || "").localeCompare(b.date || "")));
   box.querySelector("[data-print-pick]")?.addEventListener("click", () => {
     cartePick.set(m, new Set(fs.map((f) => f.id))); renderFiches();
     setTimeout(() => box.querySelector("[data-pick-act]")?.closest(".prepa-box")?.scrollIntoView({ block: "center", behavior: "smooth" }), 50);

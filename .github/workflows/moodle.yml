@@ -71,7 +71,7 @@ jobs:
           git config user.name "Mon ECAM"
           git config user.email "mon-ecam@users.noreply.github.com"
           before=$(git rev-parse HEAD)
-          bash save_main.sh "Fiches Moodle" fiches moodle_vus.enc
+          bash save_main.sh "Fiches Moodle" fiches moodle_vus.enc moodle_ordre.enc
           [ "$(git rev-parse HEAD)" != "$before" ] && echo "changed=1" >> "$GITHUB_ENV" || true
 
       - name: Publier dans l'appli

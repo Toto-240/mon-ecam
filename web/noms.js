@@ -98,6 +98,20 @@
     return `Enregistrement · ${t}`;
   };
 
+  /* Ordre d'affichage d'une matière : les supports Moodle dans l'ordre de la page Moodle du cours,
+     puis tes cours (enregistrements, notes) du plus récent au plus ancien */
+  window.ordreFiches = function (list) {
+    const o = DATA?.ordreMoodle || {};
+    const pos = (f) => o[f.id] ?? (f.source === "moodle" || f.source === "complete" ? 9e9 : null);
+    return [...list].sort((a, b) => {
+      const pa = pos(a), pb = pos(b);
+      if (pa !== null && pb !== null) return pa - pb || (a.date || "").localeCompare(b.date || "");
+      if (pa !== null) return -1;
+      if (pb !== null) return 1;
+      return (b.date || "").localeCompare(a.date || "");
+    });
+  };
+
   // révisions, QCM, cartes : le titre que l'IA a donné, tel quel
   window.iaNom = (x, defaut) => iaTitre(x) || defaut || "";
 })();

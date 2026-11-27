@@ -226,8 +226,8 @@ window.renderDS = function () {
   const revs = DATA.revisions || [];
   box.innerHTML = exams.map((e, i) => {
     const days = Math.ceil((startOfDay(e.d0) - startOfDay(NOW)) / 864e5);
-    const fs = allFiches.filter((f) => sameMatiere(f.matiere, e.matiere))
-      .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+    const fs0 = allFiches.filter((f) => sameMatiere(f.matiere, e.matiere));
+    const fs = window.ordreFiches ? window.ordreFiches(fs0) : fs0.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
     const key = dsKey(e);
     // sélection par défaut : si le programme du DS est connu, seulement les fiches qui en parlent
     const choix = window.dsExclus?.(key);
@@ -242,7 +242,7 @@ window.renderDS = function () {
     const stale = r && (r.ds ? !sameSel : true);
     const said = profSaid(fs);
     e.chosen = chosen.map((f) => f.id);
-    e.chosenFiches = [...chosen].sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    e.chosenFiches = window.ordreFiches ? window.ordreFiches(chosen) : [...chosen].sort((a, b) => (a.date || "").localeCompare(b.date || ""));
     e.rev = r;
     return `<article class="ds${days <= 7 ? " soon" : ""}">
       <div class="ds-top">
