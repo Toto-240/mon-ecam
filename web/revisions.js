@@ -198,9 +198,9 @@ function fillLinks(matiere, date) {
 
 function fillSupports(sel, matiere) {
   const keep = sel.value;
-  const list = supportsFor(matiere);
+  const list = window.ordreFiches ? window.ordreFiches(supportsFor(matiere)) : supportsFor(matiere);
   sel.innerHTML = `<option value="">${list.length ? "Aucun (fiche à part)" : "Aucun support Moodle pour cette matière"}</option>` +
-    list.map((f) => `<option value="${esc(f.id)}"${f.id === keep ? " selected" : ""}>${esc((f.doc || f.titre || "Support").slice(0, 70))}${f.source === "complete" ? " (déjà complété)" : ""}</option>`).join("");
+    list.map((f) => `<option value="${esc(f.id)}"${f.id === keep ? " selected" : ""}>${esc(docNom(f).slice(0, 70))}${f.source === "complete" ? " (déjà complété)" : ""}</option>`).join("");
   sel.disabled = !list.length;
 }
 
@@ -1291,8 +1291,8 @@ function wireDelete(path, label) {
 function openFiche(id) {
   const f = (DATA.fiches || []).find((x) => x.id === id);
   if (!f) return;
-  const meta = f.source === "moodle" ? `${esc(f.matiere)}, d'après « ${esc(f.doc || "")} » sur Moodle`
-    : f.source === "complete" ? `${esc(f.matiere)}, « ${esc(f.doc || "")} » (Moodle) complété par le cours du ${esc(fmtDate(f.date))}${f.heure ? " à " + esc(f.heure) : ""}`
+  const meta = f.source === "moodle" ? `${esc(f.matiere)}, d'après « ${esc(docNom(f))} » sur Moodle`
+    : f.source === "complete" ? `${esc(f.matiere)}, « ${esc(docNom(f))} » (Moodle) complété par le cours du ${esc(fmtDate(f.date))}${f.heure ? " à " + esc(f.heure) : ""}`
     : `${esc(f.matiere)}, ${esc(fmtDate(f.date))}${f.heure ? " à " + esc(f.heure) : ""}${f.source === "notes" ? ", d'après tes notes" : ""}`;
   openReader(f.matiere, `<p class="meta">${meta}</p><div class="row"><button type="button" class="btn small" id="fiche-pdf">📄 PDF / Imprimer</button></div>${md(f.md)}${f._fichier ? deleteZone("Supprimer cette fiche",
     f.source === "moodle" || f.source === "complete" ? "Elle ne sera pas refaite automatiquement à partir de Moodle." : "") : ""}`);

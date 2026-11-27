@@ -32,6 +32,8 @@
   function propre(s) {
     let t = String(s || "").replace(/\.(pdf|pptx?|docx?|xlsx?|odt|odp|txt|html?|zip)$/i, "");
     t = t.replace(/[_]+/g, " ").replace(/(\D)-(\D)/g, "$1 $2").replace(/\s+/g, " ").trim();
+    t = t.replace(/([a-zà-ÿ]{3,})([A-ZÀ-Ý])/g, "$1 $2")                    // « PrésentationElectrique »
+      .replace(/\b([a-zà-ÿ]{4,})(\d{1,2})\b/gi, "$1 $2");                  // « additionnel1 »
     t = t.replace(/^\d{1,3}\s*(?:[-.)]\s*|\s+)(?=\D)/, "");                 // « 01 - », « 03-Puissance » en tête
     t = t.replace(/^(cours|CM|TD|TP)\s+S\d\s+(?=\d)/i, "$1 ");                // « Cours S1 2 … » : semestre inutile
     const fichier = !/\s/.test(String(s || "").trim());   // « cm3_cpu » : un nom de fichier, pas un titre
@@ -47,7 +49,7 @@
     return t.charAt(0).toUpperCase() + t.slice(1);
   }
 
-  function moodleNom(f) {
+  function moodleNom(f, avecContenu = true) {
     const doc = demojibake(f.doc).trim();
     if (!doc) return "";
     // dossier Moodle : « Nom du dossier : nom du fichier »
@@ -71,6 +73,7 @@
     // la matière répétée dans le nom du document : inutile
     nom = sansMatiere(nom, f.matiere) || nom;
     // entre parenthèses : ce qu'il y a dedans (d'après l'IA), en court, si ça apporte quelque chose
+    if (!avecContenu) return nom;
     const ia = sansMatiere(iaTitre(f), f.matiere).replace(/^(cours|chapitre|tp|td|cm)\s*\d*\s*[:·.-]?\s+/i, "");
     const deja = new Set(words(nom));
     // on enlève le début du titre de l'IA qui répète le nom (« Le CPU : fonctionnement… » → « fonctionnement… »)
@@ -111,6 +114,9 @@
       return (b.date || "").localeCompare(a.date || "");
     });
   };
+
+  // nom Moodle nettoyé, sans le contenu entre parenthèses (listes de choix)
+  window.docNom = (f) => moodleNom(f, false) || demojibake(f.titre) || "Support";
 
   // révisions, QCM, cartes : le titre que l'IA a donné, tel quel
   window.iaNom = (x, defaut) => iaTitre(x) || defaut || "";
