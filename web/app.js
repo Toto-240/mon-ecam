@@ -52,8 +52,23 @@ function events() {
       matiere: p.matiere, titre: `DS ${p.matiere}`, debut, fin, salle: p.salle || cours?.salle || "", prof: cours?.prof || "",
       d0: new Date(debut), d1: new Date(fin) });
   }
+  // DS reportés (date changée à la main) : déplacés, mais gardent leur repère d'origine
+  const reps = window.dsReports?.() || {};
+  if (Object.keys(reps).length) for (const e of evs) {
+    if (e.type !== "DS" && e.type !== "Événement") continue;
+    const k = e.persoId || `${norm(e.matiere)}|${e.debut.slice(0, 10)}`;
+    const r = reps[k];
+    if (!r?.date) continue;
+    const dur = Math.max(0, e.d1 - e.d0);
+    const debut = `${r.date}T${r.heure || e.debut.slice(11, 16) || "08:00"}:00`;
+    Object.assign(e, { reportDe: e.debut, reportKey: k, debut, d0: new Date(debut) });
+    e.d1 = new Date(e.d0.getTime() + dur);
+    e.fin = isoLocal(e.d1);
+    if (r.heure) e.sansHeure = false;
+  }
   return evs.filter((e) => !isNaN(e.d0)).sort((a, b) => a.d0 - b.d0);
 }
+const isoLocal = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:00`;
 const addHour = (hm) => { const [h, m] = hm.split(":").map(Number); return `${String(Math.min(h + 2, 23)).padStart(2, "0")}:${String(m).padStart(2, "0")}`; };
 
 function kindLabel(t) {

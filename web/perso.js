@@ -7,7 +7,7 @@
 const PERSO_PATH = "/contents/perso/etat.enc";
 const PERSO_BASE = "ecam-perso-base";     // dernier état connu de GitHub
 const PERSO_PENDING = "ecam-perso-ops";   // changements pas encore envoyés
-const emptyPerso = () => ({ faits: {}, ds: [], dsSel: {}, dsFinis: {}, devoirs: [], memos: [], cloud: [], rappels: [], scores: [], activites: {}, dsVus: {}, maj: "" });
+const emptyPerso = () => ({ faits: {}, ds: [], dsSel: {}, dsFinis: {}, devoirs: [], memos: [], cloud: [], rappels: [], scores: [], activites: {}, dsVus: {}, dsReports: {}, maj: "" });
 
 const persoStore = {
   get(k, def) { try { return JSON.parse(store.get(k)) ?? def; } catch { return def; } },
@@ -16,7 +16,7 @@ const persoStore = {
 
 /* Un changement = une petite opération, rejouée sur la version de GitHub au moment d'envoyer */
 function applyOp(s, op) {
-  s = { ...emptyPerso(), ...s, faits: { ...(s?.faits || {}) }, ds: [...(s?.ds || [])], dsSel: { ...(s?.dsSel || {}) }, dsFinis: { ...(s?.dsFinis || {}) }, devoirs: [...(s?.devoirs || [])], memos: [...(s?.memos || [])], cloud: [...(s?.cloud || [])], rappels: [...(s?.rappels || [])], scores: [...(s?.scores || [])], activites: { ...(s?.activites || {}) }, dsVus: { ...(s?.dsVus || {}) } };
+  s = { ...emptyPerso(), ...s, faits: { ...(s?.faits || {}) }, ds: [...(s?.ds || [])], dsSel: { ...(s?.dsSel || {}) }, dsFinis: { ...(s?.dsFinis || {}) }, devoirs: [...(s?.devoirs || [])], memos: [...(s?.memos || [])], cloud: [...(s?.cloud || [])], rappels: [...(s?.rappels || [])], scores: [...(s?.scores || [])], activites: { ...(s?.activites || {}) }, dsVus: { ...(s?.dsVus || {}) }, dsReports: { ...(s?.dsReports || {}) } };
   if (op.op === "fait") {
     if (op.val) s.faits[op.key] = op.val; else delete s.faits[op.key];
   } else if (op.op === "ds+") {
@@ -49,6 +49,8 @@ function applyOp(s, op) {
     s.devoirs = s.devoirs.filter((d) => d.id !== op.id);
   } else if (op.op === "dsfini") {
     if (op.val) s.dsFinis[op.key] = op.val; else delete s.dsFinis[op.key];
+  } else if (op.op === "dsreport") {
+    if (op.val) s.dsReports[op.key] = op.val; else delete s.dsReports[op.key];   // DS reporté : nouvelle date
   } else if (op.op === "dssel") {
     if (Array.isArray(op.exclus)) s.dsSel[op.key] = op.exclus; else delete s.dsSel[op.key];   // [] = tout coché, choisi par toi
   } else if (op.op === "ds-") {
@@ -64,6 +66,7 @@ function prune(s) {
   s.faits = Object.fromEntries(Object.entries(s.faits).filter(([, v]) => v >= old));
   s.dsFinis = Object.fromEntries(Object.entries(s.dsFinis || {}).filter(([, v]) => v >= old));
   s.ds = s.ds.filter((d) => (d.date || "") >= dsOld);
+  s.dsReports = Object.fromEntries(Object.entries(s.dsReports || {}).filter(([, v]) => (v?.date || "") >= dsOld));
   s.devoirs = (s.devoirs || []).filter((d) => (d.echeance || "") >= dsOld);
   s.memos = (s.memos || []).filter((m) => !m.fait || m.fait >= dsOld);   // faits gardés 2 mois
   s.rappels = (s.rappels || []).filter((r) => (r.quand || "") >= dsOld);    // passés depuis 2 mois : oubliés
@@ -209,6 +212,8 @@ window.addPersoDS = (ds) => persoChange({ op: "ds+", ds });
 window.delPersoDS = (id) => persoChange({ op: "ds-", id });
 window.dsExclus = (key) => PERSO.dsSel?.[key];   // undefined : jamais choisi (sélection par défaut)
 window.setDsExclus = (key, exclus) => persoChange({ op: "dssel", key, exclus });
+window.dsReports = () => PERSO.dsReports || {};
+window.setDsReport = (key, val) => persoChange({ op: "dsreport", key, val: val || null });
 window.dsFini = (key) => !!PERSO.dsFinis?.[key];
 window.setDsFini = (key, on) => persoChange({ op: "dsfini", key, val: on ? new Date().toISOString() : null });
 

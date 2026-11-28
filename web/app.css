@@ -998,3 +998,11 @@ html.printing .reader, html.printing #print-sheet { display: none !important; }
 .rec-saved .ok { color: var(--ok, #1E7A3C); }
 .rec-saved .ko { color: var(--danger, #B42318); }
 .rec-mode .check { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0; font-size: .92rem; }
+
+/* DS reporté */
+.ds-report-btn { display: block; margin-top: 4px; font-size: .75rem; opacity: .75; background: none; border: 0; padding: 2px 0; color: inherit; text-decoration: underline; cursor: pointer; }
+.ds-report { margin-top: 8px; padding: 10px; border-radius: 10px; background: color-mix(in srgb, var(--ds, #E8772E) 8%, transparent); }
+.ds-report label { display: block; margin-bottom: 6px; }
+.ds-report .field { margin-top: 2px; }
+.chg-report { margin-top: 6px; display: inline-block; font-weight: 700; background: color-mix(in srgb, #D97706 18%, transparent); color: #B45309; }
+@media (prefers-color-scheme: dark) { .chg-report { color: #FBBF24; } }

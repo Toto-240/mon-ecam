@@ -24,7 +24,7 @@ function profSaid(fiches) {
 }
 
 /* Un DS est repéré par son id (DS ajouté à la main) ou sa matière + son jour */
-const dsKey = (e) => e.persoId || `${norm(e.matiere)}|${e.debut.slice(0, 10)}`;
+const dsKey = (e) => e.reportKey || e.persoId || `${norm(e.matiere)}|${e.debut.slice(0, 10)}`;
 const dsOpen = new Set();
 
 /* DS marqués « terminés » : rangés à part, plus comptés dans le badge */
@@ -236,7 +236,7 @@ window.renderDS = function () {
     const exclus = new Set(choix || (auto?.length ? fs.filter((f) => !auto.includes(f)).map((f) => f.id) : []));
     const chosen = fs.filter((f) => !exclus.has(f.id));
     // révision faite pour ce DS (avec ta sélection), sinon celle de la matière
-    const r = revs.find((x) => x.ds === e.debut && sameMatiere(x.matiere, e.matiere))
+    const r = revs.find((x) => (x.ds === e.debut || (e.reportDe && x.ds === e.reportDe)) && sameMatiere(x.matiere, e.matiere))
       || revs.find((x) => !x.ds && !x.choix && sameMatiere(x.matiere, e.matiere));
     const sameSel = r?.fiches ? [...r.fiches].sort().join() === chosen.map((f) => f.id).sort().join() : false;
     const stale = r && (r.ds ? !sameSel : true);
@@ -250,6 +250,17 @@ window.renderDS = function () {
           <h3>${esc(e.matiere)}</h3>
           <div class="ds-when">${esc(fmtDayLong(e.d0))}, ${e.sansHeure ? "heure à préciser" : `${fmtTime(e.d0)}–${fmtTime(e.d1)}`}${e.salle ? `, salle ${esc(e.salle)}` : ""}${e.heureCours ? ` <span class="muted">(pendant le cours)</span>` : ""}</div>
           ${e.prof ? `<div class="ds-when">${esc(e.prof)}</div>` : ""}
+          ${e.reportDe ? `<div class="chg chg-report">Reporté · prévu avant le ${esc(fmtDayLong(new Date(e.reportDe)))}</div>` : ""}
+          <button type="button" class="linkish ds-report-btn" data-ds-report="${i}">${e.reportDe ? "Changer la date du report" : "DS reporté ?"}</button>
+          <div class="ds-report" id="ds-report-${i}" hidden>
+            <label class="small">Nouvelle date <input type="date" class="field" data-rep-date value="${esc(e.reportDe ? e.debut.slice(0, 10) : "")}"></label>
+            <label class="small">Heure (si elle change) <input type="time" class="field" data-rep-heure value="${esc(e.reportDe && !e.sansHeure ? e.debut.slice(11, 16) : "")}"></label>
+            <div class="row tight">
+              <button type="button" class="btn small primary" data-rep-ok="${esc(dsKey(e))}">Reporter</button>
+              ${e.reportDe ? `<button type="button" class="btn small" data-rep-off="${esc(dsKey(e))}">Annuler le report</button>` : ""}
+            </div>
+            <p class="small muted" data-rep-msg></p>
+          </div>
           ${e.perso ? `<div class="chg chg-oral">${e.auto ? "Repéré dans tes notes" : "Annoncé à l'oral"}, pas encore dans le planning</div>` : ""}
         </div>
         <div class="ds-count"><b>${days <= 0 ? "Auj." : days}</b><span>${days <= 0 ? "" : days === 1 ? "jour" : "jours"}</span></div>
@@ -285,6 +296,17 @@ window.renderDS = function () {
     </article>`;
   }).join("");
 
+  box.querySelectorAll("[data-ds-report]").forEach((b) => {
+    b.onclick = () => { const f = $(`#ds-report-${b.dataset.dsReport}`); f.hidden = !f.hidden; if (!f.hidden) f.querySelector("[data-rep-date]").focus(); };
+  });
+  box.querySelectorAll("[data-rep-ok]").forEach((b) => {
+    b.onclick = () => {
+      const f = b.closest(".ds-report"), date = f.querySelector("[data-rep-date]").value, heure = f.querySelector("[data-rep-heure]").value;
+      if (!date) { f.querySelector("[data-rep-msg]").textContent = "Choisis la nouvelle date."; return; }
+      window.setDsReport?.(b.dataset.repOk, { date, heure: heure || "" });
+    };
+  });
+  box.querySelectorAll("[data-rep-off]").forEach((b) => { b.onclick = () => window.setDsReport?.(b.dataset.repOff, null); });
   box.querySelectorAll("[data-ds-fini]").forEach((b) => { b.onclick = () => window.setDsFini?.(b.dataset.dsFini, true); });
   box.querySelectorAll("[data-ds-del]").forEach((b) => {
     b.onclick = () => {
